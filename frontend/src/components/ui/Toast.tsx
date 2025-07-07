@@ -1,17 +1,65 @@
+/**
+ * 토스트 알림 컴포넌트
+ * 
+ * 사용자에게 임시 알림 메시지를 표시하는 토스트 컴포넌트입니다.
+ * 자동으로 사라지며, 다양한 타입의 메시지를 지원합니다.
+ * 
+ * 주요 기능:
+ * - 4가지 메시지 타입 (success, error, info, warning)
+ * - 자동 사라짐 (커스텀 지속 시간)
+ * - 수동 닫기 버튼
+ * - 애니메이션 효과
+ * - 아이콘 표시
+ * - 우상단 고정 위치
+ */
+
 import React, { useEffect, useState } from 'react';
 import { Check, X } from 'lucide-react';
 import { cn } from '@/utils/cn';
 
+/** 토스트 메시지 타입 */
 export type ToastType = 'success' | 'error' | 'info' | 'warning';
 
+/**
+ * Toast 컴포넌트의 Props 인터페이스
+ */
 export interface ToastProps {
+  /** 표시할 메시지 */
   message: string;
+  /** 메시지 타입 (기본값: 'info') */
   type?: ToastType;
+  /** 표시 지속 시간 (ms, 기본값: 3000) */
   duration?: number;
+  /** 토스트 닫기 핸들러 */
   onClose: () => void;
+  /** 토스트 표시 여부 */
   visible: boolean;
 }
 
+/**
+ * 토스트 알림 컴포넌트
+ * 
+ * 사용자에게 임시 알림 메시지를 표시하는 컴포넌트입니다.
+ * 지정된 시간 후 자동으로 사라지며, 사용자가 수동으로 닫을 수도 있습니다.
+ * 
+ * @param {ToastProps} props - 컴포넌트 props
+ * @param {string} props.message - 표시할 메시지
+ * @param {'success' | 'error' | 'info' | 'warning'} [props.type='info'] - 메시지 타입
+ * @param {number} [props.duration=3000] - 표시 지속 시간 (ms)
+ * @param {() => void} props.onClose - 토스트 닫기 핸들러
+ * @param {boolean} props.visible - 토스트 표시 여부
+ * @returns {JSX.Element} 토스트 컴포넌트
+ * 
+ * @example
+ * ```tsx
+ * <Toast 
+ *   message="저장되었습니다" 
+ *   type="success" 
+ *   visible={true}
+ *   onClose={handleClose}
+ * />
+ * ```
+ */
 const Toast: React.FC<ToastProps> = ({
   message,
   type = 'info',
@@ -19,6 +67,7 @@ const Toast: React.FC<ToastProps> = ({
   onClose,
   visible
 }) => {
+  // 자동 사라짐 타이머 설정
   useEffect(() => {
     if (visible) {
       const timer = setTimeout(() => {
@@ -29,6 +78,7 @@ const Toast: React.FC<ToastProps> = ({
     }
   }, [visible, duration, onClose]);
 
+  // 타입별 아이콘 맵핑
   const icons = {
     success: <Check className="w-5 h-5 text-green-500" />,
     error: <X className="w-5 h-5 text-red-500" />,
@@ -44,6 +94,7 @@ const Toast: React.FC<ToastProps> = ({
     )
   };
 
+  // 타입별 배경색 맵핑
   const bgColors = {
     success: 'bg-green-50 border-green-200',
     error: 'bg-red-50 border-red-200',
@@ -51,6 +102,7 @@ const Toast: React.FC<ToastProps> = ({
     warning: 'bg-yellow-50 border-yellow-200'
   };
 
+  // 타입별 텍스트 색상 맵핑
   const textColors = {
     success: 'text-green-800',
     error: 'text-red-800',
@@ -66,14 +118,19 @@ const Toast: React.FC<ToastProps> = ({
       visible ? "translate-x-0 opacity-100" : "translate-x-full opacity-0"
     )}>
       <div className="flex items-start">
+        {/* 아이콘 영역 */}
         <div className="flex-shrink-0">
           {icons[type]}
         </div>
+        
+        {/* 메시지 영역 */}
         <div className="ml-3">
           <p className={cn("text-sm font-medium", textColors[type])}>
             {message}
           </p>
         </div>
+        
+        {/* 닫기 버튼 */}
         <div className="ml-auto pl-3">
           <div className="-mx-1.5 -my-1.5">
             <button
