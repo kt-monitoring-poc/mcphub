@@ -1,17 +1,73 @@
+/**
+ * 확인 다이얼로그 컴포넌트
+ * 
+ * 사용자에게 중요한 작업의 확인을 요청하는 모달 다이얼로그입니다.
+ * 다양한 변형(위험, 경고, 정보)과 커스터마이징 옵션을 제공합니다.
+ * 
+ * 주요 기능:
+ * - 3가지 변형 (danger, warning, info)
+ * - 커스텀 제목/메시지/버튼 텍스트
+ * - 키보드 지원 (Escape, Enter)
+ * - 배경 클릭으로 닫기
+ * - 접근성 지원 (ARIA)
+ * - 애니메이션 효과
+ * - 아이콘 표시
+ */
+
 import React from 'react';
 import { useTranslation } from 'react-i18next';
 
+/**
+ * ConfirmDialog 컴포넌트의 Props 인터페이스
+ */
 interface ConfirmDialogProps {
+  /** 다이얼로그 열림 상태 */
   isOpen: boolean;
+  /** 다이얼로그 닫기 핸들러 */
   onClose: () => void;
+  /** 확인 핸들러 */
   onConfirm: () => void;
+  /** 다이얼로그 제목 (선택적) */
   title?: string;
+  /** 확인 메시지 */
   message: string;
+  /** 확인 버튼 텍스트 (선택적) */
   confirmText?: string;
+  /** 취소 버튼 텍스트 (선택적) */
   cancelText?: string;
+  /** 다이얼로그 변형 (기본값: 'warning') */
   variant?: 'danger' | 'warning' | 'info';
 }
 
+/**
+ * 확인 다이얼로그 컴포넌트
+ * 
+ * 사용자에게 중요한 작업의 확인을 요청하는 모달 다이얼로그입니다.
+ * 변형에 따라 적절한 아이콘과 색상을 표시합니다.
+ * 
+ * @param {ConfirmDialogProps} props - 컴포넌트 props
+ * @param {boolean} props.isOpen - 다이얼로그 열림 상태
+ * @param {() => void} props.onClose - 다이얼로그 닫기 핸들러
+ * @param {() => void} props.onConfirm - 확인 핸들러
+ * @param {string} [props.title] - 다이얼로그 제목
+ * @param {string} props.message - 확인 메시지
+ * @param {string} [props.confirmText] - 확인 버튼 텍스트
+ * @param {string} [props.cancelText] - 취소 버튼 텍스트
+ * @param {'danger' | 'warning' | 'info'} [props.variant='warning'] - 다이얼로그 변형
+ * @returns {JSX.Element | null} 확인 다이얼로그 또는 null
+ * 
+ * @example
+ * ```tsx
+ * <ConfirmDialog
+ *   isOpen={showConfirm}
+ *   onClose={() => setShowConfirm(false)}
+ *   onConfirm={handleDelete}
+ *   title="삭제 확인"
+ *   message="정말로 삭제하시겠습니까?"
+ *   variant="danger"
+ * />
+ * ```
+ */
 const ConfirmDialog: React.FC<ConfirmDialogProps> = ({
   isOpen,
   onClose,
@@ -24,8 +80,14 @@ const ConfirmDialog: React.FC<ConfirmDialogProps> = ({
 }) => {
   const { t } = useTranslation();
 
+  // 다이얼로그가 닫혀있으면 렌더링하지 않음
   if (!isOpen) return null;
 
+  /**
+   * 변형별 스타일을 반환하는 함수
+   * 
+   * @returns {Object} 아이콘과 확인 버튼 클래스를 포함한 스타일 객체
+   */
   const getVariantStyles = () => {
     switch (variant) {
       case 'danger':
@@ -65,12 +127,22 @@ const ConfirmDialog: React.FC<ConfirmDialogProps> = ({
 
   const { icon, confirmClass } = getVariantStyles();
 
+  /**
+   * 배경 클릭 핸들러
+   * 
+   * @param {React.MouseEvent} e - 마우스 클릭 이벤트
+   */
   const handleBackdropClick = (e: React.MouseEvent) => {
     if (e.target === e.currentTarget) {
       onClose();
     }
   };
 
+  /**
+   * 키보드 이벤트 핸들러
+   * 
+   * @param {React.KeyboardEvent} e - 키보드 이벤트
+   */
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Escape') {
       onClose();
@@ -94,12 +166,16 @@ const ConfirmDialog: React.FC<ConfirmDialogProps> = ({
         aria-describedby="confirm-dialog-message"
       >
         <div className="p-6">
+          {/* 아이콘과 메시지 영역 */}
           <div className="flex items-start space-x-3">
+            {/* 변형별 아이콘 */}
             {icon && (
               <div className="flex-shrink-0">
                 {icon}
               </div>
             )}
+            
+            {/* 제목과 메시지 */}
             <div className="flex-1">
               {title && (
                 <h3
@@ -118,7 +194,9 @@ const ConfirmDialog: React.FC<ConfirmDialogProps> = ({
             </div>
           </div>
 
+          {/* 액션 버튼들 */}
           <div className="flex justify-end space-x-3 mt-6">
+            {/* 취소 버튼 */}
             <button
               onClick={onClose}
               className="px-4 py-2 text-gray-600 hover:text-gray-800 hover:bg-gray-100 rounded-md transition-colors duration-150 btn-secondary"
@@ -126,6 +204,8 @@ const ConfirmDialog: React.FC<ConfirmDialogProps> = ({
             >
               {cancelText || t('common.cancel')}
             </button>
+            
+            {/* 확인 버튼 */}
             <button
               onClick={onConfirm}
               className={`px-4 py-2 rounded-md transition-colors duration-150 focus:outline-none focus:ring-2 focus:ring-offset-2 ${confirmClass} ${variant === 'danger' ? 'btn-danger' : variant === 'warning' ? 'btn-warning' : 'btn-primary'}`}
