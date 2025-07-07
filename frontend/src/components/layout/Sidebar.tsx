@@ -1,25 +1,59 @@
+/**
+ * 사이드바 컴포넌트
+ * 
+ * 애플리케이션의 주요 네비게이션을 담당하는 사이드바 컴포넌트입니다.
+ * 접을 수 있는 네비게이션 메뉴와 사용자 프로필 메뉴를 제공합니다.
+ * 
+ * 주요 기능:
+ * - 접을 수 있는 네비게이션 메뉴
+ * - 대시보드, 서버, 그룹, 마켓, 로그 페이지 링크
+ * - 활성 페이지 하이라이트
+ * - 사용자 프로필 메뉴
+ * - 버전 정보 표시
+ */
+
 import React from 'react';
 import { useTranslation } from 'react-i18next';
 import { NavLink } from 'react-router-dom';
 import UserProfileMenu from '@/components/ui/UserProfileMenu';
 
+/**
+ * Sidebar 컴포넌트의 Props 인터페이스
+ */
 interface SidebarProps {
+  /** 사이드바 접힘 상태 */
   collapsed: boolean;
 }
 
+/**
+ * 메뉴 아이템 인터페이스
+ */
 interface MenuItem {
+  /** 라우트 경로 */
   path: string;
+  /** 메뉴 라벨 */
   label: string;
+  /** 메뉴 아이콘 */
   icon: React.ReactNode;
 }
 
+/**
+ * 사이드바 컴포넌트
+ * 
+ * 애플리케이션의 주요 네비게이션을 제공하는 사이드바를 렌더링합니다.
+ * 접을 수 있는 구조로 되어 있으며, 각 페이지로의 링크를 제공합니다.
+ * 
+ * @param {SidebarProps} props - 컴포넌트 props
+ * @param {boolean} props.collapsed - 사이드바 접힘 상태
+ * @returns {JSX.Element} 사이드바 컴포넌트
+ */
 const Sidebar: React.FC<SidebarProps> = ({ collapsed }) => {
   const { t } = useTranslation();
 
-  // Application version from package.json (accessed via Vite environment variables)
+  // package.json에서 가져온 애플리케이션 버전 (Vite 환경 변수를 통해 접근)
   const appVersion = import.meta.env.PACKAGE_VERSION as string;
 
-  // Menu item configuration
+  // 메뉴 아이템 구성
   const menuItems: MenuItem[] = [
     {
       path: '/',
@@ -74,7 +108,7 @@ const Sidebar: React.FC<SidebarProps> = ({ collapsed }) => {
       className={`bg-white dark:bg-gray-800 shadow-sm transition-all duration-300 ease-in-out flex flex-col h-full relative ${collapsed ? 'w-16' : 'w-64'
         }`}
     >
-      {/* Scrollable navigation area */}
+      {/* 스크롤 가능한 네비게이션 영역 */}
       <div className="overflow-y-auto flex-grow">
         <nav className="p-3 space-y-1">
           {menuItems.map((item) => (
@@ -96,7 +130,7 @@ const Sidebar: React.FC<SidebarProps> = ({ collapsed }) => {
         </nav>
       </div>
 
-      {/* User profile menu fixed at the bottom */}
+      {/* 하단에 고정된 사용자 프로필 메뉴 */}
       <div className="p-3 bg-white dark:bg-gray-800">
         <UserProfileMenu collapsed={collapsed} version={appVersion} />
       </div>

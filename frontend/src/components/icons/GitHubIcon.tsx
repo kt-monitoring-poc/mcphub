@@ -1,5 +1,33 @@
+/**
+ * GitHub 아이콘 컴포넌트
+ * 
+ * GitHub 브랜드의 공식 SVG 아이콘을 렌더링하는 컴포넌트입니다.
+ * currentColor를 사용하여 부모 요소의 색상을 상속받습니다.
+ * 
+ * 주요 특징:
+ * - GitHub 공식 브랜드 아이콘
+ * - 24x24 기본 크기
+ * - currentColor 지원
+ * - 접근성 지원 (role="img", title)
+ * - 모든 SVG props 지원
+ */
+
 import React from 'react';
 
+/**
+ * GitHub 아이콘 컴포넌트
+ * 
+ * GitHub 플랫폼의 공식 로고 아이콘을 SVG로 렌더링합니다.
+ * 
+ * @param {React.SVGProps<SVGSVGElement>} props - SVG 요소의 모든 props
+ * @returns {JSX.Element} GitHub 아이콘 SVG 요소
+ * 
+ * @example
+ * ```tsx
+ * <GitHubIcon className="w-6 h-6 text-gray-800" />
+ * <GitHubIcon width={32} height={32} fill="#333" />
+ * ```
+ */
 export const GitHubIcon: React.FC<React.SVGProps<SVGSVGElement>> = (props) => {
   return (
     <svg
@@ -16,6 +44,5 @@ export const GitHubIcon: React.FC<React.SVGProps<SVGSVGElement>> = (props) => {
     </svg>
   );
 };
-
 
 export default GitHubIcon;

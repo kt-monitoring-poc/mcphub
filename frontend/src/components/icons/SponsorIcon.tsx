@@ -1,5 +1,33 @@
+/**
+ * 후원 아이콘 컴포넌트
+ * 
+ * 후원/스폰서를 나타내는 하트 모양의 SVG 아이콘을 렌더링하는 컴포넌트입니다.
+ * currentColor를 사용하여 부모 요소의 색상을 상속받습니다.
+ * 
+ * 주요 특징:
+ * - 하트 모양의 후원 아이콘
+ * - 24x24 기본 크기
+ * - currentColor 지원
+ * - 접근성 지원 (role="img", title)
+ * - 모든 SVG props 지원
+ */
+
 import React from 'react';
 
+/**
+ * 후원 아이콘 컴포넌트
+ * 
+ * 후원/스폰서 기능을 나타내는 하트 모양의 아이콘을 SVG로 렌더링합니다.
+ * 
+ * @param {React.SVGProps<SVGSVGElement>} props - SVG 요소의 모든 props
+ * @returns {JSX.Element} 후원 아이콘 SVG 요소
+ * 
+ * @example
+ * ```tsx
+ * <SponsorIcon className="w-6 h-6 text-red-500" />
+ * <SponsorIcon width={32} height={32} fill="#ff4757" />
+ * ```
+ */
 export const SponsorIcon: React.FC<React.SVGProps<SVGSVGElement>> = (props) => {
   return (
     <svg
