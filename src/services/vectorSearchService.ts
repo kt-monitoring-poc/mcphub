@@ -1,3 +1,19 @@
+/**
+ * 벡터 검색 서비스
+ * 
+ * OpenAI 임베딩 API를 사용하여 MCP 도구들의 벡터 임베딩을 생성하고,
+ * 의미론적 유사성 검색을 제공하는 서비스입니다.
+ * PostgreSQL의 pgvector 확장을 사용하여 벡터 데이터를 저장하고 검색합니다.
+ * 
+ * 주요 기능:
+ * - OpenAI 임베딩 API를 통한 텍스트 벡터화
+ * - 폴백 임베딩 생성 (API 사용 불가 시)
+ * - 도구 정보의 벡터 임베딩 저장
+ * - 의미론적 유사성 기반 도구 검색
+ * - 벡터 차원 호환성 관리
+ * - 서버별 도구 임베딩 동기화
+ */
+
 import { getRepositoryFactory } from '../db/index.js';
 import { VectorEmbeddingRepository } from '../db/repositories/index.js';
 import { ToolInfo } from '../types/index.js';
@@ -5,7 +21,11 @@ import { getAppDataSource, initializeDatabase } from '../db/connection.js';
 import { getSmartRoutingConfig } from '../utils/smartRouting.js';
 import OpenAI from 'openai';
 
-// Get OpenAI configuration from smartRouting settings or fallback to environment variables
+/**
+ * 스마트 라우팅 설정에서 OpenAI 구성 조회
+ * 
+ * @returns {object} OpenAI API 키, 베이스 URL, 임베딩 모델 설정
+ */
 const getOpenAIConfig = () => {
   const smartRoutingConfig = getSmartRoutingConfig();
   return {
@@ -15,12 +35,19 @@ const getOpenAIConfig = () => {
   };
 };
 
-// Constants for embedding models
-const EMBEDDING_DIMENSIONS = 1536; // OpenAI's text-embedding-3-small outputs 1536 dimensions
-const BGE_DIMENSIONS = 1024; // BAAI/bge-m3 outputs 1024 dimensions
-const FALLBACK_DIMENSIONS = 100; // Fallback implementation uses 100 dimensions
+/**
+ * 임베딩 모델별 벡터 차원 상수
+ */
+const EMBEDDING_DIMENSIONS = 1536; // OpenAI의 text-embedding-3-small 출력 차원
+const BGE_DIMENSIONS = 1024; // BAAI/bge-m3 출력 차원
+const FALLBACK_DIMENSIONS = 100; // 폴백 구현 차원
 
-// Get dimensions for a model
+/**
+ * 모델에 따른 벡터 차원 수 조회
+ * 
+ * @param {string} model - 임베딩 모델 이름
+ * @returns {number} 해당 모델의 벡터 차원 수
+ */
 const getDimensionsForModel = (model: string): number => {
   if (model.includes('bge-m3')) {
     return BGE_DIMENSIONS;
@@ -29,50 +56,54 @@ const getDimensionsForModel = (model: string): number => {
   } else if (model === 'fallback' || model === 'simple-hash') {
     return FALLBACK_DIMENSIONS;
   }
-  // Default to OpenAI dimensions
+  // 기본값으로 OpenAI 차원 사용
   return EMBEDDING_DIMENSIONS;
 };
 
-// Initialize the OpenAI client with smartRouting configuration
+/**
+ * 스마트 라우팅 설정으로 OpenAI 클라이언트 초기화
+ * 
+ * @returns {OpenAI} 설정된 OpenAI 클라이언트 인스턴스
+ */
 const getOpenAIClient = () => {
   const config = getOpenAIConfig();
   return new OpenAI({
-    apiKey: config.apiKey, // Get API key from smartRouting settings or environment variables
-    baseURL: config.baseURL, // Get base URL from smartRouting settings or fallback to default
+    apiKey: config.apiKey, // 스마트 라우팅 설정 또는 환경변수에서 API 키 조회
+    baseURL: config.baseURL, // 스마트 라우팅 설정 또는 기본 URL 사용
   });
 };
 
 /**
- * Generate text embedding using OpenAI's embedding model
+ * OpenAI 임베딩 모델을 사용한 텍스트 임베딩 생성
  *
- * NOTE: embeddings are 1536 dimensions by default.
- * If you previously used the fallback implementation (100 dimensions),
- * you may need to rebuild your vector database indices after switching.
+ * 주의: 임베딩은 기본적으로 1536차원입니다.
+ * 이전에 폴백 구현(100차원)을 사용했다면,
+ * 전환 후 벡터 데이터베이스 인덱스를 재구축해야 할 수 있습니다.
  *
- * @param text Text to generate embeddings for
- * @returns Promise with vector embedding as number array
+ * @param {string} text - 임베딩을 생성할 텍스트
+ * @returns {Promise<number[]>} 벡터 임베딩 배열
  */
 async function generateEmbedding(text: string): Promise<number[]> {
   try {
     const config = getOpenAIConfig();
     const openai = getOpenAIClient();
 
-    // Check if API key is configured
+    // API 키 설정 확인
     if (!openai.apiKey) {
       console.warn('OpenAI API key is not configured. Using fallback embedding method.');
       return generateFallbackEmbedding(text);
     }
 
-    // Truncate text if it's too long (OpenAI has token limits)
+    // 텍스트가 너무 긴 경우 자르기 (OpenAI 토큰 제한)
     const truncatedText = text.length > 8000 ? text.substring(0, 8000) : text;
 
-    // Call OpenAI's embeddings API
+    // OpenAI 임베딩 API 호출
     const response = await openai.embeddings.create({
-      model: config.embeddingModel, // Modern model with better performance
+      model: config.embeddingModel, // 더 나은 성능의 최신 모델
       input: truncatedText,
     });
 
-    // Return the embedding
+    // 임베딩 반환
     return response.data[0].embedding;
   } catch (error) {
     console.error('Error generating embedding:', error);
@@ -82,86 +113,32 @@ async function generateEmbedding(text: string): Promise<number[]> {
 }
 
 /**
- * Fallback embedding function using a simple approach when OpenAI API is unavailable
- * @param text Text to generate embeddings for
- * @returns Vector embedding as number array
+ * OpenAI API를 사용할 수 없을 때의 폴백 임베딩 함수
+ * 
+ * 간단한 어휘 기반 접근법을 사용하여 임베딩을 생성합니다.
+ * 
+ * @param {string} text - 임베딩을 생성할 텍스트
+ * @returns {number[]} 벡터 임베딩 배열
  */
 function generateFallbackEmbedding(text: string): number[] {
   const words = text.toLowerCase().split(/\s+/);
+  
+  // 사전 정의된 어휘 목록
   const vocabulary = [
-    'search',
-    'find',
-    'get',
-    'fetch',
-    'retrieve',
-    'query',
-    'map',
-    'location',
-    'weather',
-    'file',
-    'directory',
-    'email',
-    'message',
-    'send',
-    'create',
-    'update',
-    'delete',
-    'browser',
-    'web',
-    'page',
-    'click',
-    'navigate',
-    'screenshot',
-    'automation',
-    'database',
-    'table',
-    'record',
-    'insert',
-    'select',
-    'schema',
-    'data',
-    'image',
-    'photo',
-    'video',
-    'media',
-    'upload',
-    'download',
-    'convert',
-    'text',
-    'document',
-    'pdf',
-    'excel',
-    'word',
-    'format',
-    'parse',
-    'api',
-    'rest',
-    'http',
-    'request',
-    'response',
-    'json',
-    'xml',
-    'time',
-    'date',
-    'calendar',
-    'schedule',
-    'reminder',
-    'clock',
-    'math',
-    'calculate',
-    'number',
-    'sum',
-    'average',
-    'statistics',
-    'user',
-    'account',
-    'login',
-    'auth',
-    'permission',
-    'role',
+    'search', 'find', 'get', 'fetch', 'retrieve', 'query',
+    'map', 'location', 'weather', 'file', 'directory',
+    'email', 'message', 'send', 'create', 'update', 'delete',
+    'browser', 'web', 'page', 'click', 'navigate', 'screenshot', 'automation',
+    'database', 'table', 'record', 'insert', 'select', 'schema', 'data',
+    'image', 'photo', 'video', 'media', 'upload', 'download', 'convert',
+    'text', 'document', 'pdf', 'excel', 'word', 'format', 'parse',
+    'api', 'rest', 'http', 'request', 'response', 'json', 'xml',
+    'time', 'date', 'calendar', 'schedule', 'reminder', 'clock',
+    'math', 'calculate', 'number', 'sum', 'average', 'statistics',
+    'user', 'account', 'login', 'auth', 'permission', 'role',
   ];
 
-  // Create vector with fallback dimensions
+  // 폴백 차원으로 벡터 생성
   const vector = new Array(FALLBACK_DIMENSIONS).fill(0);
 
   words.forEach((word) => {
@@ -169,12 +146,12 @@ function generateFallbackEmbedding(text: string): number[] {
     if (index >= 0 && index < vector.length) {
       vector[index] += 1;
     }
-    // Add some randomness based on word hash
+    // 단어 해시를 기반으로 무작위성 추가
     const hash = word.split('').reduce((a, b) => a + b.charCodeAt(0), 0);
     vector[hash % vector.length] += 0.1;
   });
 
-  // Normalize the vector
+  // 벡터 정규화
   const magnitude = Math.sqrt(vector.reduce((sum, val) => sum + val * val, 0));
   if (magnitude > 0) {
     return vector.map((val) => val / magnitude);
@@ -184,9 +161,14 @@ function generateFallbackEmbedding(text: string): number[] {
 }
 
 /**
- * Save tool information as vector embeddings
- * @param serverName Server name
- * @param tools Array of tools to save
+ * 도구 정보를 벡터 임베딩으로 저장
+ * 
+ * 각 도구의 이름, 설명, 입력 스키마를 결합하여 검색 가능한 텍스트를 생성하고,
+ * 이를 벡터 임베딩으로 변환하여 데이터베이스에 저장합니다.
+ * 
+ * @param {string} serverName - 서버 이름
+ * @param {ToolInfo[]} tools - 저장할 도구 배열
+ * @returns {Promise<void>}
  */
 export const saveToolsAsVectorEmbeddings = async (
   serverName: string,
@@ -209,15 +191,15 @@ export const saveToolsAsVectorEmbeddings = async (
     )() as VectorEmbeddingRepository;
 
     for (const tool of tools) {
-      // Create searchable text from tool information
+      // 도구 정보에서 검색 가능한 텍스트 생성
       const searchableText = [
         tool.name,
         tool.description,
-        // Include input schema properties if available
+        // 입력 스키마 속성이 있는 경우 포함
         ...(tool.inputSchema && typeof tool.inputSchema === 'object'
           ? Object.keys(tool.inputSchema).filter((key) => key !== 'type' && key !== 'properties')
           : []),
-        // Include schema property names if available
+        // 스키마 속성 이름이 있는 경우 포함
         ...(tool.inputSchema &&
         tool.inputSchema.properties &&
         typeof tool.inputSchema.properties === 'object'
@@ -228,13 +210,13 @@ export const saveToolsAsVectorEmbeddings = async (
         .join(' ');
 
       try {
-        // Generate embedding
+        // 임베딩 생성
         const embedding = await generateEmbedding(searchableText);
 
-        // Check database compatibility before saving
+        // 저장 전 데이터베이스 호환성 확인
         await checkDatabaseVectorDimensions(embedding.length);
 
-        // Save embedding
+        // 임베딩 저장
         await vectorRepository.saveEmbedding(
           'tool',
           `${serverName}:${tool.name}`,
@@ -246,11 +228,11 @@ export const saveToolsAsVectorEmbeddings = async (
             description: tool.description,
             inputSchema: tool.inputSchema,
           },
-          config.embeddingModel, // Store the model used for this embedding
+          config.embeddingModel, // 이 임베딩에 사용된 모델 저장
         );
       } catch (toolError) {
         console.error(`Error processing tool ${tool.name} for server ${serverName}:`, toolError);
-        // Continue with the next tool rather than failing the whole batch
+        // 전체 배치를 실패시키지 않고 다음 도구로 계속
       }
     }
 
@@ -261,11 +243,16 @@ export const saveToolsAsVectorEmbeddings = async (
 };
 
 /**
- * Search for tools using vector similarity
- * @param query Search query text
- * @param limit Maximum number of results to return
- * @param threshold Similarity threshold (0-1)
- * @param serverNames Optional array of server names to filter by
+ * 벡터 유사성을 사용한 도구 검색
+ * 
+ * 검색 쿼리를 벡터로 변환하고 저장된 도구 임베딩과의 유사성을 계산하여
+ * 가장 관련성 높은 도구들을 반환합니다.
+ * 
+ * @param {string} query - 검색 쿼리 텍스트
+ * @param {number} [limit=10] - 반환할 최대 결과 수
+ * @param {number} [threshold=0.7] - 유사성 임계값 (0-1)
+ * @param {string[]} [serverNames] - 필터링할 서버 이름 배열 (선택사항)
+ * @returns {Promise<Array>} 검색 결과 배열 (서버명, 도구명, 설명, 유사성 점수 포함)
  */
 export const searchToolsByVector = async (
   query: string,
@@ -287,7 +274,7 @@ export const searchToolsByVector = async (
       'vectorEmbeddings',
     )() as VectorEmbeddingRepository;
 
-    // Search by text using vector similarity
+    // 벡터 유사성을 사용한 텍스트 검색
     const results = await vectorRepository.searchByText(
       query,
       generateEmbedding,
@@ -296,7 +283,7 @@ export const searchToolsByVector = async (
       ['tool'],
     );
 
-    // Filter by server names if provided
+    // 서버 이름으로 필터링 (제공된 경우)
     let filteredResults = results;
     if (serverNames && serverNames.length > 0) {
       filteredResults = results.filter((result) => {
@@ -312,16 +299,16 @@ export const searchToolsByVector = async (
       });
     }
 
-    // Transform results to a more useful format
+    // 결과를 더 유용한 형태로 변환
     return filteredResults.map((result) => {
-      // Check if we have metadata as a string that needs to be parsed
+      // 문자열로 저장된 메타데이터를 파싱해야 하는지 확인
       if (result.embedding?.metadata && typeof result.embedding.metadata === 'string') {
         try {
-          // Parse the metadata string as JSON
+          // 메타데이터 문자열을 JSON으로 파싱
           const parsedMetadata = JSON.parse(result.embedding.metadata);
 
           if (parsedMetadata.serverName && parsedMetadata.toolName) {
-            // We have properly structured metadata
+            // 제대로 구조화된 메타데이터가 있는 경우
             return {
               serverName: parsedMetadata.serverName,
               toolName: parsedMetadata.toolName,
@@ -333,22 +320,22 @@ export const searchToolsByVector = async (
           }
         } catch (error) {
           console.error('Error parsing metadata string:', error);
-          // Fall through to the extraction logic below
+          // 아래 추출 로직으로 진행
         }
       }
 
-      // Extract tool info from text_content if metadata is not available or parsing failed
+      // 메타데이터를 사용할 수 없거나 파싱에 실패한 경우 text_content에서 도구 정보 추출
       const textContent = result.embedding?.text_content || '';
 
-      // Extract toolName (first word of text_content)
+      // toolName 추출 (text_content의 첫 번째 단어)
       const toolNameMatch = textContent.match(/^(\S+)/);
       const toolName = toolNameMatch ? toolNameMatch[1] : '';
 
-      // Extract serverName from toolName if it follows the pattern "serverName_toolPart"
+      // toolName이 "serverName_toolPart" 패턴을 따르는 경우 serverName 추출
       const serverNameMatch = toolName.match(/^([^_]+)_/);
       const serverName = serverNameMatch ? serverNameMatch[1] : 'unknown';
 
-      // Extract description (everything after the first word)
+      // 설명 추출 (첫 번째 단어 이후의 모든 내용)
       const description = textContent.replace(/^\S+\s*/, '').trim();
 
       return {
@@ -367,8 +354,13 @@ export const searchToolsByVector = async (
 };
 
 /**
- * Get all available tools in vector database
- * @param serverNames Optional array of server names to filter by
+ * 벡터 데이터베이스의 모든 도구 조회
+ * 
+ * 저장된 모든 도구 임베딩을 조회하여 반환합니다.
+ * 선택적으로 서버 이름으로 필터링할 수 있습니다.
+ * 
+ * @param {string[]} [serverNames] - 필터링할 서버 이름 배열 (선택사항)
+ * @returns {Promise<Array>} 모든 벡터화된 도구 목록
  */
 export const getAllVectorizedTools = async (
   serverNames?: string[],
@@ -386,8 +378,8 @@ export const getAllVectorizedTools = async (
       'vectorEmbeddings',
     )() as VectorEmbeddingRepository;
 
-    // Try to determine what dimension our database is using
-    let dimensionsToUse = getDimensionsForModel(config.embeddingModel); // Default based on the model selected
+    // 데이터베이스가 사용하는 차원 결정 시도
+    let dimensionsToUse = getDimensionsForModel(config.embeddingModel); // 선택된 모델을 기반으로 한 기본값
 
     try {
       const result = await getAppDataSource().query(`
@@ -401,10 +393,10 @@ export const getAllVectorizedTools = async (
         const rawValue = result[0].dimensions;
 
         if (rawValue === -1) {
-          // No type modifier specified
+          // 타입 수정자가 지정되지 않음
           dimensionsToUse = getDimensionsForModel(config.embeddingModel);
         } else {
-          // For this version of pgvector, atttypmod stores the dimension value directly
+          // 이 버전의 pgvector에서는 atttypmod가 차원 값을 직접 저장
           dimensionsToUse = rawValue;
         }
       }
@@ -412,15 +404,15 @@ export const getAllVectorizedTools = async (
       console.warn('Could not determine vector dimensions from database:', error?.message);
     }
 
-    // Get all tool embeddings
+    // 모든 도구 임베딩 조회
     const results = await vectorRepository.searchSimilar(
-      new Array(dimensionsToUse).fill(0), // Zero vector with dimensions matching the database
-      1000, // Large limit
-      -1, // No threshold (get all)
+      new Array(dimensionsToUse).fill(0), // 데이터베이스 차원과 일치하는 영벡터
+      1000, // 큰 제한값
+      -1, // 임계값 없음 (모든 것 조회)
       ['tool'],
     );
 
-    // Filter by server names if provided
+    // 서버 이름으로 필터링 (제공된 경우)
     let filteredResults = results;
     if (serverNames && serverNames.length > 0) {
       filteredResults = results.filter((result) => {
@@ -436,7 +428,7 @@ export const getAllVectorizedTools = async (
       });
     }
 
-    // Transform results
+    // 결과 변환
     return filteredResults.map((result) => {
       if (typeof result.embedding.metadata === 'string') {
         try {
@@ -471,8 +463,12 @@ export const getAllVectorizedTools = async (
 };
 
 /**
- * Remove tool embeddings for a server
- * @param serverName Server name
+ * 서버의 도구 임베딩 제거
+ * 
+ * 지정된 서버의 모든 도구 임베딩을 데이터베이스에서 제거합니다.
+ * 
+ * @param {string} serverName - 서버 이름
+ * @returns {Promise<void>}
  */
 export const removeServerToolEmbeddings = async (serverName: string): Promise<void> => {
   try {
@@ -480,8 +476,8 @@ export const removeServerToolEmbeddings = async (serverName: string): Promise<vo
       'vectorEmbeddings',
     )() as VectorEmbeddingRepository;
 
-    // Note: This would require adding a delete method to VectorEmbeddingRepository
-    // For now, we'll log that this functionality needs to be implemented
+    // 참고: VectorEmbeddingRepository에 delete 메소드를 추가해야 합니다
+    // 현재는 이 기능이 구현되어야 함을 로그로 남깁니다
     console.log(`TODO: Remove tool embeddings for server: ${serverName}`);
   } catch (error) {
     console.error(`Error removing tool embeddings for server ${serverName}:`, error);
@@ -489,14 +485,17 @@ export const removeServerToolEmbeddings = async (serverName: string): Promise<vo
 };
 
 /**
- * Sync all server tools embeddings when smart routing is first enabled
- * This function will scan all currently connected servers and save their tools as vector embeddings
+ * 스마트 라우팅이 처음 활성화될 때 모든 서버 도구 임베딩 동기화
+ * 
+ * 현재 연결된 모든 서버를 스캔하고 해당 도구들을 벡터 임베딩으로 저장합니다.
+ * 
+ * @returns {Promise<void>}
  */
 export const syncAllServerToolsEmbeddings = async (): Promise<void> => {
   try {
     console.log('Starting synchronization of all server tools embeddings...');
 
-    // Import getServersInfo to get all server information
+    // 모든 서버 정보를 가져오기 위해 getServersInfo 가져오기
     const { getServersInfo } = await import('./mcpService.js');
 
     const servers = getServersInfo();
