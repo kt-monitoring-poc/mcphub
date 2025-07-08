@@ -1,36 +1,80 @@
+// React 라이브러리와 필요한 훅들을 가져옵니다
+// useState: 컴포넌트 내에서 상태를 관리하는 훅
+// useEffect: 컴포넌트 생명주기와 관련된 부수 효과를 처리하는 훅
 import React, { useState, useEffect } from 'react';
-import { useTranslation } from 'react-i18next';
-import { useNavigate } from 'react-router-dom';
-import ChangePasswordForm from '@/components/ChangePasswordForm';
-import { Switch } from '@/components/ui/ToggleGroup';
-import { useSettingsData } from '@/hooks/useSettingsData';
-import { useToast } from '@/contexts/ToastContext';
-import { generateRandomKey } from '@/utils/key';
 
+// 다국어 지원을 위한 react-i18next 라이브러리를 가져옵니다
+// useTranslation: 번역 함수와 현재 언어 정보를 제공하는 훅
+import { useTranslation } from 'react-i18next';
+
+// React Router의 페이지 이동 기능을 가져옵니다
+// useNavigate: 프로그래밍 방식으로 페이지를 이동시키는 훅
+import { useNavigate } from 'react-router-dom';
+
+// UI 컴포넌트들을 가져옵니다
+import ChangePasswordForm from '@/components/ChangePasswordForm';  // 비밀번호 변경 폼
+import { Switch } from '@/components/ui/ToggleGroup';              // 토글 스위치 컴포넌트
+
+// 커스텀 훅들을 가져옵니다
+import { useSettingsData } from '@/hooks/useSettingsData';  // 설정 데이터 관리 훅
+import { useToast } from '@/contexts/ToastContext';         // 알림 메시지 표시 훅
+
+// 유틸리티 함수를 가져옵니다
+import { generateRandomKey } from '@/utils/key';  // 랜덤 키 생성 함수
+
+/**
+ * SettingsPage 컴포넌트: 애플리케이션 설정 페이지
+ * 
+ * 이 컴포넌트는 다음과 같은 설정들을 관리합니다:
+ * - 언어 설정 (한국어/영어/중국어)
+ * - 스마트 라우팅 설정 (AI 기반 서버 선택)
+ * - 라우팅 설정 (인증, 글로벌 라우트 등)
+ * - 설치 설정 (Python, NPM 레지스트리)
+ * - 비밀번호 변경
+ * 
+ * 각 설정 섹션은 접을 수 있는 형태로 구성되어 있어서
+ * 사용자가 필요한 설정만 펼쳐서 볼 수 있습니다.
+ */
 const SettingsPage: React.FC = () => {
+  // 다국어 지원 훅 사용
+  // t: 번역 함수 (예: t('settings.title') → "설정")
+  // i18n: 현재 언어 정보 (예: i18n.language → "ko", "en", "zh")
   const { t, i18n } = useTranslation();
+  
+  // 페이지 이동을 위한 navigate 함수
   const navigate = useNavigate();
+  
+  // 알림 메시지 표시를 위한 showToast 함수
   const { showToast } = useToast();
+  
+  // 현재 언어 상태 관리
+  // useState는 컴포넌트의 상태를 관리하는 React 훅입니다
   const [currentLanguage, setCurrentLanguage] = useState(i18n.language);
 
-  // Update current language when it changes
+  // 언어가 변경될 때 현재 언어 상태를 업데이트
+  // useEffect는 컴포넌트가 렌더링된 후 실행되는 부수 효과를 처리합니다
+  // 의존성 배열 [i18n.language]에 i18n.language가 포함되어 있어서, 언어가 변경될 때마다 실행됩니다
   useEffect(() => {
     setCurrentLanguage(i18n.language);
   }, [i18n.language]);
 
+  // 설치 설정 상태 관리
+  // TypeScript에서 객체의 타입을 인라인으로 정의
   const [installConfig, setInstallConfig] = useState<{
-    pythonIndexUrl: string;
-    npmRegistry: string;
+    pythonIndexUrl: string;  // Python 패키지 인덱스 URL
+    npmRegistry: string;     // NPM 레지스트리 URL
   }>({
     pythonIndexUrl: '',
     npmRegistry: '',
   });
 
+  // 스마트 라우팅 임시 설정 상태 관리
+  // 사용자가 입력 중인 값들을 임시로 저장하는 상태
   const [tempSmartRoutingConfig, setTempSmartRoutingConfig] = useState<{
-    dbUrl: string;
-    openaiApiBaseUrl: string;
-    openaiApiKey: string;
-    openaiApiEmbeddingModel: string;
+    dbUrl: string;                    // 데이터베이스 URL
+    openaiApiBaseUrl: string;         // OpenAI API 기본 URL
+    openaiApiKey: string;             // OpenAI API 키
+    openaiApiEmbeddingModel: string;  // OpenAI 임베딩 모델명
   }>({
     dbUrl: '',
     openaiApiBaseUrl: '',
@@ -38,28 +82,30 @@ const SettingsPage: React.FC = () => {
     openaiApiEmbeddingModel: '',
   });
 
+  // useSettingsData 훅에서 설정 관련 데이터와 함수들을 가져옵니다
+  // 이 훅은 서버와의 통신을 담당하며, 설정 데이터를 관리합니다
   const {
-    routingConfig,
-    tempRoutingConfig,
-    setTempRoutingConfig,
-    installConfig: savedInstallConfig,
-    smartRoutingConfig,
-    loading,
-    updateRoutingConfig,
-    updateRoutingConfigBatch,
-    updateInstallConfig,
-    updateSmartRoutingConfig,
-    updateSmartRoutingConfigBatch
+    routingConfig,                    // 현재 라우팅 설정
+    tempRoutingConfig,                // 임시 라우팅 설정
+    setTempRoutingConfig,             // 임시 라우팅 설정 변경 함수
+    installConfig: savedInstallConfig, // 저장된 설치 설정
+    smartRoutingConfig,               // 현재 스마트 라우팅 설정
+    loading,                          // 로딩 상태
+    updateRoutingConfig,              // 라우팅 설정 업데이트 함수
+    updateRoutingConfigBatch,         // 라우팅 설정 일괄 업데이트 함수
+    updateInstallConfig,              // 설치 설정 업데이트 함수
+    updateSmartRoutingConfig,         // 스마트 라우팅 설정 업데이트 함수
+    updateSmartRoutingConfigBatch     // 스마트 라우팅 설정 일괄 업데이트 함수
   } = useSettingsData();
 
-  // Update local installConfig when savedInstallConfig changes
+  // 저장된 설치 설정이 변경될 때 로컬 상태를 업데이트
   useEffect(() => {
     if (savedInstallConfig) {
       setInstallConfig(savedInstallConfig);
     }
   }, [savedInstallConfig]);
 
-  // Update local tempSmartRoutingConfig when smartRoutingConfig changes
+  // 스마트 라우팅 설정이 변경될 때 임시 상태를 업데이트
   useEffect(() => {
     if (smartRoutingConfig) {
       setTempSmartRoutingConfig({
@@ -71,17 +117,23 @@ const SettingsPage: React.FC = () => {
     }
   }, [smartRoutingConfig]);
 
+  // 각 설정 섹션의 펼침/접힘 상태 관리
+  // 사용자가 어떤 설정 섹션을 보고 있는지 추적합니다
   const [sectionsVisible, setSectionsVisible] = useState({
-    routingConfig: false,
-    installConfig: false,
-    smartRoutingConfig: false,
-    password: false
+    routingConfig: false,      // 라우팅 설정 섹션
+    installConfig: false,      // 설치 설정 섹션
+    smartRoutingConfig: false, // 스마트 라우팅 설정 섹션
+    password: false            // 비밀번호 변경 섹션
   });
 
+  /**
+   * 설정 섹션의 펼침/접힘 상태를 토글하는 함수
+   * @param section - 토글할 섹션 이름
+   */
   const toggleSection = (section: 'routingConfig' | 'installConfig' | 'smartRoutingConfig' | 'password') => {
     setSectionsVisible(prev => ({
-      ...prev,
-      [section]: !prev[section]
+      ...prev,  // 기존 상태를 복사
+      [section]: !prev[section]  // 해당 섹션의 상태를 반전
     }));
   };
 
