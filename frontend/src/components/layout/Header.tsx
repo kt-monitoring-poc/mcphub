@@ -1,43 +1,49 @@
-// React 라이브러리와 useState 훅을 가져옵니다
-// useState: 컴포넌트 내에서 상태를 관리하는 React 훅
+/**
+ * 헤더 컴포넌트
+ * 
+ * 애플리케이션의 최상단 헤더 영역을 담당하는 컴포넌트입니다.
+ * 사이드바 토글, 앱 제목, 테마 스위치, 외부 링크 등을 포함합니다.
+ * 
+ * 주요 기능:
+ * - 사이드바 토글 버튼
+ * - 애플리케이션 제목 표시
+ * - 버전 정보 표시
+ * - GitHub 링크
+ * - 언어별 소셜 링크 (중국어: WeChat, 기타: Discord)
+ * - 후원 다이얼로그
+ * - 테마 스위치
+ */
+
 import React, { useState } from 'react';
 
 // 다국어 지원을 위한 react-i18next 라이브러리를 가져옵니다
 // useTranslation: 번역 함수와 현재 언어 정보를 제공하는 훅
 import { useTranslation } from 'react-i18next';
-
-// UI 컴포넌트들을 가져옵니다
-import ThemeSwitch from '@/components/ui/ThemeSwitch';  // 다크/라이트 테마 전환 버튼
-
-// 아이콘 컴포넌트들을 가져옵니다
-import GitHubIcon from '@/components/icons/GitHubIcon';      // GitHub 아이콘
-import SponsorIcon from '@/components/icons/SponsorIcon';    // 스폰서 아이콘
-import WeChatIcon from '@/components/icons/WeChatIcon';      // WeChat 아이콘
-import DiscordIcon from '@/components/icons/DiscordIcon';    // Discord 아이콘
-
-// 다이얼로그 컴포넌트들을 가져옵니다
-import SponsorDialog from '@/components/ui/SponsorDialog';  // 스폰서 정보 다이얼로그
-import WeChatDialog from '@/components/ui/WeChatDialog';    // WeChat QR코드 다이얼로그
+import ThemeSwitch from '@/components/ui/ThemeSwitch';
+import GitHubIcon from '@/components/icons/GitHubIcon';
+import SponsorIcon from '@/components/icons/SponsorIcon';
+import WeChatIcon from '@/components/icons/WeChatIcon';
+import DiscordIcon from '@/components/icons/DiscordIcon';
+import SponsorDialog from '@/components/ui/SponsorDialog';
+import WeChatDialog from '@/components/ui/WeChatDialog';
 
 /**
- * Header 컴포넌트의 props 타입 정의
- * TypeScript에서 컴포넌트가 받을 수 있는 속성들을 정의합니다
+ * Header 컴포넌트의 Props 인터페이스
  */
 interface HeaderProps {
-  onToggleSidebar: () => void;  // 사이드바 토글 함수
+  /** 사이드바 토글 핸들러 */
+  onToggleSidebar: () => void;
 }
 
 /**
- * Header 컴포넌트: 애플리케이션의 상단 헤더
+ * 헤더 컴포넌트
  * 
- * 이 컴포넌트는 다음과 같은 요소들을 포함합니다:
- * - 사이드바 토글 버튼
- * - 애플리케이션 제목
- * - 버전 정보
- * - GitHub 링크
- * - WeChat/Discord 링크 (언어에 따라 다름)
- * - 스폰서 링크
- * - 테마 전환 버튼
+ * 애플리케이션의 최상단 헤더를 렌더링하며, 네비게이션 컨트롤과
+ * 각종 유틸리티 버튼들을 제공합니다.
+ * 
+ * @param {HeaderProps} props - 컴포넌트 props
+ * @param {() => void} props.onToggleSidebar - 사이드바 토글 핸들러
+ * @returns {JSX.Element} 헤더 컴포넌트
  */
 const Header: React.FC<HeaderProps> = ({ onToggleSidebar }) => {
   // 다국어 지원 훅 사용
@@ -64,8 +70,6 @@ const Header: React.FC<HeaderProps> = ({ onToggleSidebar }) => {
         {/* 왼쪽 영역: 사이드바 토글 버튼과 제목 */}
         <div className="flex items-center">
           {/* 사이드바 토글 버튼 */}
-          {/* onClick: 버튼 클릭 시 onToggleSidebar 함수 호출 */}
-          {/* aria-label: 스크린 리더를 위한 접근성 라벨 */}
           <button
             onClick={onToggleSidebar}
             className="p-2 rounded-md text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 focus:outline-none"
@@ -78,12 +82,10 @@ const Header: React.FC<HeaderProps> = ({ onToggleSidebar }) => {
           </button>
 
           {/* 애플리케이션 제목 */}
-          {/* ml-4: 왼쪽 마진 4 (토글 버튼과의 간격) */}
           <h1 className="ml-4 text-xl font-bold text-gray-900 dark:text-white">{t('app.title')}</h1>
         </div>
 
-        {/* 오른쪽 영역: 버전 정보, 링크들, 테마 스위치 */}
-        {/* flex items-center space-x-4: 가로 배치, 세로 중앙 정렬, 요소 간 간격 4 */}
+        {/* 테마 스위치 및 버전 정보 */}
         <div className="flex items-center space-x-4">
           {/* 버전 정보 표시 */}
           <span className="text-sm text-gray-500 dark:text-gray-400">
@@ -103,7 +105,7 @@ const Header: React.FC<HeaderProps> = ({ onToggleSidebar }) => {
             <GitHubIcon className="h-5 w-5" />
           </a>
           
-          {/* 언어에 따른 WeChat/Discord 링크 */}
+          {/* 언어별 소셜 링크 */}
           {i18n.language === 'zh' ? (
             // 중국어인 경우 WeChat 버튼 표시
             <button
@@ -126,7 +128,7 @@ const Header: React.FC<HeaderProps> = ({ onToggleSidebar }) => {
             </a>
           )}
           
-          {/* 스폰서 버튼 */}
+          {/* 후원 버튼 */}
           <button
             onClick={() => setSponsorDialogOpen(true)}
             className="text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200 focus:outline-none"
@@ -135,14 +137,12 @@ const Header: React.FC<HeaderProps> = ({ onToggleSidebar }) => {
             <SponsorIcon className="h-5 w-5" />
           </button>
           
-          {/* 테마 전환 버튼 */}
+          {/* 테마 스위치 */}
           <ThemeSwitch />
         </div>
       </div>
       
       {/* 다이얼로그 컴포넌트들 */}
-      {/* open: 다이얼로그 열림/닫힘 상태 */}
-      {/* onOpenChange: 다이얼로그 상태 변경 함수 */}
       <SponsorDialog open={sponsorDialogOpen} onOpenChange={setSponsorDialogOpen} />
       <WeChatDialog open={wechatDialogOpen} onOpenChange={setWechatDialogOpen} />
     </header>

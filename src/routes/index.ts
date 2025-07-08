@@ -123,6 +123,15 @@ export const initRoutes = (app: express.Application): void => {
   // Public configuration endpoint (no auth required to check skipAuth setting)
   app.get(`${config.basePath}/public-config`, getPublicConfig);
 
+  // Health check endpoint (no auth required)
+  app.get(`${config.basePath}/health`, (_req, res) => {
+    res.status(200).json({
+      success: true,
+      message: 'MCPHub is running',
+      timestamp: new Date().toISOString(),
+    });
+  });
+
   app.use(`${config.basePath}/api`, router);
 };
 

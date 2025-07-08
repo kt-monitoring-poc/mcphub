@@ -1,3 +1,17 @@
+/**
+ * 서버 관리 컨트롤러
+ * 
+ * MCP 서버들의 생성, 수정, 삭제, 조회 및 관리와 관련된 모든 API 엔드포인트를 처리합니다.
+ * 서버 설정, 도구 관리, 시스템 설정 등의 기능을 제공합니다.
+ * 
+ * 주요 기능:
+ * - MCP 서버 CRUD 작업
+ * - 서버 상태 토글 (활성화/비활성화)
+ * - 개별 도구 관리 (활성화/비활성화, 설명 수정)
+ * - 시스템 설정 관리
+ * - 서버 설정 조회 및 수정
+ */
+
 import { Request, Response } from 'express';
 import { ApiResponse, AddServerRequest } from '../types/index.js';
 import {
@@ -12,6 +26,15 @@ import {
 import { loadSettings, saveSettings } from '../config/index.js';
 import { syncAllServerToolsEmbeddings } from '../services/vectorSearchService.js';
 
+/**
+ * 모든 서버 정보 조회
+ * 
+ * 현재 등록된 모든 MCP 서버들의 상태, 도구 목록 등의 정보를 반환합니다.
+ * 
+ * @param {Request} _ - Express 요청 객체 (사용하지 않음)
+ * @param {Response} res - Express 응답 객체
+ * @returns {void} 서버 정보 목록 또는 오류
+ */
 export const getAllServers = (_: Request, res: Response): void => {
   try {
     const serversInfo = getServersInfo();
@@ -28,6 +51,15 @@ export const getAllServers = (_: Request, res: Response): void => {
   }
 };
 
+/**
+ * 모든 설정 정보 조회
+ * 
+ * 시스템의 모든 설정 정보를 반환합니다.
+ * 
+ * @param {Request} _ - Express 요청 객체 (사용하지 않음)
+ * @param {Response} res - Express 응답 객체
+ * @returns {void} 전체 설정 정보 또는 오류
+ */
 export const getAllSettings = (_: Request, res: Response): void => {
   try {
     const settings = loadSettings();
@@ -44,9 +76,21 @@ export const getAllSettings = (_: Request, res: Response): void => {
   }
 };
 
+/**
+ * 새 MCP 서버 생성
+ * 
+ * 새로운 MCP 서버를 설정에 추가하고 연결을 시도합니다.
+ * 다양한 서버 타입(stdio, sse, streamable-http, openapi)을 지원합니다.
+ * 
+ * @param {Request} req - Express 요청 객체 (name, config 포함)
+ * @param {Response} res - Express 응답 객체
+ * @returns {Promise<void>} 서버 생성 결과 또는 오류
+ */
 export const createServer = async (req: Request, res: Response): Promise<void> => {
   try {
     const { name, config } = req.body as AddServerRequest;
+    
+    // 서버 이름 유효성 검사
     if (!name || typeof name !== 'string') {
       res.status(400).json({
         success: false,
@@ -55,6 +99,7 @@ export const createServer = async (req: Request, res: Response): Promise<void> =
       return;
     }
 
+    // 서버 설정 유효성 검사
     if (!config || typeof config !== 'object') {
       res.status(400).json({
         success: false,
@@ -63,6 +108,7 @@ export const createServer = async (req: Request, res: Response): Promise<void> =
       return;
     }
 
+    // 필수 설정 검사 (URL, OpenAPI 명세, 또는 명령어)
     if (
       !config.url &&
       !config.openapi?.url &&
@@ -77,7 +123,7 @@ export const createServer = async (req: Request, res: Response): Promise<void> =
       return;
     }
 
-    // Validate the server type if specified
+    // 서버 타입 유효성 검사
     if (config.type && !['stdio', 'sse', 'streamable-http', 'openapi'].includes(config.type)) {
       res.status(400).json({
         success: false,
@@ -86,7 +132,7 @@ export const createServer = async (req: Request, res: Response): Promise<void> =
       return;
     }
 
-    // Validate that URL is provided for sse and streamable-http types
+    // SSE 및 StreamableHTTP 타입에 대한 URL 필수 검사
     if ((config.type === 'sse' || config.type === 'streamable-http') && !config.url) {
       res.status(400).json({
         success: false,
@@ -95,7 +141,7 @@ export const createServer = async (req: Request, res: Response): Promise<void> =
       return;
     }
 
-    // Validate that OpenAPI specification URL or schema is provided for openapi type
+    // OpenAPI 타입에 대한 명세 URL 또는 스키마 필수 검사
     if (config.type === 'openapi' && !config.openapi?.url && !config.openapi?.schema) {
       res.status(400).json({
         success: false,
@@ -104,7 +150,7 @@ export const createServer = async (req: Request, res: Response): Promise<void> =
       return;
     }
 
-    // Validate headers if provided
+    // 헤더 유효성 검사
     if (config.headers && typeof config.headers !== 'object') {
       res.status(400).json({
         success: false,
@@ -113,7 +159,7 @@ export const createServer = async (req: Request, res: Response): Promise<void> =
       return;
     }
 
-    // Validate that headers are only used with sse, streamable-http, and openapi types
+    // stdio 타입에서는 헤더 사용 불가 검사
     if (config.headers && config.type === 'stdio') {
       res.status(400).json({
         success: false,
@@ -122,13 +168,14 @@ export const createServer = async (req: Request, res: Response): Promise<void> =
       return;
     }
 
-    // Set default keep-alive interval for SSE servers if not specified
+    // SSE 서버에 대한 기본 keep-alive 간격 설정
     if ((config.type === 'sse' || (!config.type && config.url)) && !config.keepAliveInterval) {
-      config.keepAliveInterval = 60000; // Default 60 seconds for SSE servers
+      config.keepAliveInterval = 60000; // 기본값 60초
     }
 
     const result = await addServer(name, config);
     if (result.success) {
+      // 도구 목록 변경 알림
       notifyToolChanged();
       res.json({
         success: true,
@@ -148,6 +195,15 @@ export const createServer = async (req: Request, res: Response): Promise<void> =
   }
 };
 
+/**
+ * MCP 서버 삭제
+ * 
+ * 지정된 이름의 MCP 서버를 설정에서 제거하고 연결을 해제합니다.
+ * 
+ * @param {Request} req - Express 요청 객체 (name 매개변수 포함)
+ * @param {Response} res - Express 응답 객체
+ * @returns {Promise<void>} 서버 삭제 결과 또는 오류
+ */
 export const deleteServer = async (req: Request, res: Response): Promise<void> => {
   try {
     const { name } = req.params;
@@ -161,6 +217,7 @@ export const deleteServer = async (req: Request, res: Response): Promise<void> =
 
     const result = removeServer(name);
     if (result.success) {
+      // 도구 목록 변경 알림
       notifyToolChanged();
       res.json({
         success: true,
@@ -180,10 +237,20 @@ export const deleteServer = async (req: Request, res: Response): Promise<void> =
   }
 };
 
+/**
+ * MCP 서버 설정 업데이트
+ * 
+ * 기존 MCP 서버의 설정을 수정하고 연결을 재설정합니다.
+ * 
+ * @param {Request} req - Express 요청 객체 (name 매개변수 및 config 포함)
+ * @param {Response} res - Express 응답 객체
+ * @returns {Promise<void>} 서버 업데이트 결과 또는 오류
+ */
 export const updateServer = async (req: Request, res: Response): Promise<void> => {
   try {
     const { name } = req.params;
     const { config } = req.body;
+    
     if (!name) {
       res.status(400).json({
         success: false,
@@ -200,6 +267,7 @@ export const updateServer = async (req: Request, res: Response): Promise<void> =
       return;
     }
 
+    // createServer와 동일한 유효성 검사 로직
     if (
       !config.url &&
       !config.openapi?.url &&
@@ -214,7 +282,7 @@ export const updateServer = async (req: Request, res: Response): Promise<void> =
       return;
     }
 
-    // Validate the server type if specified
+    // 서버 타입 유효성 검사
     if (config.type && !['stdio', 'sse', 'streamable-http', 'openapi'].includes(config.type)) {
       res.status(400).json({
         success: false,
@@ -223,7 +291,7 @@ export const updateServer = async (req: Request, res: Response): Promise<void> =
       return;
     }
 
-    // Validate that URL is provided for sse and streamable-http types
+    // SSE 및 StreamableHTTP 타입에 대한 URL 필수 검사
     if ((config.type === 'sse' || config.type === 'streamable-http') && !config.url) {
       res.status(400).json({
         success: false,
@@ -232,7 +300,7 @@ export const updateServer = async (req: Request, res: Response): Promise<void> =
       return;
     }
 
-    // Validate that OpenAPI specification URL or schema is provided for openapi type
+    // OpenAPI 타입에 대한 명세 필수 검사
     if (config.type === 'openapi' && !config.openapi?.url && !config.openapi?.schema) {
       res.status(400).json({
         success: false,
@@ -241,7 +309,7 @@ export const updateServer = async (req: Request, res: Response): Promise<void> =
       return;
     }
 
-    // Validate headers if provided
+    // 헤더 유효성 검사
     if (config.headers && typeof config.headers !== 'object') {
       res.status(400).json({
         success: false,
@@ -250,7 +318,7 @@ export const updateServer = async (req: Request, res: Response): Promise<void> =
       return;
     }
 
-    // Validate that headers are only used with sse, streamable-http, and openapi types
+    // stdio 타입에서는 헤더 사용 불가 검사
     if (config.headers && config.type === 'stdio') {
       res.status(400).json({
         success: false,
@@ -259,13 +327,14 @@ export const updateServer = async (req: Request, res: Response): Promise<void> =
       return;
     }
 
-    // Set default keep-alive interval for SSE servers if not specified
+    // SSE 서버에 대한 기본 keep-alive 간격 설정
     if ((config.type === 'sse' || (!config.type && config.url)) && !config.keepAliveInterval) {
-      config.keepAliveInterval = 60000; // Default 60 seconds for SSE servers
+      config.keepAliveInterval = 60000; // 기본값 60초
     }
 
-    const result = await addOrUpdateServer(name, config, true); // Allow override for updates
+    const result = await addOrUpdateServer(name, config, true); // 업데이트를 위해 덮어쓰기 허용
     if (result.success) {
+      // 도구 목록 변경 알림
       notifyToolChanged();
       res.json({
         success: true,
@@ -285,10 +354,20 @@ export const updateServer = async (req: Request, res: Response): Promise<void> =
   }
 };
 
+/**
+ * 특정 서버 설정 조회
+ * 
+ * 지정된 서버의 상세 설정 정보와 상태를 반환합니다.
+ * 
+ * @param {Request} req - Express 요청 객체 (name 매개변수 포함)
+ * @param {Response} res - Express 응답 객체
+ * @returns {void} 서버 설정 정보 또는 오류
+ */
 export const getServerConfig = (req: Request, res: Response): void => {
   try {
     const { name } = req.params;
     const settings = loadSettings();
+    
     if (!settings.mcpServers || !settings.mcpServers[name]) {
       res.status(404).json({
         success: false,
@@ -318,10 +397,20 @@ export const getServerConfig = (req: Request, res: Response): void => {
   }
 };
 
+/**
+ * 서버 상태 토글 (활성화/비활성화)
+ * 
+ * 지정된 서버를 활성화하거나 비활성화합니다.
+ * 
+ * @param {Request} req - Express 요청 객체 (name 매개변수 및 enabled 포함)
+ * @param {Response} res - Express 응답 객체
+ * @returns {Promise<void>} 서버 상태 변경 결과 또는 오류
+ */
 export const toggleServer = async (req: Request, res: Response): Promise<void> => {
   try {
     const { name } = req.params;
     const { enabled } = req.body;
+    
     if (!name) {
       res.status(400).json({
         success: false,
@@ -340,6 +429,7 @@ export const toggleServer = async (req: Request, res: Response): Promise<void> =
 
     const result = await toggleServerStatus(name, enabled);
     if (result.success) {
+      // 도구 목록 변경 알림
       notifyToolChanged();
       res.json({
         success: true,
@@ -359,7 +449,15 @@ export const toggleServer = async (req: Request, res: Response): Promise<void> =
   }
 };
 
-// Toggle tool status for a specific server
+/**
+ * 특정 서버의 도구 상태 토글
+ * 
+ * 지정된 서버의 특정 도구를 활성화하거나 비활성화합니다.
+ * 
+ * @param {Request} req - Express 요청 객체 (serverName, toolName 매개변수 및 enabled 포함)
+ * @param {Response} res - Express 응답 객체
+ * @returns {Promise<void>} 도구 상태 변경 결과 또는 오류
+ */
 export const toggleTool = async (req: Request, res: Response): Promise<void> => {
   try {
     const { serverName, toolName } = req.params;
@@ -390,12 +488,12 @@ export const toggleTool = async (req: Request, res: Response): Promise<void> => 
       return;
     }
 
-    // Initialize tools config if it doesn't exist
+    // 도구 설정이 없는 경우 초기화
     if (!settings.mcpServers[serverName].tools) {
       settings.mcpServers[serverName].tools = {};
     }
 
-    // Set the tool's enabled state
+    // 도구의 활성화 상태 설정
     settings.mcpServers[serverName].tools![toolName] = { enabled };
 
     if (!saveSettings(settings)) {
@@ -406,7 +504,7 @@ export const toggleTool = async (req: Request, res: Response): Promise<void> => 
       return;
     }
 
-    // Notify that tools have changed
+    // 도구 목록 변경 알림
     notifyToolChanged();
 
     res.json({
@@ -421,7 +519,15 @@ export const toggleTool = async (req: Request, res: Response): Promise<void> => 
   }
 };
 
-// Update tool description for a specific server
+/**
+ * 특정 서버의 도구 설명 업데이트
+ * 
+ * 지정된 서버의 특정 도구에 대한 사용자 정의 설명을 설정합니다.
+ * 
+ * @param {Request} req - Express 요청 객체 (serverName, toolName 매개변수 및 description 포함)
+ * @param {Response} res - Express 응답 객체
+ * @returns {Promise<void>} 도구 설명 업데이트 결과 또는 오류
+ */
 export const updateToolDescription = async (req: Request, res: Response): Promise<void> => {
   try {
     const { serverName, toolName } = req.params;
@@ -452,16 +558,17 @@ export const updateToolDescription = async (req: Request, res: Response): Promis
       return;
     }
 
-    // Initialize tools config if it doesn't exist
+    // 도구 설정이 없는 경우 초기화
     if (!settings.mcpServers[serverName].tools) {
       settings.mcpServers[serverName].tools = {};
     }
 
-    // Set the tool's description
+    // 도구 설정이 없는 경우 기본값으로 생성
     if (!settings.mcpServers[serverName].tools![toolName]) {
       settings.mcpServers[serverName].tools![toolName] = { enabled: true };
     }
 
+    // 도구 설명 설정
     settings.mcpServers[serverName].tools![toolName].description = description;
 
     if (!saveSettings(settings)) {
@@ -472,9 +579,10 @@ export const updateToolDescription = async (req: Request, res: Response): Promis
       return;
     }
 
-    // Notify that tools have changed
+    // 도구 목록 변경 알림
     notifyToolChanged();
 
+    // 벡터 임베딩 동기화 (검색 기능용)
     syncToolEmbedding(serverName, toolName);
 
     res.json({

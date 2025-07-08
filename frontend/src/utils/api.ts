@@ -1,14 +1,12 @@
 /**
- * API 유틸리티 함수들
+ * API 유틸리티 함수 (레거시)
  * 
- * 이 파일은 API URL을 구성하기 위한 유틸리티 함수들을 제공합니다.
- * 기본 경로(base path) 지원을 포함한 완전한 API URL을 생성합니다.
- *
- * ⚠️ 주의: 이 파일의 함수들은 deprecated(사용 중단)되었습니다.
- * 대신 utils/runtime.ts의 함수들을 사용하세요.
- * 런타임 설정 지원을 위해 runtime.ts의 함수들이 더 적합합니다.
- *
- * @deprecated Use functions from utils/runtime.ts instead for runtime configuration support
+ * 적절한 기본 경로 지원으로 URL을 구성하는 API 유틸리티 함수들입니다.
+ * 
+ * ⚠️ 주의: 이 모듈은 더 이상 사용되지 않습니다.
+ * 런타임 구성 지원을 위해 utils/runtime.ts의 함수들을 대신 사용하세요.
+ * 
+ * @deprecated 런타임 구성 지원을 위해 utils/runtime.ts의 함수들을 사용하세요
  */
 
 // runtime.ts에서 실제 구현된 함수들을 가져옵니다
@@ -16,13 +14,22 @@
 import { getApiBaseUrl as getRuntimeApiBaseUrl, getApiUrl as getRuntimeApiUrl } from './runtime';
 
 /**
- * API 기본 URL을 가져오는 함수
+ * /api 접두사를 포함한 API 기본 URL을 가져옵니다
  * 
- * 기본 경로와 /api 접두사를 포함한 완전한 API 기본 URL을 반환합니다.
- * 예: https://example.com/app/api
+ * ⚠️ 이 함수는 더 이상 사용되지 않습니다.
  * 
- * @returns 완전한 API 기본 URL
- * @deprecated Use getApiBaseUrl from utils/runtime.ts instead
+ * @returns {string} 완전한 API 기본 URL
+ * @deprecated utils/runtime.ts의 getApiBaseUrl을 대신 사용하세요
+ * 
+ * @example
+ * ```typescript
+ * // ❌ 더 이상 사용하지 마세요
+ * const baseUrl = getApiBaseUrl();
+ * 
+ * // ✅ 대신 이것을 사용하세요
+ * import { getApiBaseUrl } from './runtime';
+ * const baseUrl = getApiBaseUrl();
+ * ```
  */
 export const getApiBaseUrl = (): string => {
   // 사용자에게 deprecated 경고를 표시합니다
@@ -33,14 +40,23 @@ export const getApiBaseUrl = (): string => {
 };
 
 /**
- * 주어진 엔드포인트로 완전한 API URL을 구성하는 함수
+ * 주어진 엔드포인트로 완전한 API URL을 구성합니다
  * 
- * 기본 URL과 엔드포인트를 결합하여 완전한 API URL을 생성합니다.
- * 예: getApiUrl('/auth/login') → https://example.com/app/api/auth/login
+ * ⚠️ 이 함수는 더 이상 사용되지 않습니다.
  * 
- * @param endpoint - API 엔드포인트 (반드시 /로 시작해야 함, 예: '/auth/login')
- * @returns 완전한 API URL
- * @deprecated Use getApiUrl from utils/runtime.ts instead
+ * @param {string} endpoint - API 엔드포인트 (/로 시작해야 함, 예: '/auth/login')
+ * @returns {string} 완전한 API URL
+ * @deprecated utils/runtime.ts의 getApiUrl을 대신 사용하세요
+ * 
+ * @example
+ * ```typescript
+ * // ❌ 더 이상 사용하지 마세요
+ * const loginUrl = getApiUrl('/auth/login');
+ * 
+ * // ✅ 대신 이것을 사용하세요
+ * import { getApiUrl } from './runtime';
+ * const loginUrl = getApiUrl('/auth/login');
+ * ```
  */
 export const getApiUrl = (endpoint: string): string => {
   // 사용자에게 deprecated 경고를 표시합니다

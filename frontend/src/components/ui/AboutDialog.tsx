@@ -1,20 +1,60 @@
+/**
+ * 앱 정보 다이얼로그 컴포넌트
+ * 
+ * 애플리케이션의 버전 정보와 업데이트 확인 기능을 제공하는 모달 다이얼로그입니다.
+ * 현재 버전과 최신 버전을 비교하여 업데이트 가능 여부를 알려줍니다.
+ * 
+ * 주요 기능:
+ * - 현재 버전 정보 표시
+ * - 최신 버전 확인
+ * - 새 버전 알림
+ * - GitHub 링크 제공
+ * - 수동 업데이트 확인
+ * - 로딩 상태 표시
+ * - 다크/라이트 테마 지원
+ */
+
 import React, { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { X, RefreshCw } from 'lucide-react';
 import { checkLatestVersion, compareVersions } from '@/utils/version';
 
+/**
+ * AboutDialog 컴포넌트의 Props 인터페이스
+ */
 interface AboutDialogProps {
+  /** 다이얼로그 열림 상태 */
   isOpen: boolean;
+  /** 다이얼로그 닫기 핸들러 */
   onClose: () => void;
+  /** 현재 애플리케이션 버전 */
   version: string;
 }
 
+/**
+ * 앱 정보 다이얼로그 컴포넌트
+ * 
+ * 애플리케이션의 버전 정보를 표시하고 업데이트 확인 기능을 제공합니다.
+ * GitHub API를 통해 최신 버전을 확인하고 사용자에게 알려줍니다.
+ * 
+ * @param {AboutDialogProps} props - 컴포넌트 props
+ * @param {boolean} props.isOpen - 다이얼로그 열림 상태
+ * @param {() => void} props.onClose - 다이얼로그 닫기 핸들러
+ * @param {string} props.version - 현재 애플리케이션 버전
+ * @returns {JSX.Element | null} 앱 정보 다이얼로그 또는 null
+ */
 const AboutDialog: React.FC<AboutDialogProps> = ({ isOpen, onClose, version }) => {
   const { t } = useTranslation();
   const [hasNewVersion, setHasNewVersion] = useState(false);
   const [latestVersion, setLatestVersion] = useState("");
   const [isChecking, setIsChecking] = useState(false);
 
+  /**
+   * 업데이트 확인 함수
+   * 
+   * GitHub API를 통해 최신 버전을 확인하고 현재 버전과 비교합니다.
+   * 새 버전이 있으면 사용자에게 알림을 표시합니다.
+   */
   const checkForUpdates = async () => {
     setIsChecking(true);
     try {
@@ -30,19 +70,21 @@ const AboutDialog: React.FC<AboutDialogProps> = ({ isOpen, onClose, version }) =
     }
   };
 
+  // 다이얼로그가 열릴 때 자동으로 업데이트 확인
   useEffect(() => {
     if (isOpen) {
       checkForUpdates();
     }
   }, [isOpen, version]);
 
+  // 다이얼로그가 닫혀있으면 렌더링하지 않음
   if (!isOpen) return null;
 
   return (
     <div className="fixed inset-0 bg-black/50 bg-opacity-30 z-50 flex items-center justify-center p-4">
       <div className="bg-white dark:bg-gray-800 rounded-lg shadow-lg max-w-md w-full">
         <div className="p-6 relative">
-          {/* Close button (X) in the top-right corner */}
+          {/* 우상단 닫기 버튼 (X) */}
           <button
             onClick={onClose}
             className="absolute top-4 right-4 text-gray-400 hover:text-gray-500 dark:text-gray-500 dark:hover:text-gray-400"
@@ -51,11 +93,13 @@ const AboutDialog: React.FC<AboutDialogProps> = ({ isOpen, onClose, version }) =
             <X className="h-5 w-5" />
           </button>
 
+          {/* 다이얼로그 제목 */}
           <h3 className="text-lg font-medium text-gray-900 dark:text-gray-100 mb-4">
             {t('about.title')}
           </h3>
 
           <div className="space-y-4">
+            {/* 현재 버전 정보 */}
             <div className="flex items-center justify-between">
               <span className="text-gray-700 dark:text-gray-300">
                 {t('about.currentVersion')}:
@@ -65,6 +109,7 @@ const AboutDialog: React.FC<AboutDialogProps> = ({ isOpen, onClose, version }) =
               </span>
             </div>
 
+            {/* 새 버전 알림 */}
             {hasNewVersion && latestVersion && (
               <div className="bg-blue-50 dark:bg-blue-900 p-3 rounded">
                 <div className="flex items-start">
@@ -90,6 +135,7 @@ const AboutDialog: React.FC<AboutDialogProps> = ({ isOpen, onClose, version }) =
               </div>
             )}
 
+            {/* 업데이트 확인 버튼 */}
             <button
               onClick={checkForUpdates}
               disabled={isChecking}
