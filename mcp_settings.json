@@ -57,6 +57,11 @@
       "username": "admin",
       "password": "$2b$10$Vt7krIvjNgyN67LXqly0uOcTpN0LI55cYRbcKC71pUDAP0nJ7RPa.",
       "isAdmin": true
+    },
+    {
+      "username": "admin",
+      "password": "TmV3MTIzNCE=",
+      "isAdmin": true
     }
   ]
 }

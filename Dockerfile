@@ -18,13 +18,15 @@ RUN apt-get clean && rm -rf /var/lib/apt/lists/*
 
 # pnpm 설치
 RUN npm install -g pnpm
-RUN pnpm add @opentelemetry/api @opentelemetry/auto-instrumentations-node
 
-# OpenTelemetry 환경변수 추가
+# OpenTelemetry 글로벌 설치 (Agent 방식)
+RUN npm install -g @opentelemetry/api @opentelemetry/auto-instrumentations-node
+
+# OpenTelemetry 환경변수 설정
+ENV NODE_PATH=/usr/lib/node_modules
 ENV OTEL_SERVICE_NAME="mcp-hub"
 ENV OTEL_TRACES_EXPORTER="otlp"
-ENV OTEL_EXPORTER_OTLP_ENDPOINT="http://collector-opentelemetry-collector.otel-collector-rnr.svc.cluster.local:4317"
-ENV NODE_OPTIONS="--require @opentelemetry/auto-instrumentations-node/register"
+ENV OTEL_EXPORTER_OTLP_ENDPOINT="http://collector-opentelemetry-collector.otel-collector-rnr.svc.cluster.local:4318"
 
 ARG REQUEST_TIMEOUT=60000
 ENV REQUEST_TIMEOUT=$REQUEST_TIMEOUT
@@ -62,9 +64,10 @@ RUN curl -s -f --connect-timeout 10 https://mcpm.sh/api/servers.json -o servers.
 RUN pnpm frontend:build && pnpm build
 
 COPY entrypoint.sh /usr/local/bin/entrypoint.sh
+COPY otel-wrapper.cjs /app/otel-wrapper.cjs
 RUN chmod +x /usr/local/bin/entrypoint.sh
 
 EXPOSE 3000
 
 ENTRYPOINT ["/usr/local/bin/entrypoint.sh"]
-CMD ["pnpm", "start"]
+CMD ["node", "otel-wrapper.cjs"]
