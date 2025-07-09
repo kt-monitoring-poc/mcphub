@@ -1,0 +1,161 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: mcphub
+  labels:
+    app: mcphub
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: mcphub
+  template:
+    metadata:
+      labels:
+        app: mcphub
+    spec:
+      containers:
+      - name: mcphub
+        image: ujeongeom/otel_hub:latest
+        ports:
+        - containerPort: 3000
+        env:
+        - name: PORT
+          value: "3000"
+        - name: BASE_PATH
+          value: ""
+        - name: REQUEST_TIMEOUT
+          value: "60000"
+        - name: INIT_TIMEOUT
+          value: "300000"
+        - name: DATABASE_URL
+          valueFrom:
+            secretKeyRef:
+              name: mcphub-secret
+              key: database-url
+        - name: JWT_SECRET
+          valueFrom:
+            secretKeyRef:
+              name: mcphub-secret
+              key: jwt-secret
+        - name: OPENAI_API_KEY
+          valueFrom:
+            secretKeyRef:
+              name: mcphub-secret
+              key: openai-api-key
+              optional: true
+        - name: NPM_REGISTRY
+          value: "https://registry.npmjs.org/"
+        volumeMounts:
+        - name: mcp-settings
+          mountPath: /app/mcp_settings.json
+          subPath: mcp_settings.json
+        - name: servers-config
+          mountPath: /app/servers.json
+          subPath: servers.json
+        - name: data-storage
+          mountPath: /app/data
+        resources:
+          requests:
+            memory: "512Mi"
+            cpu: "250m"
+          limits:
+            memory: "1Gi"
+            cpu: "500m"
+        readinessProbe:
+          httpGet:
+            path: /config
+            port: 3000
+          initialDelaySeconds: 30
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 3
+        livenessProbe:
+          httpGet:
+            path: /config
+            port: 3000
+          initialDelaySeconds: 60
+          periodSeconds: 30
+          timeoutSeconds: 10
+          failureThreshold: 3
+      volumes:
+      - name: mcp-settings
+        configMap:
+          name: mcphub-config
+          items:
+          - key: mcp_settings.json
+            path: mcp_settings.json
+      - name: servers-config
+        configMap:
+          name: mcphub-config
+          items:
+          - key: servers.json
+            path: servers.json
+      - name: data-storage
+        persistentVolumeClaim:
+          claimName: mcphub-data-pvc
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: postgres
+  labels:
+    app: postgres
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: postgres
+  template:
+    metadata:
+      labels:
+        app: postgres
+    spec:
+      containers:
+      - name: postgres
+        image: pgvector/pgvector:pg16
+        ports:
+        - containerPort: 5432
+        env:
+        - name: POSTGRES_DB
+          value: mcphub
+        - name: POSTGRES_USER
+          value: mcphub
+        - name: POSTGRES_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: mcphub-secret
+              key: postgres-password
+        volumeMounts:
+        - name: postgres-data
+          mountPath: /var/lib/postgresql/data
+          subPath: postgres
+        resources:
+          requests:
+            memory: "256Mi"
+            cpu: "250m"
+          limits:
+            memory: "512Mi"
+            cpu: "500m"
+        readinessProbe:
+          exec:
+            command:
+            - pg_isready
+            - -U
+            - mcphub
+          initialDelaySeconds: 10
+          periodSeconds: 5
+          timeoutSeconds: 3
+        livenessProbe:
+          exec:
+            command:
+            - pg_isready
+            - -U
+            - mcphub
+          initialDelaySeconds: 30
+          periodSeconds: 30
+          timeoutSeconds: 5
+      volumes:
+      - name: postgres-data
+        persistentVolumeClaim:
+          claimName: postgres-data-pvc 

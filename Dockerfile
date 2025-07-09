@@ -2,18 +2,29 @@ FROM python:3.13-slim-bookworm AS base
 
 COPY --from=ghcr.io/astral-sh/uv:latest /uv /uvx /bin/
 
-# 添加 HTTP_PROXY 和 HTTPS_PROXY 环境变量
+# 프록시 환경변수 (필요시)
 ARG HTTP_PROXY=""
 ARG HTTPS_PROXY=""
 ENV HTTP_PROXY=$HTTP_PROXY
 ENV HTTPS_PROXY=$HTTPS_PROXY
 
-RUN apt-get update && apt-get install -y curl gnupg git \
-  && curl -fsSL https://deb.nodesource.com/setup_22.x | bash - \
-  && apt-get install -y nodejs \
-  && apt-get clean && rm -rf /var/lib/apt/lists/*
+# Node.js 22.x 및 npm 설치 (분리)
+RUN apt-get update
+RUN apt-get install -y curl gnupg ca-certificates
+RUN curl -fsSL https://deb.nodesource.com/setup_22.x | bash -
+RUN apt-get update
+RUN apt-get install -y nodejs git
+RUN apt-get clean && rm -rf /var/lib/apt/lists/*
 
+# pnpm 설치
 RUN npm install -g pnpm
+RUN pnpm add @opentelemetry/api @opentelemetry/auto-instrumentations-node
+
+# OpenTelemetry 환경변수 추가
+ENV OTEL_SERVICE_NAME="mcp-hub"
+ENV OTEL_TRACES_EXPORTER="otlp"
+ENV OTEL_EXPORTER_OTLP_ENDPOINT="http://collector-opentelemetry-collector.otel-collector-rnr.svc.cluster.local:4317"
+ENV NODE_OPTIONS="--require @opentelemetry/auto-instrumentations-node/register"
 
 ARG REQUEST_TIMEOUT=60000
 ENV REQUEST_TIMEOUT=$REQUEST_TIMEOUT

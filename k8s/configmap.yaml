@@ -1,0 +1,78 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: mcphub-config
+  labels:
+    app: mcphub
+data:
+  # MCP 서버 설정 파일 (Model Context Protocol)
+  mcp_settings.json: |
+    {
+      "mcpServers": {
+        "firecrawl-mcp": {
+          "command": "npx",
+          "args": [
+            "-y",
+            "firecrawl-mcp"
+          ],
+          "env": {
+            "FIRECRAWL_API_KEY": "fc-89c11d9ad6ab4636bbfdfff9731d0972"
+          }
+        },
+        "Sequential Thinking Tools": {
+          "type": "stdio",
+          "command": "npx",
+          "args": [
+            "-y",
+            "@smithery/cli@latest",
+            "run",
+            "@xinzhongyouhai/mcp-sequentialthinking-tools",
+            "--key",
+            "80d1c482-d213-4a38-a732-fc780af4a2d1"
+          ],
+          "env": {}
+        },
+        "Context7": {
+          "type": "stdio",
+          "command": "npx",
+          "args": [
+            "-y",
+            "@smithery/cli@latest",
+            "run",
+            "@upstash/context7-mcp",
+            "--key",
+            "80d1c482-d213-4a38-a732-fc780af4a2d1"
+          ],
+          "env": {}
+        },
+        "Github": {
+          "type": "stdio",
+          "command": "npx",
+          "args": [
+            "-y",
+            "@smithery/cli@latest",
+            "run",
+            "@smithery-ai/github",
+            "--key",
+            "80d1c482-d213-4a38-a732-fc780af4a2d1",
+            "--profile",
+            "clear-ox-TgjNs3"
+          ],
+          "env": {}
+        }
+      },
+      "users": [
+        {
+          "username": "admin",
+          "password": "$2b$10$Vt7krIvjNgyN67LXqly0uOcTpN0LI55cYRbcKC71pUDAP0nJ7RPa.",
+          "isAdmin": true
+        }
+      ]
+    }
+  # 서버 목록 설정 파일 (필요시 실제 서버 목록으로 업데이트)
+  servers.json: |
+    {
+      "servers": [],
+      "categories": [],
+      "tags": []
+    } 
