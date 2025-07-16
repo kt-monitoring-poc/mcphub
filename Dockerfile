@@ -19,11 +19,7 @@ RUN apt-get clean && rm -rf /var/lib/apt/lists/*
 # pnpm 설치
 RUN npm install -g pnpm
 
-# OpenTelemetry 글로벌 설치 (Agent 방식)
-RUN npm install -g @opentelemetry/api @opentelemetry/auto-instrumentations-node
-
 # OpenTelemetry 환경변수 설정
-ENV NODE_PATH=/usr/lib/node_modules
 ENV OTEL_SERVICE_NAME="mcp-hub"
 ENV OTEL_TRACES_EXPORTER="otlp"
 ENV OTEL_EXPORTER_OTLP_ENDPOINT="http://collector-opentelemetry-collector.otel-collector-rnr.svc.cluster.local:4318"

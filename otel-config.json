@@ -1,0 +1,94 @@
+{
+    "service": {
+      "name": "${OTEL_SERVICE_NAME:-mcp-hub}",
+      "version": "${OTEL_SERVICE_VERSION:-1.0.0}",
+      "namespace": "${OTEL_SERVICE_NAMESPACE:-mcphub}",
+      "instance": "${OTEL_SERVICE_INSTANCE_ID:-${HOSTNAME}}"
+    },
+    "tracing": {
+      "enabled": "${OTEL_TRACES_ENABLED:-true}",
+      "exporter": {
+        "type": "${OTEL_TRACES_EXPORTER:-otlp}",
+        "otlp": {
+          "endpoint": "${OTEL_EXPORTER_OTLP_ENDPOINT:-http://localhost:4318}",
+          "headers": "${OTEL_EXPORTER_OTLP_HEADERS:-}",
+          "timeout": "${OTEL_EXPORTER_OTLP_TIMEOUT:-30000}"
+        }
+      },
+      "sampling": {
+        "type": "${OTEL_TRACES_SAMPLER:-parentbased_traceidratio}",
+        "ratio": "${OTEL_TRACES_SAMPLER_ARG:-1.0}"
+      },
+      "batch": {
+        "maxExportBatchSize": "${OTEL_BSP_MAX_EXPORT_BATCH_SIZE:-512}",
+        "maxQueueSize": "${OTEL_BSP_MAX_QUEUE_SIZE:-2048}",
+        "exportTimeout": "${OTEL_BSP_EXPORT_TIMEOUT:-30000}",
+        "scheduleDelay": "${OTEL_BSP_SCHEDULE_DELAY:-5000}"
+      }
+    },
+    "metrics": {
+      "enabled": "${OTEL_METRICS_ENABLED:-true}",
+      "exporter": {
+        "type": "${OTEL_METRICS_EXPORTER:-otlp}",
+        "otlp": {
+          "endpoint": "${OTEL_EXPORTER_OTLP_ENDPOINT:-http://localhost:4318}",
+          "headers": "${OTEL_EXPORTER_OTLP_HEADERS:-}",
+          "timeout": "${OTEL_EXPORTER_OTLP_TIMEOUT:-30000}"
+        }
+      },
+      "reader": {
+        "interval": "${OTEL_METRIC_EXPORT_INTERVAL:-60000}",
+        "timeout": "${OTEL_METRIC_EXPORT_TIMEOUT:-30000}"
+      }
+    },
+    "logs": {
+      "enabled": "${OTEL_LOGS_ENABLED:-true}",
+      "exporter": {
+        "type": "${OTEL_LOGS_EXPORTER:-otlp}",
+        "otlp": {
+          "endpoint": "${OTEL_EXPORTER_OTLP_ENDPOINT:-http://localhost:4318}",
+          "headers": "${OTEL_EXPORTER_OTLP_HEADERS:-}",
+          "timeout": "${OTEL_EXPORTER_OTLP_TIMEOUT:-30000}"
+        }
+      },
+      "processor": {
+        "type": "${OTEL_LOGS_PROCESSOR:-batch}",
+        "batch": {
+          "maxExportBatchSize": "${OTEL_BLSP_MAX_EXPORT_BATCH_SIZE:-512}",
+          "maxQueueSize": "${OTEL_BLSP_MAX_QUEUE_SIZE:-2048}",
+          "exportTimeout": "${OTEL_BLSP_EXPORT_TIMEOUT:-30000}",
+          "scheduleDelay": "${OTEL_BLSP_SCHEDULE_DELAY:-1000}"
+        }
+      }
+    },
+    "instrumentation": {
+      "http": {
+        "enabled": "${OTEL_INSTRUMENTATION_HTTP_ENABLED:-true}",
+        "captureHeaders": "${OTEL_INSTRUMENTATION_HTTP_CAPTURE_HEADERS:-true}",
+        "ignoreIncomingPaths": "${OTEL_INSTRUMENTATION_HTTP_IGNORE_INCOMING_PATHS:-/health,/ping,/favicon.ico}"
+      },
+      "express": {
+        "enabled": "${OTEL_INSTRUMENTATION_EXPRESS_ENABLED:-true}",
+        "ignoreLayers": "${OTEL_INSTRUMENTATION_EXPRESS_IGNORE_LAYERS:-}"
+      },
+      "fs": {
+        "enabled": "${OTEL_INSTRUMENTATION_FS_ENABLED:-false}"
+      },
+      "dns": {
+        "enabled": "${OTEL_INSTRUMENTATION_DNS_ENABLED:-false}"
+      }
+    },
+    "context": {
+      "propagation": {
+        "extractors": ["tracecontext", "baggage", "b3"],
+        "injectors": ["tracecontext", "baggage"]
+      }
+    },
+    "development": {
+      "enabled": "${NODE_ENV:-development}",
+      "console": {
+        "enabled": "${OTEL_CONSOLE_ENABLED:-true}",
+        "level": "${OTEL_LOG_LEVEL:-info}"
+      }
+    }
+  }

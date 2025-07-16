@@ -17,6 +17,49 @@ export const errorHandler = (
 };
 
 export const initMiddlewares = (app: express.Application): void => {
+  // CORS 설정 (OpenTelemetry 헤더 포함)
+  app.use((req, res, next) => {
+    const origin = req.headers.origin;
+    const allowedOrigins = [
+      'http://localhost:5173',
+      'http://127.0.0.1:5173',
+      'http://localhost:3000',
+      'http://127.0.0.1:3000'
+    ];
+    
+    if (!origin || allowedOrigins.includes(origin)) {
+      res.header('Access-Control-Allow-Origin', origin || '*');
+    }
+    
+    res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS, PATCH');
+    res.header('Access-Control-Allow-Headers', [
+      'Origin',
+      'X-Requested-With',
+      'Content-Type',
+      'Accept',
+      'Authorization',
+      'Cache-Control',
+      'Pragma',
+      // OpenTelemetry 헤더 추가
+      'traceparent',
+      'tracestate',
+      'baggage'
+    ].join(', '));
+    res.header('Access-Control-Allow-Credentials', 'true');
+    res.header('Access-Control-Expose-Headers', [
+      'traceparent',
+      'tracestate',
+      'baggage'
+    ].join(', '));
+    
+    if (req.method === 'OPTIONS') {
+      res.sendStatus(200);
+      return;
+    }
+    
+    next();
+  });
+
   // Serve static files from the dynamically determined frontend path
   // Note: Static files will be handled by the server directly, not here
 
