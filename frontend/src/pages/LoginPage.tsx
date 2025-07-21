@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '../contexts/AuthContext';
 import ThemeSwitch from '@/components/ui/ThemeSwitch';
+import { GitHubIcon } from '../components/icons/GitHubIcon';
 
 const LoginPage: React.FC = () => {
   const { t } = useTranslation();
@@ -37,6 +38,11 @@ const LoginPage: React.FC = () => {
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleGitHubLogin = () => {
+    // GitHub OAuth 로그인 시작
+    window.location.href = '/api/auth/github';
   };
 
   return (
@@ -97,6 +103,30 @@ const LoginPage: React.FC = () => {
               className="group relative w-full flex justify-center py-2 px-4 border border-transparent text-sm font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 login-button transition-all duration-200 btn-primary"
             >
               {loading ? t('auth.loggingIn') : t('auth.login')}
+            </button>
+          </div>
+
+          {/* 구분선 */}
+          <div className="relative">
+            <div className="absolute inset-0 flex items-center">
+              <div className="w-full border-t border-gray-300 dark:border-gray-600" />
+            </div>
+            <div className="relative flex justify-center text-sm">
+              <span className="px-2 bg-gray-50 dark:bg-gray-900 text-gray-500 dark:text-gray-400">
+                또는
+              </span>
+            </div>
+          </div>
+
+          {/* GitHub OAuth 로그인 버튼 */}
+          <div>
+            <button
+              type="button"
+              onClick={handleGitHubLogin}
+              className="group relative w-full flex justify-center py-2 px-4 border border-gray-300 dark:border-gray-600 text-sm font-medium rounded-md text-gray-700 dark:text-gray-200 bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500 transition-all duration-200"
+            >
+              <GitHubIcon className="w-5 h-5 mr-2" />
+              GitHub로 로그인
             </button>
           </div>
         </form>
