@@ -38,6 +38,17 @@ import { getRuntimeConfig, getPublicConfig } from '../controllers/configControll
 import { callTool } from '../controllers/toolController.js';
 import { uploadDxtFile, uploadMiddleware } from '../controllers/dxtController.js';
 import { auth } from '../middlewares/auth.js';
+import { 
+  initiateGithubLogin, 
+  handleGithubCallback, 
+  logout, 
+  getCurrentUser as getOAuthUser, 
+  getUserKeys, 
+  createUserKey, 
+  updateKeyTokens, 
+  extendKeyExpiry, 
+  deactivateKey 
+} from '../controllers/oauthController.js';
 
 const router = express.Router();
 
@@ -116,6 +127,19 @@ export const initRoutes = (app: express.Application): void => {
     ],
     changePassword,
   );
+
+  // GitHub OAuth routes
+  router.get('/auth/github', initiateGithubLogin);
+  router.get('/auth/github/callback', handleGithubCallback);
+  router.post('/auth/logout', logout);
+  
+  // OAuth User routes
+  router.get('/oauth/user', auth, getOAuthUser);
+  router.get('/oauth/keys', auth, getUserKeys);
+  router.post('/oauth/keys', auth, createUserKey);
+  router.put('/oauth/keys/:keyId/tokens', auth, updateKeyTokens);
+  router.post('/oauth/keys/:keyId/extend', auth, extendKeyExpiry);
+  router.post('/oauth/keys/:keyId/deactivate', auth, deactivateKey);
 
   // Runtime configuration endpoint (no auth required for frontend initialization)
   app.get(`${config.basePath}/config`, getRuntimeConfig);
