@@ -8,6 +8,11 @@
       ],
       "env": {
         "FIRECRAWL_API_KEY": "fc-89c11d9ad6ab4636bbfdfff9731d0972"
+      },
+      "tools": {
+        "firecrawl-mcp-firecrawl_scrape": {
+          "enabled": true
+        }
       }
     },
     "Sequential Thinking Tools": {

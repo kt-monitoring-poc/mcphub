@@ -20,9 +20,10 @@ RUN apt-get clean && rm -rf /var/lib/apt/lists/*
 RUN npm install -g pnpm
 
 # OpenTelemetry 환경변수 설정
+ENV OTEL_ENABLED=true
 ENV OTEL_SERVICE_NAME="mcp-hub"
 ENV OTEL_TRACES_EXPORTER="otlp"
-ENV OTEL_EXPORTER_OTLP_ENDPOINT="http://collector-opentelemetry-collector.otel-collector-rnr.svc.cluster.local:4318"
+ENV OTEL_EXPORTER_OTLP_ENDPOINT="http://collector-http.rnr-apps-01.4.217.129.211.nip.io:4318"
 
 ARG REQUEST_TIMEOUT=60000
 ENV REQUEST_TIMEOUT=$REQUEST_TIMEOUT
@@ -57,13 +58,13 @@ COPY . .
 # Download the latest servers.json from mcpm.sh and replace the existing file
 RUN curl -s -f --connect-timeout 10 https://mcpm.sh/api/servers.json -o servers.json || echo "Failed to download servers.json, using bundled version"
 
-RUN pnpm frontend:build && pnpm build
+# 빌드 단계 생략 - tsx로 직접 실행
+# RUN pnpm backend:build
 
 COPY entrypoint.sh /usr/local/bin/entrypoint.sh
-COPY otel-wrapper.cjs /app/otel-wrapper.cjs
 RUN chmod +x /usr/local/bin/entrypoint.sh
 
 EXPOSE 3000
 
 ENTRYPOINT ["/usr/local/bin/entrypoint.sh"]
-CMD ["node", "otel-wrapper.cjs"]
+CMD ["npx", "tsx", "src/index.ts"]

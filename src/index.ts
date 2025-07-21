@@ -1,3 +1,5 @@
+// OpenTelemetry를 다른 모든 모듈보다 먼저 로드
+import './services/telemetry.js';
 import 'reflect-metadata';
 import AppServer from './server.js';
 
