@@ -1,8 +1,9 @@
-import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, UpdateDateColumn, Index } from 'typeorm';
+import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, UpdateDateColumn, Index, OneToMany } from 'typeorm';
+import { MCPHubKey } from './MCPHubKey.js';
 
 /**
  * 사용자 엔티티
- * 시스템 사용자의 기본 정보와 인증 정보를 관리합니다.
+ * GitHub OAuth를 통한 사용자 정보와 MCPHub Key 연결을 관리합니다.
  */
 @Entity('users')
 export class User {
@@ -13,24 +14,42 @@ export class User {
   id!: string;
 
   /**
-   * 사용자명 (고유)
+   * GitHub 사용자 ID (고유)
    */
   @Column({ type: 'varchar', length: 50, unique: true })
   @Index()
-  username!: string;
+  githubId!: string;
 
   /**
-   * 이메일 주소 (선택적, 고유)
+   * GitHub 사용자명 (고유)
    */
-  @Column({ type: 'varchar', length: 255, nullable: true, unique: true })
+  @Column({ type: 'varchar', length: 100, unique: true })
   @Index()
+  githubUsername!: string;
+
+  /**
+   * 이메일 주소 (GitHub에서 제공)
+   */
+  @Column({ type: 'varchar', length: 255, nullable: true })
   email?: string;
 
   /**
-   * 비밀번호 해시
+   * GitHub 아바타 URL
    */
-  @Column({ type: 'varchar', length: 255 })
-  passwordHash!: string;
+  @Column({ type: 'varchar', length: 500, nullable: true })
+  avatarUrl?: string;
+
+  /**
+   * GitHub 표시 이름
+   */
+  @Column({ type: 'varchar', length: 200, nullable: true })
+  displayName?: string;
+
+  /**
+   * GitHub 프로필 URL
+   */
+  @Column({ type: 'varchar', length: 500, nullable: true })
+  githubProfileUrl?: string;
 
   /**
    * 관리자 권한 여부
@@ -61,4 +80,10 @@ export class User {
    */
   @UpdateDateColumn()
   updatedAt!: Date;
+
+  /**
+   * 사용자의 MCPHub Key들 (관계)
+   */
+  @OneToMany(() => MCPHubKey, (key) => key.user)
+  mcpHubKeys?: MCPHubKey[];
 } 
