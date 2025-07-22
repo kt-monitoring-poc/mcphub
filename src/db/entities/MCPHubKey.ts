@@ -1,5 +1,4 @@
 import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, UpdateDateColumn, ManyToOne, JoinColumn, Index } from 'typeorm';
-import { User } from './User.js';
 
 /**
  * MCPHub Key 엔티티
@@ -41,9 +40,9 @@ export class MCPHubKey {
   /**
    * 소유자 사용자 (관계)
    */
-  @ManyToOne(() => User)
+  @ManyToOne('User')
   @JoinColumn({ name: 'userId' })
-  user!: User;
+  user!: any;
 
   /**
    * 키 활성화 상태
