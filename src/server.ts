@@ -78,8 +78,11 @@ export class AppServer {
         secret: process.env.SESSION_SECRET || 'mcphub-default-secret-change-in-production',
         resave: false,
         saveUninitialized: false,
+        name: 'connect.sid', // Express 기본 세션 쿠키 이름
         cookie: {
-          secure: process.env.NODE_ENV === 'production', // HTTPS에서만 true
+          secure: false, // HTTP 허용
+          httpOnly: false, // 브라우저에서 접근 가능
+          sameSite: 'lax', // 기본값으로 되돌림
           maxAge: 24 * 60 * 60 * 1000 // 24시간
         }
       }));

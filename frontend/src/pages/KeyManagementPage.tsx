@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Key, Plus, Calendar, Shield, Copy, AlertTriangle, RefreshCw, Trash2 } from 'lucide-react';
+import { Key, Plus, Calendar, Shield, Copy, AlertTriangle, RefreshCw, Trash2, Settings } from 'lucide-react';
 import { useToast } from '../contexts/ToastContext';
+import ServiceTokenForm from '../components/ServiceTokenForm';
 
 interface MCPHubKey {
   id: string;
@@ -25,15 +26,18 @@ const KeyManagementPage: React.FC = () => {
   const [showCreateForm, setShowCreateForm] = useState(false);
   const [newKeyName, setNewKeyName] = useState('');
   const [newKeyDescription, setNewKeyDescription] = useState('');
+  const [newKeyExpirationDays, setNewKeyExpirationDays] = useState(90);
   const [creatingKey, setCreatingKey] = useState(false);
+  const [expandedKeys, setExpandedKeys] = useState<Record<string, boolean>>({});
 
   // 키 목록 로드
   const loadKeys = async () => {
     try {
-      const response = await fetch('/api/oauth/keys', {
+      const token = localStorage.getItem('mcphub_token');
+      const response = await fetch('/api/keys', {
         headers: {
-          'Authorization': `Bearer ${localStorage.getItem('token')}`
-        }
+          'x-auth-token': token || '',
+        },
       });
 
       if (response.ok) {
@@ -60,15 +64,17 @@ const KeyManagementPage: React.FC = () => {
 
     setCreatingKey(true);
     try {
-      const response = await fetch('/api/oauth/keys', {
+      const token = localStorage.getItem('mcphub_token');
+      const response = await fetch('/api/keys', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${localStorage.getItem('token')}`
+          'x-auth-token': token || '',
         },
         body: JSON.stringify({
           name: newKeyName.trim(),
-          description: newKeyDescription.trim() || undefined
+          description: newKeyDescription.trim() || undefined,
+          expirationDays: newKeyExpirationDays
         })
       });
 
@@ -85,6 +91,7 @@ const KeyManagementPage: React.FC = () => {
         // 폼 리셋 및 목록 새로고침
         setNewKeyName('');
         setNewKeyDescription('');
+        setNewKeyExpirationDays(90);
         setShowCreateForm(false);
         loadKeys();
       } else {
@@ -99,28 +106,7 @@ const KeyManagementPage: React.FC = () => {
     }
   };
 
-  // 키 만료 연장
-  const handleExtendKey = async (keyId: string, keyName: string) => {
-    try {
-      const response = await fetch(`/api/oauth/keys/${keyId}/extend`, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('token')}`
-        }
-      });
 
-      if (response.ok) {
-        addToast(`"${keyName}" 키의 만료일이 90일 연장되었습니다.`, 'success');
-        loadKeys();
-      } else {
-        const error = await response.json();
-        throw new Error(error.message || '키 연장 실패');
-      }
-    } catch (error) {
-      console.error('키 연장 오류:', error);
-      addToast(error instanceof Error ? error.message : '키 연장 중 오류가 발생했습니다.', 'error');
-    }
-  };
 
   // 키 비활성화
   const handleDeactivateKey = async (keyId: string, keyName: string) => {
@@ -129,10 +115,11 @@ const KeyManagementPage: React.FC = () => {
     }
 
     try {
-      const response = await fetch(`/api/oauth/keys/${keyId}/deactivate`, {
+      const token = localStorage.getItem('mcphub_token');
+      const response = await fetch(`/api/keys/${keyId}/deactivate`, {
         method: 'POST',
         headers: {
-          'Authorization': `Bearer ${localStorage.getItem('token')}`
+          'x-auth-token': token || '',
         }
       });
 
@@ -157,6 +144,70 @@ const KeyManagementPage: React.FC = () => {
     } catch (error) {
       addToast('키 값 복사에 실패했습니다.', 'error');
     }
+  };
+
+  // 서비스 토큰 업데이트
+  const handleUpdateServiceTokens = async (keyId: string, tokens: Record<string, string>) => {
+    try {
+      const token = localStorage.getItem('mcphub_token');
+      const response = await fetch(`/api/keys/${keyId}/tokens`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-auth-token': token || '',
+        },
+        body: JSON.stringify({ serviceTokens: tokens })
+      });
+
+      if (response.ok) {
+        addToast('서비스 토큰이 업데이트되었습니다.', 'success');
+        loadKeys(); // 키 목록 새로고침
+      } else {
+        const error = await response.json();
+        throw new Error(error.message || '서비스 토큰 업데이트 실패');
+      }
+    } catch (error) {
+      console.error('서비스 토큰 업데이트 오류:', error);
+      addToast(error instanceof Error ? error.message : '서비스 토큰 업데이트 중 오류가 발생했습니다.', 'error');
+    }
+  };
+
+  // 키 만료일 연장
+  const handleExtendKey = async (keyId: string, keyName: string) => {
+    if (!confirm(`"${keyName}" 키의 만료일을 30일 연장하시겠습니까?`)) {
+      return;
+    }
+
+    try {
+      const token = localStorage.getItem('mcphub_token');
+      const response = await fetch(`/api/keys/${keyId}/extend`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-auth-token': token || '',
+        },
+        body: JSON.stringify({ days: 30 })
+      });
+
+      if (response.ok) {
+        addToast(`"${keyName}" 키의 만료일이 30일 연장되었습니다.`, 'success');
+        loadKeys();
+      } else {
+        const error = await response.json();
+        throw new Error(error.message || '키 만료일 연장 실패');
+      }
+    } catch (error) {
+      console.error('키 만료일 연장 오류:', error);
+      addToast(error instanceof Error ? error.message : '키 만료일 연장 중 오류가 발생했습니다.', 'error');
+    }
+  };
+
+  // 키 확장/축소 토글
+  const toggleKeyExpansion = (keyId: string) => {
+    setExpandedKeys(prev => ({
+      ...prev,
+      [keyId]: !prev[keyId]
+    }));
   };
 
   // 만료일 표시 색상
@@ -235,6 +286,27 @@ const KeyManagementPage: React.FC = () => {
                 rows={3}
                 className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 dark:bg-gray-700 dark:text-white"
               />
+            </div>
+
+            <div>
+              <label htmlFor="keyExpiration" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                만료일 설정
+              </label>
+              <select
+                id="keyExpiration"
+                value={newKeyExpirationDays}
+                onChange={(e) => setNewKeyExpirationDays(Number(e.target.value))}
+                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 dark:bg-gray-700 dark:text-white"
+              >
+                <option value={1}>1일</option>
+                <option value={7}>7일</option>
+                <option value={30}>30일 (1개월)</option>
+                <option value={60}>60일 (2개월)</option>
+                <option value={90}>90일 (3개월) - 권장</option>
+              </select>
+              <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+                키는 선택한 날짜 이후 자동으로 만료됩니다.
+              </p>
             </div>
 
             <div className="flex items-center space-x-3">
@@ -353,6 +425,14 @@ const KeyManagementPage: React.FC = () => {
                 </div>
 
                 <div className="flex items-center space-x-2 ml-4">
+                  <button
+                    onClick={() => toggleKeyExpansion(key.id)}
+                    className="p-2 text-gray-400 hover:text-indigo-600 dark:hover:text-indigo-400"
+                    title="토큰 관리"
+                  >
+                    <Settings className="w-4 h-4" />
+                  </button>
+                  
                   {key.isActive && (
                     <button
                       onClick={() => handleExtendKey(key.id, key.name)}
@@ -372,6 +452,20 @@ const KeyManagementPage: React.FC = () => {
                   </button>
                 </div>
               </div>
+
+              {/* 서비스 토큰 관리 섹션 */}
+              {expandedKeys[key.id] && (
+                <div className="mt-6 pt-6 border-t border-gray-200 dark:border-gray-700">
+                  <ServiceTokenForm
+                    keyId={key.id}
+                    currentTokens={key.serviceTokens.reduce((acc, service) => {
+                      acc[service] = '***'; // 실제 값은 보안상 마스킹
+                      return acc;
+                    }, {} as Record<string, string>)}
+                    onUpdate={(tokens) => handleUpdateServiceTokens(key.id, tokens)}
+                  />
+                </div>
+              )}
             </div>
           ))}
         </div>

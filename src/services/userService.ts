@@ -13,8 +13,8 @@ export class UserService {
   private mcpHubKeyRepository: MCPHubKeyRepository;
 
   constructor() {
-    this.userRepository = new UserRepository(AppDataSource.getRepository(User));
-    this.mcpHubKeyRepository = new MCPHubKeyRepository(AppDataSource.getRepository(MCPHubKey));
+    this.userRepository = new UserRepository();
+    this.mcpHubKeyRepository = new MCPHubKeyRepository();
   }
 
   /**
@@ -49,9 +49,6 @@ export class UserService {
 
     if (isNewUser) {
       console.log(`✨ 새 사용자 생성: ${user.githubUsername}`);
-      
-      // 새 사용자에게 기본 MCPHub Key 생성
-      await this.createDefaultMCPHubKey(user.id);
     } else {
       console.log(`🔄 기존 사용자 정보 업데이트: ${user.githubUsername}`);
     }
@@ -59,19 +56,7 @@ export class UserService {
     return { user, isNewUser };
   }
 
-  /**
-   * 새 사용자에게 기본 MCPHub Key 생성
-   */
-  private async createDefaultMCPHubKey(userId: string): Promise<MCPHubKey> {
-    const defaultKey = await this.mcpHubKeyRepository.createKey({
-      userId,
-      name: 'Default Key',
-      description: '자동 생성된 기본 MCPHub Key입니다. Cursor IDE에서 사용하세요.'
-    });
 
-    console.log(`🔑 기본 MCPHub Key 생성: ${defaultKey.keyValue.substring(0, 20)}...`);
-    return defaultKey;
-  }
 
   /**
    * 사용자 ID로 사용자 조회
@@ -149,6 +134,20 @@ export class UserService {
   async setAdminRole(userId: string, isAdmin: boolean): Promise<User | null> {
     console.log(`👑 관리자 권한 ${isAdmin ? '부여' : '제거'}: ${userId}`);
     return this.userRepository.setAdminRole(userId, isAdmin);
+  }
+
+  /**
+   * 모든 사용자 조회 (키 개수 포함)
+   */
+  async getAllUsersWithKeyCount(): Promise<User[]> {
+    return this.userRepository.findAllWithKeyCount();
+  }
+
+  /**
+   * 사용자 정보 업데이트
+   */
+  async updateUser(userId: string, updateData: Partial<User>): Promise<User | null> {
+    return this.userRepository.update(userId, updateData);
   }
 
   /**

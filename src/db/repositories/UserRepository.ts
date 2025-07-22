@@ -8,8 +8,8 @@ import { BaseRepository } from './BaseRepository.js';
  */
 export class UserRepository extends BaseRepository<User> {
   
-  constructor(repository: Repository<User>) {
-    super(repository);
+  constructor() {
+    super(User);
   }
 
   /**
@@ -65,9 +65,10 @@ export class UserRepository extends BaseRepository<User> {
       user.githubProfileUrl = githubData.githubProfileUrl;
       user.lastLoginAt = new Date();
       
+      console.log(`🔄 기존 사용자 정보 업데이트: ${user.githubUsername}`);
       return this.repository.save(user);
     } else {
-      // 새 사용자 생성
+      // 새 사용자 생성 (기본적으로 일반 사용자)
       user = this.repository.create({
         githubId: githubData.githubId,
         githubUsername: githubData.githubUsername,
@@ -77,9 +78,10 @@ export class UserRepository extends BaseRepository<User> {
         githubProfileUrl: githubData.githubProfileUrl,
         lastLoginAt: new Date(),
         isActive: true,
-        isAdmin: false
+        isAdmin: false // 기본적으로 일반 사용자로 생성
       });
 
+      console.log(`✨ 새 일반 사용자 생성: ${user.githubUsername}`);
       return this.repository.save(user);
     }
   }
@@ -156,6 +158,37 @@ export class UserRepository extends BaseRepository<User> {
     if (!user) return null;
 
     user.isAdmin = isAdmin;
+    return this.repository.save(user);
+  }
+
+  /**
+   * 모든 사용자 조회 (키 개수 포함)
+   */
+  async findAllWithKeyCount(): Promise<User[]> {
+    return this.repository
+      .createQueryBuilder('user')
+      .leftJoin('user.mcpHubKeys', 'keys')
+      .addSelect('COUNT(keys.id)', 'keyCount')
+      .groupBy('user.id')
+      .orderBy('user.createdAt', 'DESC')
+      .getRawAndEntities()
+      .then(result => {
+        // 키 개수를 사용자 객체에 추가
+        return result.entities.map((user, index) => {
+          (user as any).keyCount = parseInt(result.raw[index].keyCount) || 0;
+          return user;
+        });
+      });
+  }
+
+  /**
+   * 사용자 정보 업데이트
+   */
+  async update(userId: string, updateData: Partial<User>): Promise<User | null> {
+    const user = await this.findById(userId);
+    if (!user) return null;
+
+    Object.assign(user, updateData);
     return this.repository.save(user);
   }
 } 

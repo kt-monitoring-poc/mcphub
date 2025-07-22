@@ -13,8 +13,8 @@ export class MCPHubKeyService {
   private userRepository: UserRepository;
 
   constructor() {
-    this.mcpHubKeyRepository = new MCPHubKeyRepository(AppDataSource.getRepository(MCPHubKey));
-    this.userRepository = new UserRepository(AppDataSource.getRepository(User));
+    this.mcpHubKeyRepository = new MCPHubKeyRepository();
+    this.userRepository = new UserRepository();
   }
 
   /**
@@ -24,6 +24,7 @@ export class MCPHubKeyService {
     name: string;
     description?: string;
     serviceTokens?: Record<string, string>;
+    expirationDays?: number;
   }): Promise<MCPHubKey> {
     // 사용자 존재 여부 확인
     const user = await this.userRepository.findById(userId);
@@ -48,7 +49,8 @@ export class MCPHubKeyService {
       userId,
       name: data.name,
       description: data.description,
-      serviceTokens: data.serviceTokens || {}
+      serviceTokens: data.serviceTokens || {},
+      expirationDays: data.expirationDays || 90
     });
 
     console.log(`✅ MCPHub Key 생성 완료: ${newKey.keyValue.substring(0, 20)}... (만료: ${newKey.expiresAt.toLocaleDateString()})`);

@@ -9,8 +9,8 @@ import crypto from 'crypto';
  */
 export class MCPHubKeyRepository extends BaseRepository<MCPHubKey> {
   
-  constructor(repository: Repository<MCPHubKey>) {
-    super(repository);
+  constructor() {
+    super(MCPHubKey);
   }
 
   /**
@@ -58,10 +58,12 @@ export class MCPHubKeyRepository extends BaseRepository<MCPHubKey> {
     name: string;
     description?: string;
     serviceTokens?: Record<string, string>;
+    expirationDays?: number;
   }): Promise<MCPHubKey> {
-    // 90일 후 만료 설정
+    // 지정된 일수 후 만료 설정 (기본값: 90일)
+    const expirationDays = data.expirationDays || 90;
     const expiresAt = new Date();
-    expiresAt.setDate(expiresAt.getDate() + 90);
+    expiresAt.setDate(expiresAt.getDate() + expirationDays);
 
     // 고유한 키 값 생성 (mcphub_ prefix)
     const keyValue = this.generateKeyValue();

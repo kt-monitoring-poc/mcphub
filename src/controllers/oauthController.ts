@@ -1,8 +1,19 @@
 import { Request, Response } from 'express';
 import passport from 'passport';
+import jwt from 'jsonwebtoken';
 import { UserService } from '../services/userService.js';
 import { MCPHubKeyService } from '../services/mcpHubKeyService.js';
 import { User } from '../db/entities/User.js';
+
+/**
+ * JWT 시크릿 키
+ */
+const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key-change-this';
+
+/**
+ * JWT 토큰 만료 시간 (24시간)
+ */
+const TOKEN_EXPIRY = '24h';
 
 // Service 인스턴스
 const userService = new UserService();
@@ -22,32 +33,55 @@ export const initiateGithubLogin = (req: Request, res: Response) => {
  * GitHub OAuth 콜백 처리
  */
 export const handleGithubCallback = (req: Request, res: Response) => {
+  const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
+  
   passport.authenticate('github', { 
-    failureRedirect: '/login?error=oauth_failed',
-    successRedirect: '/' 
+    failureRedirect: `${frontendUrl}/login?error=oauth_failed`,
+    successRedirect: frontendUrl 
   }, async (err: any, user: User) => {
     if (err) {
       console.error('❌ GitHub OAuth 콜백 오류:', err);
-      return res.redirect('/login?error=oauth_error');
+      return res.redirect(`${frontendUrl}/login?error=oauth_error`);
     }
 
     if (!user) {
       console.log('⚠️ GitHub OAuth: 사용자 정보 없음');
-      return res.redirect('/login?error=no_user');
+      return res.redirect(`${frontendUrl}/login?error=no_user`);
     }
 
-    // 세션에 사용자 로그인 처리
-    req.logIn(user, (loginErr) => {
-      if (loginErr) {
-        console.error('❌ 세션 로그인 오류:', loginErr);
-        return res.redirect('/login?error=session_error');
-      }
+    try {
+      // JWT 토큰 페이로드 생성
+      const payload = {
+        user: {
+          username: user.githubUsername,
+          isAdmin: user.isAdmin || false
+        }
+      };
 
-      console.log(`✅ GitHub OAuth 로그인 성공: ${user.githubUsername}`);
-      
-      // 성공적으로 로그인 후 리다이렉트
-      return res.redirect('/dashboard?welcome=true');
-    });
+      // JWT 토큰 생성
+      jwt.sign(
+        payload,
+        JWT_SECRET,
+        { expiresIn: TOKEN_EXPIRY },
+        (jwtErr, token) => {
+          if (jwtErr) {
+            console.error('❌ JWT 토큰 생성 오류:', jwtErr);
+            return res.redirect(`${frontendUrl}/login?error=token_error`);
+          }
+
+          console.log(`✅ GitHub OAuth 로그인 성공: ${user.githubUsername}`);
+          console.log(`🔑 JWT 토큰 생성 완료`);
+          
+          // JWT 토큰을 URL 파라미터로 전달하여 프론트엔드로 리다이렉트
+          const redirectUrl = `${frontendUrl}/login?oauth_token=${token}&welcome=true`;
+          console.log(`🔄 프론트엔드로 리다이렉트 (JWT 토큰 포함)`);
+          return res.redirect(redirectUrl);
+        }
+      );
+    } catch (error) {
+      console.error('❌ OAuth 콜백 처리 중 오류:', error);
+      return res.redirect(`${frontendUrl}/login?error=oauth_processing_error`);
+    }
   })(req, res);
 };
 
@@ -85,8 +119,16 @@ export const logout = (req: Request, res: Response) => {
  */
 export const getCurrentUser = async (req: Request, res: Response) => {
   try {
+    console.log('🔍 OAuth 사용자 정보 요청 - 세션 확인');
+    console.log('🔍 req.user:', req.user);
+    console.log('🔍 req.session:', req.session);
+    console.log('🔍 req.sessionID:', req.sessionID);
+    console.log('🔍 요청 헤더 쿠키:', req.headers.cookie);
+    console.log('🔍 세션 인증 상태:', req.isAuthenticated ? req.isAuthenticated() : 'isAuthenticated 함수 없음');
+    
     const user = req.user as User;
     if (!user) {
+      console.log('❌ OAuth 인증되지 않은 사용자 - req.user가 없음');
       return res.status(401).json({ 
         success: false, 
         message: '인증되지 않은 사용자입니다.' 
@@ -125,15 +167,25 @@ export const getCurrentUser = async (req: Request, res: Response) => {
 };
 
 /**
- * 사용자 MCPHub Key 목록 조회
+ * 사용자 MCPHub Key 목록 조회 (JWT 기반)
  */
 export const getUserKeys = async (req: Request, res: Response) => {
   try {
-    const user = req.user as User;
-    if (!user) {
+    // JWT에서 사용자명 추출
+    const jwtUser = (req as any).user;
+    if (!jwtUser || !jwtUser.username) {
       return res.status(401).json({ 
         success: false, 
         message: '인증되지 않은 사용자입니다.' 
+      });
+    }
+
+    // 사용자명으로 실제 사용자 정보 조회
+    const user = await userService.getUserByGithubUsername(jwtUser.username);
+    if (!user) {
+      return res.status(404).json({ 
+        success: false, 
+        message: '사용자를 찾을 수 없습니다.' 
       });
     }
 
@@ -161,19 +213,29 @@ export const getUserKeys = async (req: Request, res: Response) => {
 };
 
 /**
- * 새 MCPHub Key 생성
+ * 새 MCPHub Key 생성 (JWT 기반)
  */
 export const createUserKey = async (req: Request, res: Response) => {
   try {
-    const user = req.user as User;
-    if (!user) {
+    // JWT에서 사용자명 추출
+    const jwtUser = (req as any).user;
+    if (!jwtUser || !jwtUser.username) {
       return res.status(401).json({ 
         success: false, 
         message: '인증되지 않은 사용자입니다.' 
       });
     }
 
-    const { name, description } = req.body;
+    // 사용자명으로 실제 사용자 정보 조회
+    const user = await userService.getUserByGithubUsername(jwtUser.username);
+    if (!user) {
+      return res.status(404).json({ 
+        success: false, 
+        message: '사용자를 찾을 수 없습니다.' 
+      });
+    }
+
+    const { name, description, expirationDays } = req.body;
 
     if (!name || typeof name !== 'string' || name.trim().length === 0) {
       return res.status(400).json({
@@ -182,9 +244,22 @@ export const createUserKey = async (req: Request, res: Response) => {
       });
     }
 
+    // 만료일 검증 (1일 ~ 90일)
+    let validExpirationDays = 90; // 기본값
+    if (expirationDays !== undefined) {
+      if (typeof expirationDays !== 'number' || expirationDays < 1 || expirationDays > 90) {
+        return res.status(400).json({
+          success: false,
+          message: '만료일은 1일에서 90일 사이여야 합니다.'
+        });
+      }
+      validExpirationDays = expirationDays;
+    }
+
     const newKey = await mcpHubKeyService.createKey(user.id, {
       name: name.trim(),
-      description: description?.trim()
+      description: description?.trim(),
+      expirationDays: validExpirationDays
     });
 
     res.status(201).json({
@@ -217,15 +292,25 @@ export const createUserKey = async (req: Request, res: Response) => {
 };
 
 /**
- * MCPHub Key 서비스 토큰 업데이트
+ * MCPHub Key 서비스 토큰 업데이트 (JWT 기반)
  */
 export const updateKeyTokens = async (req: Request, res: Response) => {
   try {
-    const user = req.user as User;
-    if (!user) {
+    // JWT에서 사용자명 추출
+    const jwtUser = (req as any).user;
+    if (!jwtUser || !jwtUser.username) {
       return res.status(401).json({ 
         success: false, 
         message: '인증되지 않은 사용자입니다.' 
+      });
+    }
+
+    // 사용자명으로 실제 사용자 정보 조회
+    const user = await userService.getUserByGithubUsername(jwtUser.username);
+    if (!user) {
+      return res.status(404).json({ 
+        success: false, 
+        message: '사용자를 찾을 수 없습니다.' 
       });
     }
 
@@ -276,11 +361,21 @@ export const updateKeyTokens = async (req: Request, res: Response) => {
  */
 export const extendKeyExpiry = async (req: Request, res: Response) => {
   try {
-    const user = req.user as User;
-    if (!user) {
+    // JWT에서 사용자명 추출
+    const jwtUser = (req as any).user;
+    if (!jwtUser || !jwtUser.username) {
       return res.status(401).json({ 
         success: false, 
         message: '인증되지 않은 사용자입니다.' 
+      });
+    }
+
+    // 사용자명으로 실제 사용자 정보 조회
+    const user = await userService.getUserByGithubUsername(jwtUser.username);
+    if (!user) {
+      return res.status(404).json({ 
+        success: false, 
+        message: '사용자를 찾을 수 없습니다.' 
       });
     }
 
@@ -320,11 +415,21 @@ export const extendKeyExpiry = async (req: Request, res: Response) => {
  */
 export const deactivateKey = async (req: Request, res: Response) => {
   try {
-    const user = req.user as User;
-    if (!user) {
+    // JWT에서 사용자명 추출
+    const jwtUser = (req as any).user;
+    if (!jwtUser || !jwtUser.username) {
       return res.status(401).json({ 
         success: false, 
         message: '인증되지 않은 사용자입니다.' 
+      });
+    }
+
+    // 사용자명으로 실제 사용자 정보 조회
+    const user = await userService.getUserByGithubUsername(jwtUser.username);
+    if (!user) {
+      return res.status(404).json({ 
+        success: false, 
+        message: '사용자를 찾을 수 없습니다.' 
       });
     }
 

@@ -1,5 +1,4 @@
 import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, UpdateDateColumn, Index, OneToMany } from 'typeorm';
-import { MCPHubKey } from './MCPHubKey.js';
 
 /**
  * 사용자 엔티티
@@ -84,6 +83,6 @@ export class User {
   /**
    * 사용자의 MCPHub Key들 (관계)
    */
-  @OneToMany(() => MCPHubKey, (key) => key.user)
-  mcpHubKeys?: MCPHubKey[];
+  @OneToMany('MCPHubKey', 'user')
+  mcpHubKeys?: any[];
 } 
