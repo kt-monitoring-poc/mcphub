@@ -9,8 +9,8 @@ import crypto from 'crypto';
  */
 export class MCPHubKeyRepository extends BaseRepository<MCPHubKey> {
   
-  constructor(repository: Repository<MCPHubKey>) {
-    super(repository);
+  constructor() {
+    super(MCPHubKey);
   }
 
   /**

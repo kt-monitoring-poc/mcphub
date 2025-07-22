@@ -8,8 +8,8 @@ import { BaseRepository } from './BaseRepository.js';
  */
 export class UserRepository extends BaseRepository<User> {
   
-  constructor(repository: Repository<User>) {
-    super(repository);
+  constructor() {
+    super(User);
   }
 
   /**

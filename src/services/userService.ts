@@ -13,8 +13,8 @@ export class UserService {
   private mcpHubKeyRepository: MCPHubKeyRepository;
 
   constructor() {
-    this.userRepository = new UserRepository(AppDataSource.getRepository(User));
-    this.mcpHubKeyRepository = new MCPHubKeyRepository(AppDataSource.getRepository(MCPHubKey));
+    this.userRepository = new UserRepository();
+    this.mcpHubKeyRepository = new MCPHubKeyRepository();
   }
 
   /**

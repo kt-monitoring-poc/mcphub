@@ -879,6 +879,38 @@ Available servers: ${serversList}`;
   });
 
   const allTools = [];
+  
+  // Add server-based grouping tools (one per connected server)
+  for (const serverInfo of allServerInfos) {
+    if (serverInfo.tools && serverInfo.tools.length > 0 && serverInfo.status === 'connected') {
+      const enabledTools = filterToolsByConfig(serverInfo.name, serverInfo.tools);
+      
+      if (enabledTools.length > 0) {
+        // Create a server-level tool that represents all tools in this server
+        allTools.push({
+          name: `server_${serverInfo.name}`,
+          description: `Access to ${serverInfo.name} MCP server with ${enabledTools.length} tools: ${enabledTools.map(t => t.name.replace(`${serverInfo.name}-`, '')).join(', ')}`,
+          inputSchema: {
+            type: 'object',
+            properties: {
+              tool_name: {
+                type: 'string',
+                description: `Tool to execute. Available tools: ${enabledTools.map(t => t.name.replace(`${serverInfo.name}-`, '')).join(', ')}`,
+                enum: enabledTools.map(t => t.name.replace(`${serverInfo.name}-`, ''))
+              },
+              arguments: {
+                type: 'object',
+                description: 'Arguments to pass to the selected tool'
+              }
+            },
+            required: ['tool_name']
+          }
+        });
+      }
+    }
+  }
+
+  // Also add individual tools for backward compatibility and direct access
   for (const serverInfo of allServerInfos) {
     if (serverInfo.tools && serverInfo.tools.length > 0) {
       // Filter tools based on server configuration and apply custom descriptions
@@ -1106,10 +1138,82 @@ export const handleCallToolRequest = async (request: any, extra: any) => {
       return result;
     }
 
-    // Regular tool handling
+    // Handle server-based tool calls (new format: server_<servername>)
+    const toolName = request.params.name;
+    
+    if (toolName.startsWith('server_')) {
+      const serverName = toolName.replace('server_', '');
+      const serverInfo = getServerByName(serverName);
+      
+      if (!serverInfo) {
+        throw new Error(`Server not found: ${serverName}`);
+      }
+      
+      if (serverInfo.status !== 'connected') {
+        throw new Error(`Server ${serverName} is not connected (status: ${serverInfo.status})`);
+      }
+      
+      const { tool_name, arguments: toolArgs = {} } = request.params.arguments || {};
+      
+      if (!tool_name) {
+        throw new Error('tool_name parameter is required for server-based tool calls');
+      }
+      
+      // Find the actual tool in the server
+      const fullToolName = `${serverName}-${tool_name}`;
+      const toolExists = serverInfo.tools.some((tool) => tool.name === fullToolName);
+      
+      if (!toolExists) {
+        const availableTools = serverInfo.tools.map(t => t.name.replace(`${serverName}-`, '')).join(', ');
+        throw new Error(`Tool '${tool_name}' not found on server '${serverName}'. Available tools: ${availableTools}`);
+      }
+      
+      // Handle OpenAPI servers
+      if (serverInfo.openApiClient) {
+        console.log(
+          `Invoking OpenAPI tool '${tool_name}' on server '${serverName}' with arguments: ${JSON.stringify(toolArgs)}`,
+        );
+
+        const result = await serverInfo.openApiClient.callTool(tool_name, toolArgs);
+
+        console.log(`OpenAPI tool invocation result: ${JSON.stringify(result)}`);
+        return {
+          content: [
+            {
+              type: 'text',
+              text: JSON.stringify(result),
+            },
+          ],
+        };
+      }
+      
+      // Handle MCP servers
+      const client = serverInfo.client;
+      if (!client) {
+        throw new Error(`Client not found for server: ${serverName}`);
+      }
+      
+      console.log(
+        `Invoking MCP tool '${tool_name}' on server '${serverName}' with arguments: ${JSON.stringify(toolArgs)}`,
+      );
+      
+      const result = await callToolWithReconnect(
+        serverInfo,
+        {
+          name: tool_name,
+          arguments: toolArgs,
+        },
+        serverInfo.options || {},
+      );
+      
+      console.log(`Tool call result: ${JSON.stringify(result)}`);
+      return result;
+    }
+
+    // Regular tool handling (backward compatibility)
     const serverInfo = getServerByTool(request.params.name);
     if (!serverInfo) {
-      throw new Error(`Server not found: ${request.params.name}`);
+      throw new Error(`Server not found for tool: ${request.params.name}`);
     }
 
     // Handle OpenAPI servers differently
