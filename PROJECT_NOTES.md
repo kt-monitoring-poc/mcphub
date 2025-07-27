@@ -1,146 +1,160 @@
-# 🎯 MCPHub 동적 사용자 토큰 시스템 - 프로젝트 노트
+# 🎯 MCPHub 환경변수 설정 시스템 - 프로젝트 노트
 
 ## 📋 프로젝트 개요
 
-**목표**: Cursor IDE에서 MCPHub를 통해 사용자별 API Key를 동적으로 주입하여 MCP 서버와 통신하는 시스템
+**목표**: MCPHub의 스마트 라우팅 및 시스템 설정을 `.env` 파일 기반으로 관리하는 시스템 구축
 
 **핵심 기능**: 
-- 사용자별 API Key 저장 및 관리
-- MCP 서버 동적 연결 (필요시에만 연결)
-- 템플릿 기반 API Key 주입 시스템
+- 환경변수 기반 설정 관리
+- OpenAI API 설정 (Smart Routing용)
+- 데이터베이스 연결 설정
+- GitHub OAuth 설정
+- 시스템 보안 설정
 
-## ✅ 완료된 기능
+## 🔄 현재 상태 (2025-07-27)
+
+### 안정적인 기준점 확인
+- **기준 커밋**: `b67d14c` (feat(multi-user): 다중 사용자 환경 최적화 및 SSE/StreamableHTTP 서버 추가)
+- **브랜치**: `feature/env-config-system-2025-07-27` (새로 생성)
+- **상태**: ✅ 빌드 성공, ✅ 서버 정상 실행
+
+### 기존 기능 상태
+- [x] **동적 MCP 서버 연결 시스템** - 정상 작동
+- [x] **사용자별 API Key 관리** - 정상 작동  
+- [x] **스마트 라우팅 기능** - 정상 작동
+- [x] **PostgreSQL 벡터 검색** - 정상 작동
+- [x] **GitHub OAuth 인증** - 정상 작동
+
+## 🎯 현재 진행 중인 작업
+
+### `.env` 파일 기반 설정 시스템 구축
+
+**목표**: 하드코딩된 설정을 환경변수로 이전하여 배포 환경별 설정 관리 개선
+
+#### 필요한 환경변수들
+```bash
+# OpenAI API 설정 (Smart Routing 기능용)
+OPENAI_API_KEY=sk-proj-...
+OPENAI_API_BASE_URL=https://api.openai.com/v1
+OPENAI_EMBEDDING_MODEL=text-embedding-3-small
+
+# Smart Routing 기능 활성화 여부
+SMART_ROUTING_ENABLED=true
+
+# MCPHub Configuration
+PORT=3000
+NODE_ENV=development
+
+# Database
+DATABASE_URL=postgresql://localhost:5432/mcphub
+DB_URL=postgresql://localhost:5432/mcphub
+
+# JWT Settings
+JWT_SECRET=your-jwt-secret-key-change-this-in-production
+
+# GitHub OAuth 설정
+GITHUB_CLIENT_ID=...
+GITHUB_CLIENT_SECRET=...
+GITHUB_CALLBACK_URL=http://localhost:3000/api/auth/github/callback
+FRONTEND_URL=http://localhost:3000
+
+# 세션 설정
+SESSION_SECRET=your-secure-session-secret-change-in-production
+
+# 라우팅 설정
+ENABLE_GLOBAL_ROUTE=true
+ENABLE_GROUP_NAME_ROUTE=true
+ENABLE_BEARER_AUTH=false
+BEARER_AUTH_KEY=
+
+# 암호화 설정
+ENCRYPTION_KEY=mcphub-default-key-2024-change-in-production
+
+# 로깅 설정
+LOG_LEVEL=info
+LOG_FORMAT=json
+
+# 기본 서버 설정
+BASE_PATH=
+INIT_TIMEOUT=300000
+REQUEST_TIMEOUT=60000
+```
+
+#### 작업 단계
+1. [ ] `.env.example` 파일 생성/업데이트
+2. [ ] 환경변수 로딩 로직 구현
+3. [ ] 기존 하드코딩된 값들을 환경변수로 대체
+4. [ ] 설정 검증 로직 추가
+5. [ ] 문서화 업데이트
+
+## ✅ 완료된 기능 (이전 작업)
 
 ### 백엔드
 - [x] **동적 MCP 서버 연결 시스템** (`src/services/mcpService.ts`)
-  - `applyUserApiKeysToConfig()`: 템플릿 치환 함수
-  - `ensureServerConnected()`: 필요시 동적 연결
-  - `handleCallToolRequest()`: 사용자 API Key 주입
-  - USER_ 템플릿 서버 초기화 시 건너뛰기
-
 - [x] **API Key 관리 시스템** (`src/controllers/oauthController.ts`)
-  - 사용자별 API Key 저장/업데이트
-  - AES-256-CBC 암호화
-  - 토큰 마스킹 로그
-
 - [x] **MCP 설정** (`mcp_settings.json`)
-  - `firecrawl-mcp` 서버 설정
-  - `${USER_FIRECRAWL_TOKEN}` 템플릿 사용
+- [x] **PostgreSQL 벡터 검색** - 1536차원 임베딩, IVFFlat 인덱스
+- [x] **GitHub OAuth 인증** - Passport.js 기반
 
 ### 프론트엔드
-- [x] **Settings 페이지 통합**
-  - API Keys 섹션에서 사용자별 키 입력
-  - "MCPHub Keys" 네비게이션 라벨
-  - 사용법 안내 텍스트 개선
-
-- [x] **UI 정리**
-  - 별도 "GitHub Token" 탭 제거
-  - 기존 API Keys 섹션으로 통합
-
-## 🔄 현재 상태
+- [x] **Settings 페이지 통합** - API Keys 섹션
+- [x] **UI 정리** - 별도 탭 제거, 통합 인터페이스
 
 ### 데이터베이스
-```sql
--- 사용자별 API Key 저장
-mcphub_keys {
-  id: UUID
-  userId: UUID (users 테이블 참조)
-  name: string
-  serviceTokens: JSONB {
-    FIRECRAWL_TOKEN: string
-    GITHUB_TOKEN: string
-    OPENAI_API_KEY: string
-    ANTHROPIC_API_KEY: string
-    UPSTASH_REST_API_TOKEN: string
-    UPSTASH_REST_API_URL: string
-  }
-  expiresAt: timestamp
-  lastUsedAt: timestamp
-  isActive: boolean
-}
-```
-
-### 작동 흐름
-1. **초기화**: USER_ 템플릿 서버는 연결하지 않음
-2. **API Key 저장**: 웹 UI에서 Settings > API Keys로 입력
-3. **동적 연결**: Cursor IDE에서 도구 호출 시 필요시에만 연결
-4. **템플릿 치환**: `${USER_*}` 템플릿을 실제 API Key로 치환
-
-## ⚠️ 현재 이슈
-
-### Firecrawl MCP 서버
-- **상태**: 404 에러 (서버 측 이슈)
-- **원인**: Firecrawl MCP 서버가 아직 공개되지 않음
-- **해결**: Firecrawl에서 공식 MCP 서버 공개 대기
-
-### 테스트 결과
-- ✅ 사용자별 API Key 저장: `FIRECRAWL_TOKEN: 'fc-89c11d9ad6ab4636bbfdfff9731d0972'`
-- ✅ 템플릿 치환 시스템: `${USER_FIRECRAWL_TOKEN}` → 실제 API Key
-- ✅ 동적 연결 시스템: URL 파싱, Transport 생성, Client 연결 시도
-- ✅ MCP 서버 초기화: USER_ 템플릿 서버 건너뛰기 정상 작동
+- [x] **사용자 관리 시스템** - mcphub_keys 테이블
+- [x] **벡터 검색 지원** - pgvector 확장 활성화
 
 ## 🚀 다음 단계
 
-### 즉시 가능한 작업
-1. **GitHub MCP 서버 테스트**
-   - `GITHUB_TOKEN`으로 GitHub MCP 서버 동적 연결 테스트
-   - GitHub API 호출 기능 확인
+### 즉시 진행할 작업
+1. **환경변수 시스템 구축**
+   - `.env.example` 파일 생성
+   - 환경변수 로딩 및 검증 로직 구현
+   - 기존 설정 파일들을 환경변수 기반으로 전환
 
-2. **다른 MCP 서버 추가**
-   - OpenAI MCP 서버 설정 추가
-   - Anthropic MCP 서버 설정 추가
-   - 기타 공개 MCP 서버들 추가
+2. **설정 검증 강화**
+   - 필수 환경변수 체크
+   - 환경변수 타입 검증
+   - 기본값 설정 로직
 
-3. **에러 처리 개선**
-   - 연결 실패 시 사용자 친화적 메시지
-   - 재시도 로직 구현
-
-### Firecrawl 서버 준비 시
-1. **Firecrawl MCP 서버 URL 확인**
-   - 공식 문서에서 정확한 엔드포인트 확인
-   - URL 형식: `https://mcp.firecrawl.dev/${API_KEY}/sse`
-
-2. **연결 테스트**
-   - 실제 Firecrawl MCP 서버와 연결 테스트
-   - 도구 목록 가져오기 테스트
-
-3. **도구 호출 테스트**
-   - Cursor IDE에서 Firecrawl 도구 호출 테스트
-   - 웹 스크래핑 기능 확인
+3. **문서화 업데이트**
+   - 설치 가이드 업데이트
+   - 환경변수 설정 가이드 작성
+   - 배포 가이드 개선
 
 ## 🧠 메모리 보존용 핵심 정보
 
+### 현재 브랜치 정보
+- **브랜치명**: `feature/env-config-system-2025-07-27`
+- **기준 커밋**: `b67d14c`
+- **생성일**: 2025-07-27
+- **목적**: 환경변수 기반 설정 시스템 구축
+
 ### 주요 파일 위치
-- **동적 연결**: `src/services/mcpService.ts`
-- **API Key 관리**: `src/controllers/oauthController.ts`
-- **MCP 설정**: `mcp_settings.json`
-- **프론트엔드**: `frontend/src/pages/SettingsPage.tsx`
+- **환경변수 예제**: `.env.example` (생성 예정)
+- **설정 로직**: `src/config/index.ts`
+- **스마트 라우팅**: `src/utils/smartRouting.ts`
+- **서버 초기화**: `src/server.ts`
 
-### 핵심 함수들
-- `applyUserApiKeysToConfig()`: 템플릿 치환
-- `ensureServerConnected()`: 동적 연결
-- `updateKeyTokens()`: API Key 저장
-- `authenticateKey()`: MCPHub Key 인증
-
-### 주의사항
-- USER_ 템플릿 서버는 초기화 시 연결하지 않음 (on-demand 연결)
-- API Key는 AES-256-CBC로 암호화 저장
-- Firecrawl MCP 서버 404 에러는 정상 (아직 공개되지 않음)
+### 안정성 확인 사항
+- ✅ 빌드 성공 (`npm run build`)
+- ✅ 서버 실행 성공 (`npm start`)
+- ✅ PostgreSQL 연결 정상
+- ✅ 벡터 검색 기능 정상
+- ✅ MCP 서버 초기화 정상
 
 ## 📊 구현 상태 요약
 
-| 구성 요소 | 상태 | 비고 |
-|-----------|------|------|
-| 사용자별 API Key 저장 | ✅ 완료 | AES-256-CBC 암호화 |
-| 템플릿 치환 시스템 | ✅ 완료 | `${USER_*}` 템플릿 지원 |
-| 동적 서버 연결 | ✅ 완료 | 필요시에만 연결 |
-| MCP 서버 초기화 | ✅ 완료 | USER_ 템플릿 서버 건너뛰기 |
-| 프론트엔드 UI | ✅ 완료 | Settings > API Keys 통합 |
-| Firecrawl 연결 | ⚠️ 대기 | 서버 엔드포인트 확인 필요 |
-| GitHub 연결 | 🔄 준비 | GITHUB_TOKEN으로 테스트 가능 |
+| 구성 요소 | 이전 상태 | 현재 작업 | 목표 |
+|-----------|-----------|-----------|------|
+| 환경변수 시스템 | ❌ 없음 | 🔄 진행 중 | `.env` 기반 관리 |
+| 설정 검증 | ⚠️ 부분적 | 🔄 진행 중 | 완전한 검증 |
+| 문서화 | ⚠️ 부분적 | 📝 예정 | 완전한 가이드 |
+| 기존 기능들 | ✅ 완료 | ✅ 유지 | 안정성 보장 |
 
 ---
 
-**마지막 업데이트**: 2025-07-27
-**현재 브랜치**: main
-**다음 작업**: GitHub MCP 서버 동적 연결 테스트 
+**마지막 업데이트**: 2025-07-27 12:35 KST
+**현재 브랜치**: `feature/env-config-system-2025-07-27`
+**다음 작업**: `.env.example` 파일 생성 및 환경변수 로딩 로직 구현
+**중요**: 기준 커밃 `b67d14c`에서 모든 기능이 정상 작동함을 확인 
