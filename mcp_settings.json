@@ -1,6 +1,6 @@
 {
   "mcpServers": {
-     "firecrawl-mcp": {
+    "firecrawl-mcp": {
       "type": "sse",
       "url": "https://mcp.firecrawl.dev/${USER_FIRECRAWL_TOKEN}/sse",
       "name": "Firecrawl MCP Server",
@@ -12,31 +12,70 @@
         "Accept": "application/json"
       }
     },
+    "github-mcp": {
+      "type": "streamable-http",
+      "url": "https://api.github.com/mcp/${USER_GITHUB_TOKEN}",
+      "name": "GitHub MCP Server",
+      "description": "GitHub API를 통한 저장소 및 이슈 관리",
+      "group": "development",
+      "enabled": true,
+      "headers": {
+        "Content-Type": "application/json",
+        "Accept": "application/vnd.github.v3+json",
+        "Authorization": "Bearer ${USER_GITHUB_TOKEN}"
+      }
+    },
+    "openai-mcp": {
+      "type": "streamable-http",
+      "url": "https://api.openai.com/mcp",
+      "name": "OpenAI MCP Server",
+      "description": "OpenAI API를 통한 AI 모델 접근",
+      "group": "ai",
+      "enabled": true,
+      "headers": {
+        "Content-Type": "application/json",
+        "Authorization": "Bearer ${USER_OPENAI_API_KEY}"
+      }
+    },
+    "anthropic-mcp": {
+      "type": "streamable-http",
+      "url": "https://api.anthropic.com/mcp",
+      "name": "Anthropic MCP Server",
+      "description": "Anthropic Claude API를 통한 AI 모델 접근",
+      "group": "ai",
+      "enabled": true,
+      "headers": {
+        "Content-Type": "application/json",
+        "Authorization": "Bearer ${USER_ANTHROPIC_API_KEY}"
+      }
+    },
     "sequentialthinking": {
       "command": "npx",
       "args": [
         "-y",
         "@modelcontextprotocol/server-sequential-thinking"
-      ]
+      ],
+      "enabled": true
     },
-         "test": {
-       "type": "streamable-http",
-       "url": "http://localhost:8123/mcp",
-       "name": "Test Streamable HTTP Server",
-       "description": "로컬 테스트용 StreamableHTTP MCP 서버",
-       "enabled": true,
-       "headers": {
-         "Content-Type": "application/json",
-         "Accept": "application/json"
-       }
-     },
+    "test": {
+      "type": "streamable-http",
+      "url": "http://localhost:8123/mcp",
+      "name": "Test Streamable HTTP Server",
+      "description": "로컬 테스트용 StreamableHTTP MCP 서버",
+      "enabled": true,
+      "headers": {
+        "Content-Type": "application/json",
+        "Accept": "application/json"
+      }
+    },
     "filesystem": {
       "command": "npx",
       "args": [
         "-y",
         "@modelcontextprotocol/server-filesystem",
         "/Users/jungchihoon/chihoon"
-      ]
+      ],
+      "enabled": true
     },
     "git": {
       "command": "uvx",
@@ -47,7 +86,7 @@
       ],
       "enabled": false
     },
-    "github": {
+    "github-stdio": {
       "command": "docker",
       "args": [
         "run",
@@ -65,50 +104,7 @@
         "GITHUB_PERSONAL_ACCESS_TOKEN": "${USER_GITHUB_TOKEN}",
         "GITHUB_TOOLSETS": "",
         "GITHUB_READ_ONLY": ""
-      }
-    },
-    "Sequential Thinking Tools": {
-      "type": "stdio",
-      "command": "npx",
-      "args": [
-        "-y",
-        "@smithery/cli@latest",
-        "run",
-        "@xinzhongyouhai/mcp-sequentialthinking-tools",
-        "--key",
-        "80d1c482-d213-4a38-a732-fc780af4a2d1"
-      ],
-      "env": {},
-      "enabled": false
-    },
-    "Context7": {
-      "type": "stdio",
-      "command": "npx",
-      "args": [
-        "-y",
-        "@smithery/cli@latest",
-        "run",
-        "@upstash/context7-mcp",
-        "--key",
-        "80d1c482-d213-4a38-a732-fc780af4a2d1"
-      ],
-      "env": {},
-      "enabled": false
-    },
-    "Github": {
-      "type": "stdio",
-      "command": "npx",
-      "args": [
-        "-y",
-        "@smithery/cli@latest",
-        "run",
-        "@smithery-ai/github",
-        "--key",
-        "80d1c482-d213-4a38-a732-fc780af4a2d1",
-        "--profile",
-        "clear-ox-TgjNs3"
-      ],
-      "env": {},
+      },
       "enabled": false
     }
   },
