@@ -18,7 +18,7 @@ const validateBearerAuth = (req: Request, routingConfig: any): boolean => {
   return authHeader.substring(7) === routingConfig.bearerAuthKey;
 };
 
-// Middleware to authenticate JWT token
+// Middleware to authenticate JWT token or session
 export const auth = (req: Request, res: Response, next: NextFunction): void => {
   // Check if authentication is disabled globally
   const routingConfig = loadSettings().systemConfig?.routing || {
@@ -40,7 +40,7 @@ export const auth = (req: Request, res: Response, next: NextFunction): void => {
     return;
   }
 
-  // Get token from header or query parameter
+  // JWT 토큰 인증만 사용
   const headerToken = req.header('x-auth-token');
   const queryToken = req.query.token as string;
   const token = headerToken || queryToken;

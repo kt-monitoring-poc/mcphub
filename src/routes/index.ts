@@ -1,5 +1,6 @@
 import express from 'express';
 import { check } from 'express-validator';
+import passport from 'passport';
 import config from '../config/index.js';
 import {
   getAllServers,
@@ -37,6 +38,8 @@ import { getAllLogs, clearLogs, streamLogs } from '../controllers/logController.
 import { getRuntimeConfig, getPublicConfig } from '../controllers/configController.js';
 import { callTool } from '../controllers/toolController.js';
 import { uploadDxtFile, uploadMiddleware } from '../controllers/dxtController.js';
+import { getSystemStats, getRecentActivities, getUserKeyStatus } from '../controllers/adminController.js';
+import { UserTokenController } from '../controllers/userTokenController.js';
 import { auth } from '../middlewares/auth.js';
 import { 
   initiateGithubLogin, 
@@ -45,12 +48,16 @@ import {
   getCurrentUser as getOAuthUser, 
   getUserKeys, 
   createUserKey, 
+  getKeyValue,
+  getKeyTokens,
   updateKeyTokens, 
   extendKeyExpiry, 
-  deactivateKey 
+  deactivateKey,
+  deleteUserKey
 } from '../controllers/oauthController.js';
 
 const router = express.Router();
+const userTokenController = new UserTokenController();
 
 export const initRoutes = (app: express.Application): void => {
   // API routes protected by auth middleware in middlewares/index.ts
@@ -130,16 +137,35 @@ export const initRoutes = (app: express.Application): void => {
 
   // GitHub OAuth routes
   router.get('/auth/github', initiateGithubLogin);
-  router.get('/auth/github/callback', handleGithubCallback);
+  router.get('/auth/github/callback', 
+    passport.authenticate('github', { failureRedirect: '/login?error=oauth_failed' }),
+    handleGithubCallback
+  );
   router.post('/auth/logout', logout);
   
   // OAuth User routes
   router.get('/oauth/user', auth, getOAuthUser);
   router.get('/oauth/keys', auth, getUserKeys);
   router.post('/oauth/keys', auth, createUserKey);
+  router.get('/oauth/keys/:keyId/value', auth, getKeyValue);
+  router.get('/oauth/keys/:keyId/tokens', auth, getKeyTokens);
   router.put('/oauth/keys/:keyId/tokens', auth, updateKeyTokens);
   router.post('/oauth/keys/:keyId/extend', auth, extendKeyExpiry);
   router.post('/oauth/keys/:keyId/deactivate', auth, deactivateKey);
+  router.delete('/oauth/keys/:keyId', auth, deleteUserKey);
+
+  // User token management routes (GitHub MCP)
+  router.post('/user-tokens/github', auth, userTokenController.saveGithubToken);
+  router.get('/user-tokens/github/status', auth, userTokenController.getGithubTokenStatus);
+  router.post('/user-tokens/github/validate', auth, userTokenController.validateGithubToken);
+  router.post('/user-tokens/github/server/start', auth, userTokenController.startGithubServer);
+  router.post('/user-tokens/github/server/stop', auth, userTokenController.stopGithubServer);
+  router.delete('/user-tokens/github', auth, userTokenController.deleteGithubToken);
+
+  // Admin routes
+  router.get('/admin/stats', auth, getSystemStats);
+  router.get('/admin/activities', auth, getRecentActivities);
+  router.get('/admin/user-keys', auth, getUserKeyStatus);
 
   // Runtime configuration endpoint (no auth required for frontend initialization)
   app.get(`${config.basePath}/config`, getRuntimeConfig);

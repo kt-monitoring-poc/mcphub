@@ -24,6 +24,7 @@ export class MCPHubKeyService {
     name: string;
     description?: string;
     serviceTokens?: Record<string, string>;
+    expiryDays?: number;
   }): Promise<MCPHubKey> {
     // 사용자 존재 여부 확인
     const user = await this.userRepository.findById(userId);
@@ -42,16 +43,17 @@ export class MCPHubKeyService {
       throw new Error('이미 존재하는 키 이름입니다.');
     }
 
-    console.log(`🔑 새 MCPHub Key 생성: ${user.githubUsername} - ${data.name}`);
+    console.log(`🔑 새 MCPHub Key 생성: ${user.githubUsername} (ID: ${userId}) - ${data.name}`);
     
     const newKey = await this.mcpHubKeyRepository.createKey({
       userId,
       name: data.name,
       description: data.description,
-      serviceTokens: data.serviceTokens || {}
+      serviceTokens: data.serviceTokens || {},
+      expiryDays: data.expiryDays || 90 // 기본값 90일
     });
 
-    console.log(`✅ MCPHub Key 생성 완료: ${newKey.keyValue.substring(0, 20)}... (만료: ${newKey.expiresAt.toLocaleDateString()})`);
+    console.log(`✅ MCPHub Key 생성 완료: ${user.githubUsername} - ${newKey.keyValue.substring(0, 20)}... (만료: ${newKey.expiresAt.toLocaleDateString()})`);
     
     return newKey;
   }
@@ -201,10 +203,20 @@ export class MCPHubKeyService {
       throw new Error('키에 대한 권한이 없습니다.');
     }
 
-    console.log(`🗑️ 키 삭제: ${key.name}`);
+    // 사용자 정보 가져오기
+    const user = await this.userRepository.findById(key.userId);
+    const username = user ? user.githubUsername : 'Unknown';
     
-    const deletedKey = await this.mcpHubKeyRepository.setKeyActive(keyId, false);
-    return !!deletedKey;
+    console.log(`🗑️ 키 삭제: ${username} (ID: ${key.userId}) - ${key.name}`);
+    
+    // 실제로 DB에서 삭제
+    const result = await this.mcpHubKeyRepository.delete(keyId);
+    
+    if (result) {
+      console.log(`✅ 키 삭제 완료: ${username} - ${key.name}`);
+    }
+    
+    return result;
   }
 
   /**

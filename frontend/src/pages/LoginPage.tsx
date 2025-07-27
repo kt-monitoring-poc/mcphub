@@ -21,7 +21,7 @@ const LoginPage: React.FC = () => {
 
     try {
       if (!username || !password) {
-        setError(t('auth.emptyFields'));
+        setError('사용자명과 비밀번호를 입력해주세요.');
         setLoading(false);
         return;
       }
@@ -31,10 +31,10 @@ const LoginPage: React.FC = () => {
       if (success) {
         navigate('/');
       } else {
-        setError(t('auth.loginFailed'));
+        setError('로그인에 실패했습니다. 사용자명과 비밀번호를 확인해주세요.');
       }
     } catch (err) {
-      setError(t('auth.loginError'));
+      setError('로그인 중 오류가 발생했습니다.');
     } finally {
       setLoading(false);
     }
@@ -53,14 +53,18 @@ const LoginPage: React.FC = () => {
       <div className="max-w-md w-full space-y-8 login-card p-8">
         <div>
           <h2 className="mt-6 text-center text-3xl font-extrabold text-gray-900 dark:text-white">
-            {t('auth.loginTitle')}
+            MCPHub에 로그인
           </h2>
+          <p className="mt-2 text-center text-sm text-gray-600 dark:text-gray-400">
+            계정 정보를 입력하거나 GitHub로 로그인하세요
+          </p>
         </div>
+        
         <form className="mt-8 space-y-6" onSubmit={handleSubmit}>
           <div className="rounded-md -space-y-px">
             <div>
               <label htmlFor="username" className="sr-only">
-                {t('auth.username')}
+                사용자명
               </label>
               <input
                 id="username"
@@ -69,14 +73,14 @@ const LoginPage: React.FC = () => {
                 autoComplete="username"
                 required
                 className="appearance-none rounded-none relative block w-full px-3 py-2 border border-gray-200 dark:border-gray-700 placeholder-gray-500 dark:placeholder-gray-400 text-gray-900 dark:text-white dark:bg-gray-800 rounded-t-md focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 focus:z-10 sm:text-sm transition-all duration-200 form-input"
-                placeholder={t('auth.username')}
+                placeholder="사용자명"
                 value={username}
                 onChange={(e) => setUsername(e.target.value)}
               />
             </div>
             <div>
               <label htmlFor="password" className="sr-only">
-                {t('auth.password')}
+                비밀번호
               </label>
               <input
                 id="password"
@@ -85,7 +89,7 @@ const LoginPage: React.FC = () => {
                 autoComplete="current-password"
                 required
                 className="appearance-none rounded-none relative block w-full px-3 py-2 border border-gray-300 dark:border-gray-700 placeholder-gray-500 dark:placeholder-gray-400 text-gray-900 dark:text-white dark:bg-gray-800 rounded-b-md focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 focus:z-10 sm:text-sm login-input transition-all duration-200 form-input"
-                placeholder={t('auth.password')}
+                placeholder="비밀번호"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
               />
@@ -102,7 +106,7 @@ const LoginPage: React.FC = () => {
               disabled={loading}
               className="group relative w-full flex justify-center py-2 px-4 border border-transparent text-sm font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 login-button transition-all duration-200 btn-primary"
             >
-              {loading ? t('auth.loggingIn') : t('auth.login')}
+              {loading ? '로그인 중...' : '로그인'}
             </button>
           </div>
 
@@ -130,6 +134,12 @@ const LoginPage: React.FC = () => {
             </button>
           </div>
         </form>
+        
+        <div className="text-center">
+          <p className="text-xs text-gray-500 dark:text-gray-400">
+            로그인하면 MCPHub의 이용약관 및 개인정보처리방침에 동의하는 것으로 간주됩니다.
+          </p>
+        </div>
       </div>
     </div>
   );

@@ -6,7 +6,6 @@ export interface SystemConfig {
     enableGroupNameRoute?: boolean;
     enableBearerAuth?: boolean;
     bearerAuthKey?: string;
-    skipAuth?: boolean;
   };
   install?: {
     pythonIndexUrl?: string;
@@ -24,7 +23,7 @@ export interface SystemConfig {
 export interface PublicConfigResponse {
   success: boolean;
   data?: {
-    skipAuth?: boolean;
+    // Reserved for future public configuration
   };
   message?: string;
 }
@@ -38,9 +37,9 @@ export interface SystemConfigResponse {
 }
 
 /**
- * Get public configuration (skipAuth setting) without authentication
+ * Get public configuration without authentication
  */
-export const getPublicConfig = async (): Promise<{ skipAuth: boolean }> => {
+export const getPublicConfig = async (): Promise<PublicConfigResponse> => {
   try {
     const basePath = getBasePath();
     const response = await fetch(`${basePath}/public-config`, {
@@ -52,13 +51,13 @@ export const getPublicConfig = async (): Promise<{ skipAuth: boolean }> => {
 
     if (response.ok) {
       const data: PublicConfigResponse = await response.json();
-      return { skipAuth: data.data?.skipAuth === true };
+      return data;
     }
 
-    return { skipAuth: false };
+    return { success: false, message: 'Failed to fetch public config' };
   } catch (error) {
     console.debug('Failed to get public config:', error);
-    return { skipAuth: false };
+    return { success: false, message: 'Network error' };
   }
 };
 
@@ -90,13 +89,9 @@ export const getSystemConfigPublic = async (): Promise<SystemConfig | null> => {
 
 /**
  * Check if authentication should be skipped based on system configuration
+ * @deprecated skipAuth feature has been removed for security reasons
  */
 export const shouldSkipAuth = async (): Promise<boolean> => {
-  try {
-    const config = await getPublicConfig();
-    return config.skipAuth;
-  } catch (error) {
-    console.debug('Failed to check skipAuth setting:', error);
-    return false;
-  }
+  // Always require authentication for security
+  return false;
 };

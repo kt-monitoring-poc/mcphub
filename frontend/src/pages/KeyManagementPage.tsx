@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Key, Plus, Calendar, Shield, Copy, AlertTriangle, RefreshCw, Trash2 } from 'lucide-react';
 import { useToast } from '../contexts/ToastContext';
+import { getToken } from '../services/authService';
 
 interface MCPHubKey {
   id: string;
@@ -19,20 +20,21 @@ interface MCPHubKey {
 
 const KeyManagementPage: React.FC = () => {
   const { t } = useTranslation();
-  const { addToast } = useToast();
+  const { showToast } = useToast();
   const [keys, setKeys] = useState<MCPHubKey[]>([]);
   const [loading, setLoading] = useState(true);
-  const [showCreateForm, setShowCreateForm] = useState(false);
-  const [newKeyName, setNewKeyName] = useState('');
-  const [newKeyDescription, setNewKeyDescription] = useState('');
   const [creatingKey, setCreatingKey] = useState(false);
+  const [showExpiryModal, setShowExpiryModal] = useState(false);
+  const [selectedExpiryDays, setSelectedExpiryDays] = useState(90);
 
   // 키 목록 로드
   const loadKeys = async () => {
     try {
+      const token = getToken();
       const response = await fetch('/api/oauth/keys', {
         headers: {
-          'Authorization': `Bearer ${localStorage.getItem('token')}`
+          'Authorization': `Bearer ${token}`,
+          'x-auth-token': token || ''
         }
       });
 
@@ -44,48 +46,53 @@ const KeyManagementPage: React.FC = () => {
       }
     } catch (error) {
       console.error('키 목록 로드 오류:', error);
-      addToast('키 목록을 로드하는 중 오류가 발생했습니다.', 'error');
+      showToast('키 목록을 로드하는 중 오류가 발생했습니다.', 'error');
     } finally {
       setLoading(false);
     }
   };
 
-  // 새 키 생성
-  const handleCreateKey = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!newKeyName.trim()) {
-      addToast('키 이름을 입력해주세요.', 'error');
+  // 새 키 생성 (단순화)
+  const handleCreateKey = async () => {
+    // 사용자당 키 1개 제한 확인
+    if (keys.length > 0) {
+      showToast('이미 MCPHub Key가 있습니다. 새 키를 생성하려면 기존 키를 삭제해주세요.', 'error');
       return;
     }
 
+    // 만료일 선택 모달 표시
+    setShowExpiryModal(true);
+  };
+
+  // 키 생성 실행
+  const executeCreateKey = async () => {
     setCreatingKey(true);
     try {
+      const token = getToken();
       const response = await fetch('/api/oauth/keys', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${localStorage.getItem('token')}`
+          'Authorization': `Bearer ${token}`,
+          'x-auth-token': token || ''
         },
         body: JSON.stringify({
-          name: newKeyName.trim(),
-          description: newKeyDescription.trim() || undefined
+          expiryDays: selectedExpiryDays
         })
       });
 
       if (response.ok) {
         const result = await response.json();
-        addToast('새 MCPHub Key가 생성되었습니다!', 'success');
+        showToast('새 MCPHub Key가 생성되었습니다!', 'success');
         
         // 생성된 키 값을 클립보드에 복사
         if (result.data?.keyValue) {
           await navigator.clipboard.writeText(result.data.keyValue);
-          addToast('키 값이 클립보드에 복사되었습니다.', 'info');
+          showToast('키 값이 클립보드에 복사되었습니다.', 'info');
         }
 
-        // 폼 리셋 및 목록 새로고침
-        setNewKeyName('');
-        setNewKeyDescription('');
-        setShowCreateForm(false);
+        // 모달 닫기 및 목록 새로고침
+        setShowExpiryModal(false);
         loadKeys();
       } else {
         const error = await response.json();
@@ -93,7 +100,7 @@ const KeyManagementPage: React.FC = () => {
       }
     } catch (error) {
       console.error('키 생성 오류:', error);
-      addToast(error instanceof Error ? error.message : '키 생성 중 오류가 발생했습니다.', 'error');
+      showToast('키 생성 중 오류가 발생했습니다.', 'error');
     } finally {
       setCreatingKey(false);
     }
@@ -102,15 +109,17 @@ const KeyManagementPage: React.FC = () => {
   // 키 만료 연장
   const handleExtendKey = async (keyId: string, keyName: string) => {
     try {
+      const token = getToken();
       const response = await fetch(`/api/oauth/keys/${keyId}/extend`, {
         method: 'POST',
         headers: {
-          'Authorization': `Bearer ${localStorage.getItem('token')}`
+          'Authorization': `Bearer ${token}`,
+          'x-auth-token': token || ''
         }
       });
 
       if (response.ok) {
-        addToast(`"${keyName}" 키의 만료일이 90일 연장되었습니다.`, 'success');
+        showToast(`"${keyName}" 키의 만료일이 90일 연장되었습니다.`, 'success');
         loadKeys();
       } else {
         const error = await response.json();
@@ -118,44 +127,61 @@ const KeyManagementPage: React.FC = () => {
       }
     } catch (error) {
       console.error('키 연장 오류:', error);
-      addToast(error instanceof Error ? error.message : '키 연장 중 오류가 발생했습니다.', 'error');
+      showToast(error instanceof Error ? error.message : '키 연장 중 오류가 발생했습니다.', 'error');
     }
   };
 
-  // 키 비활성화
-  const handleDeactivateKey = async (keyId: string, keyName: string) => {
-    if (!confirm(`"${keyName}" 키를 비활성화하시겠습니까?`)) {
+  // 키 삭제
+  const handleDeleteKey = async (keyId: string, keyName: string) => {
+    if (!confirm(`"${keyName}" 키를 삭제하시겠습니까?\n\n⚠️ 이 작업은 되돌릴 수 없습니다.`)) {
       return;
     }
 
     try {
-      const response = await fetch(`/api/oauth/keys/${keyId}/deactivate`, {
-        method: 'POST',
+      const token = getToken();
+      const response = await fetch(`/api/oauth/keys/${keyId}`, {
+        method: 'DELETE',
         headers: {
-          'Authorization': `Bearer ${localStorage.getItem('token')}`
+          'Authorization': `Bearer ${token}`,
+          'x-auth-token': token || ''
         }
       });
 
       if (response.ok) {
-        addToast(`"${keyName}" 키가 비활성화되었습니다.`, 'success');
+        showToast(`"${keyName}" 키가 삭제되었습니다.`, 'success');
         loadKeys();
       } else {
         const error = await response.json();
-        throw new Error(error.message || '키 비활성화 실패');
+        throw new Error(error.message || '키 삭제 실패');
       }
     } catch (error) {
-      console.error('키 비활성화 오류:', error);
-      addToast(error instanceof Error ? error.message : '키 비활성화 중 오류가 발생했습니다.', 'error');
+      console.error('키 삭제 오류:', error);
+      showToast(error instanceof Error ? error.message : '키 삭제 중 오류가 발생했습니다.', 'error');
     }
   };
 
   // 키 값 복사
-  const handleCopyKey = async (keyValue: string) => {
+  const handleCopyKey = async (keyId: string) => {
     try {
-      await navigator.clipboard.writeText(keyValue);
-      addToast('키 값이 클립보드에 복사되었습니다.', 'success');
+      const token = getToken();
+      const response = await fetch(`/api/oauth/keys/${keyId}/value`, {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'x-auth-token': token || ''
+        }
+      });
+
+      if (response.ok) {
+        const result = await response.json();
+        const fullKeyValue = result.data.keyValue;
+        await navigator.clipboard.writeText(fullKeyValue);
+        showToast('키 값이 클립보드에 복사되었습니다.', 'success');
+      } else {
+        throw new Error('키값 조회 실패');
+      }
     } catch (error) {
-      addToast('키 값 복사에 실패했습니다.', 'error');
+      console.error('키값 복사 오류:', error);
+      showToast('키 값 복사에 실패했습니다.', 'error');
     }
   };
 
@@ -194,69 +220,26 @@ const KeyManagementPage: React.FC = () => {
           </div>
         </div>
         
-        <button
-          onClick={() => setShowCreateForm(true)}
-          className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition-colors"
-        >
-          <Plus className="w-4 h-4 mr-2" />
-          새 키 생성
-        </button>
+        {keys.length === 0 && (
+          <button
+            onClick={handleCreateKey}
+            disabled={creatingKey}
+            className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            {creatingKey ? (
+              <>
+                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                생성 중...
+              </>
+            ) : (
+              <>
+                <Plus className="w-4 h-4 mr-2" />
+                새 키 생성
+              </>
+            )}
+          </button>
+        )}
       </div>
-
-      {/* 키 생성 폼 */}
-      {showCreateForm && (
-        <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-6 mb-6">
-          <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-4">새 MCPHub Key 생성</h3>
-          <form onSubmit={handleCreateKey} className="space-y-4">
-            <div>
-              <label htmlFor="keyName" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                키 이름 *
-              </label>
-              <input
-                type="text"
-                id="keyName"
-                value={newKeyName}
-                onChange={(e) => setNewKeyName(e.target.value)}
-                placeholder="예: Cursor IDE Key"
-                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 dark:bg-gray-700 dark:text-white"
-                required
-              />
-            </div>
-            
-            <div>
-              <label htmlFor="keyDescription" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                설명 (선택사항)
-              </label>
-              <textarea
-                id="keyDescription"
-                value={newKeyDescription}
-                onChange={(e) => setNewKeyDescription(e.target.value)}
-                placeholder="이 키의 용도를 설명해주세요"
-                rows={3}
-                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 dark:bg-gray-700 dark:text-white"
-              />
-            </div>
-
-            <div className="flex items-center space-x-3">
-              <button
-                type="submit"
-                disabled={creatingKey}
-                className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 disabled:opacity-50 transition-colors"
-              >
-                {creatingKey ? '생성 중...' : '키 생성'}
-              </button>
-              
-              <button
-                type="button"
-                onClick={() => setShowCreateForm(false)}
-                className="inline-flex items-center px-4 py-2 border border-gray-300 dark:border-gray-600 text-sm font-medium rounded-md text-gray-700 dark:text-gray-200 bg-white dark:bg-gray-700 hover:bg-gray-50 dark:hover:bg-gray-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500 transition-colors"
-              >
-                취소
-              </button>
-            </div>
-          </form>
-        </div>
-      )}
 
       {/* 키 목록 */}
       {keys.length === 0 ? (
@@ -266,13 +249,6 @@ const KeyManagementPage: React.FC = () => {
           <p className="text-gray-600 dark:text-gray-400 mb-4">
             첫 번째 키를 생성해서 Cursor IDE에서 MCPHub를 사용해보세요.
           </p>
-          <button
-            onClick={() => setShowCreateForm(true)}
-            className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
-          >
-            <Plus className="w-4 h-4 mr-2" />
-            첫 번째 키 생성
-          </button>
         </div>
       ) : (
         <div className="grid gap-4">
@@ -315,7 +291,7 @@ const KeyManagementPage: React.FC = () => {
                           {key.keyValue}
                         </code>
                         <button
-                          onClick={() => handleCopyKey(key.keyValue)}
+                          onClick={() => handleCopyKey(key.id)}
                           className="ml-2 p-1 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
                           title="복사"
                         >
@@ -364,9 +340,9 @@ const KeyManagementPage: React.FC = () => {
                   )}
                   
                   <button
-                    onClick={() => handleDeactivateKey(key.id, key.name)}
+                    onClick={() => handleDeleteKey(key.id, key.name)}
                     className="p-2 text-gray-400 hover:text-red-600 dark:hover:text-red-400"
-                    title="키 비활성화"
+                    title="키 삭제"
                   >
                     <Trash2 className="w-4 h-4" />
                   </button>
@@ -374,6 +350,61 @@ const KeyManagementPage: React.FC = () => {
               </div>
             </div>
           ))}
+        </div>
+      )}
+
+      {/* 만료일 선택 모달 */}
+      {showExpiryModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white dark:bg-gray-800 rounded-lg p-6 w-full max-w-md mx-4">
+            <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-4">
+              키 만료일 선택
+            </h3>
+            <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
+              MCPHub Key의 만료일을 선택해주세요. (1일 ~ 90일)
+            </p>
+            
+            <div className="mb-6">
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                만료일: {selectedExpiryDays}일
+              </label>
+              <input
+                type="range"
+                min="1"
+                max="90"
+                value={selectedExpiryDays}
+                onChange={(e) => setSelectedExpiryDays(parseInt(e.target.value))}
+                className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer dark:bg-gray-700"
+              />
+              <div className="flex justify-between text-xs text-gray-500 mt-1">
+                <span>1일</span>
+                <span>90일</span>
+              </div>
+            </div>
+
+            <div className="flex justify-end space-x-3">
+              <button
+                onClick={() => setShowExpiryModal(false)}
+                className="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-md text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700"
+              >
+                취소
+              </button>
+              <button
+                onClick={executeCreateKey}
+                disabled={creatingKey}
+                className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {creatingKey ? (
+                  <>
+                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                    생성 중...
+                  </>
+                ) : (
+                  '키 생성'
+                )}
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>

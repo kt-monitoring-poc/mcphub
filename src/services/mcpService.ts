@@ -23,6 +23,7 @@ import { getGroup } from './sseService.js';
 import { getServersInGroup } from './groupService.js';
 import { saveToolsAsVectorEmbeddings, searchToolsByVector } from './vectorSearchService.js';
 import { OpenAPIClient } from '../clients/openapi.js';
+import { MCPHubKeyService } from '../services/mcpHubKeyService.js';
 
 /**
  * 세션별 MCP 서버 인스턴스 저장소
@@ -378,6 +379,251 @@ const callToolWithReconnect = async (
   throw new Error('Unexpected error in callToolWithReconnect');
 };
 
+/**
+ * 사용자 API Keys를 서버 설정에 적용
+ * 
+ * @param {ServerConfig} serverConfig - 서버 설정
+ * @param {Record<string, string>} userApiKeys - 사용자 API Keys
+ * @returns {ServerConfig} API Keys가 적용된 서버 설정
+ */
+function applyUserApiKeysToConfig(
+  serverConfig: ServerConfig,
+  userApiKeys: Record<string, string>
+): ServerConfig {
+  const updatedConfig = JSON.parse(JSON.stringify(serverConfig));
+  
+  // URL의 ${USER_*} 템플릿 치환
+  if (updatedConfig.url && typeof updatedConfig.url === 'string') {
+    let processedUrl = updatedConfig.url;
+    Object.keys(userApiKeys).forEach(tokenKey => {
+      const templatePattern = `\${USER_${tokenKey}}`;
+      if (processedUrl.includes(templatePattern)) {
+        const tokenValue = userApiKeys[tokenKey];
+        processedUrl = processedUrl.replace(
+          new RegExp(templatePattern.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'g'), 
+          tokenValue
+        );
+      }
+    });
+    updatedConfig.url = processedUrl;
+  }
+  
+  // 환경변수의 ${USER_*} 템플릿 치환
+  if (updatedConfig.env) {
+    Object.keys(updatedConfig.env).forEach(envKey => {
+      const envValue = updatedConfig.env[envKey];
+      if (typeof envValue === 'string' && envValue.includes('${USER_')) {
+        let replacedValue = envValue;
+        Object.keys(userApiKeys).forEach(tokenKey => {
+          const templatePattern = `\${USER_${tokenKey}}`;
+          if (replacedValue.includes(templatePattern)) {
+            const tokenValue = userApiKeys[tokenKey];
+            replacedValue = replacedValue.replace(
+              new RegExp(templatePattern.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'g'), 
+              tokenValue
+            );
+          }
+        });
+        updatedConfig.env[envKey] = replacedValue;
+      }
+    });
+  }
+  
+  return updatedConfig;
+}
+
+/**
+ * 사용자 토큰으로 서버 연결 (필요시)
+ * 
+ * @param {string} serverName - 서버 이름
+ * @param {Record<string, string>} userApiKeys - 사용자 API Keys
+ * @returns {Promise<boolean>} 연결 성공 여부
+ */
+export const ensureServerConnected = async (
+  serverName: string,
+  userApiKeys: Record<string, string>
+): Promise<boolean> => {
+  try {
+    // 이미 연결되어 있으면 true 반환
+    const serverInfo = serverInfos.find(info => info.name === serverName);
+    if (serverInfo?.status === 'connected') {
+      return true;
+    }
+
+    // 서버 설정 가져오기
+    const settings = loadSettings();
+    const serverConfig = settings.mcpServers[serverName];
+    
+    if (!serverConfig) {
+      console.error(`❌ 서버 설정을 찾을 수 없음: ${serverName}`);
+      return false;
+    }
+
+    // 사용자 토큰이 필요한 서버인지 확인
+    if (serverConfig.url && serverConfig.url.includes('${USER_')) {
+      console.log(`🔑 사용자 토큰으로 ${serverName} 서버 연결 시도...`);
+      
+      // 사용자 API Keys를 적용한 설정 생성
+      const configWithKeys = applyUserApiKeysToConfig(serverConfig, userApiKeys);
+      
+      // Transport 생성
+      const transport = createTransportFromConfig(serverName, configWithKeys);
+      
+      const client = new Client(
+        {
+          name: `mcp-client-${serverName}`,
+          version: '1.0.0',
+        },
+        {
+          capabilities: {
+            prompts: {},
+            resources: {},
+            tools: {},
+          },
+        },
+      );
+
+      // 연결 시도
+      await client.connect(transport);
+      console.log(`✅ ${serverName} 서버 연결 성공`);
+
+      // 도구 목록 가져오기
+      const tools = await client.listTools();
+      const toolsList: ToolInfo[] = tools.tools?.map(tool => ({
+        name: `${serverName}-${tool.name}`,
+        description: tool.description || '',
+        inputSchema: tool.inputSchema || {},
+      })) || [];
+
+      // 서버 정보 업데이트
+      if (serverInfo) {
+        serverInfo.client = client;
+        serverInfo.status = 'connected';
+        serverInfo.tools = toolsList;
+        serverInfo.error = null;
+      }
+
+      console.log(`🎉 ${serverName} 서버 연결 완료 - ${toolsList.length}개 도구 로드됨`);
+      
+      // 도구 임베딩 저장
+      saveToolsAsVectorEmbeddings(serverName, toolsList);
+      
+      return true;
+    }
+
+    // 일반 서버는 재시작 시도
+    return await restartServerWithUserKeys(serverName, userApiKeys);
+
+  } catch (error) {
+    console.error(`❌ 서버 연결 실패: ${serverName}`, error);
+    
+    // 서버 정보 오류 상태로 업데이트
+    const serverInfo = serverInfos.find(info => info.name === serverName);
+    if (serverInfo) {
+      serverInfo.status = 'disconnected';
+      serverInfo.error = `연결 실패: ${error instanceof Error ? error.message : 'Unknown error'}`;
+    }
+    
+    return false;
+  }
+};
+
+/**
+ * 사용자 API Keys로 서버 재시작
+ * 
+ * @param {string} serverName - 재시작할 서버 이름
+ * @param {Record<string, string>} userApiKeys - 사용자 API Keys
+ * @returns {Promise<boolean>} 재시작 성공 여부
+ */
+export const restartServerWithUserKeys = async (
+  serverName: string, 
+  userApiKeys: Record<string, string>
+): Promise<boolean> => {
+  try {
+    console.log(`🔄 사용자 API Keys로 서버 재시작: ${serverName}`);
+    
+    const settings = loadSettings();
+    const serverConfig = settings.mcpServers[serverName];
+    
+    if (!serverConfig) {
+      console.error(`❌ 서버 설정을 찾을 수 없음: ${serverName}`);
+      return false;
+    }
+    
+    // 기존 서버 정보 찾기
+    const existingServerInfo = serverInfos.find(info => info.name === serverName);
+    if (!existingServerInfo) {
+      console.error(`❌ 실행 중인 서버를 찾을 수 없음: ${serverName}`);
+      return false;
+    }
+    
+    // 기존 클라이언트 연결 해제
+    if (existingServerInfo.client) {
+      try {
+        await existingServerInfo.client.close();
+        console.log(`✅ 기존 클라이언트 연결 해제: ${serverName}`);
+      } catch (error) {
+        console.warn(`⚠️ 클라이언트 연결 해제 실패: ${serverName}`, error);
+      }
+    }
+    
+    // 사용자 API Keys를 적용한 새 Transport 생성
+    const configWithKeys = applyUserApiKeysToConfig(serverConfig, userApiKeys);
+    const transport = createTransportFromConfig(serverName, configWithKeys);
+    
+    const client = new Client(
+      {
+        name: `mcp-client-${serverName}-with-keys`,
+        version: '1.0.0',
+      },
+      {
+        capabilities: {
+          prompts: {},
+          resources: {},
+          tools: {},
+        },
+      },
+    );
+    
+    // 새 클라이언트 연결
+    await client.connect(transport);
+    console.log(`✅ 새 클라이언트 연결 성공: ${serverName}`);
+    
+    // 도구 목록 가져오기
+    const tools = await client.listTools();
+    const toolsList: ToolInfo[] = tools.tools?.map(tool => ({
+      name: `${serverName}-${tool.name}`,
+      description: tool.description || '',
+      inputSchema: tool.inputSchema || {},
+    })) || [];
+    
+    // 서버 정보 업데이트
+    existingServerInfo.client = client;
+    existingServerInfo.status = 'connected';
+    existingServerInfo.tools = toolsList;
+    existingServerInfo.error = null;
+    
+    console.log(`🎉 ${serverName} 서버 재시작 완료 - ${toolsList.length}개 도구 로드됨`);
+    
+    // 도구 임베딩 저장
+    saveToolsAsVectorEmbeddings(serverName, toolsList);
+    
+    return true;
+    
+  } catch (error) {
+    console.error(`❌ 서버 재시작 실패: ${serverName}`, error);
+    
+    // 서버 정보 오류 상태로 업데이트
+    const serverInfo = serverInfos.find(info => info.name === serverName);
+    if (serverInfo) {
+      serverInfo.status = 'disconnected';
+      serverInfo.error = `재시작 실패: ${error instanceof Error ? error.message : 'Unknown error'}`;
+    }
+    
+    return false;
+  }
+};
+
 // Initialize MCP server clients
 export const initializeClientsFromSettings = async (isInit: boolean): Promise<ServerInfo[]> => {
   const settings = loadSettings();
@@ -395,6 +641,20 @@ export const initializeClientsFromSettings = async (isInit: boolean): Promise<Se
         tools: [],
         createTime: Date.now(),
         enabled: false,
+      });
+      continue;
+    }
+
+    // Skip user-token-based servers (will connect on demand)
+    if (conf.url && conf.url.includes('${USER_')) {
+      console.log(`Skipping user-token-based server: ${name} (will connect on demand)`);
+      serverInfos.push({
+        name,
+        status: 'disconnected',
+        error: null,
+        tools: [],
+        createTime: Date.now(),
+        enabled: true,
       });
       continue;
     }
@@ -938,6 +1198,22 @@ Available servers: ${serversList}`;
 
 export const handleCallToolRequest = async (request: any, extra: any) => {
   console.log(`Handling CallToolRequest for tool: ${JSON.stringify(request.params)}`);
+  
+  // 사용자 API 키 주입 로직
+  let userApiKeys: Record<string, string> = {};
+  if (extra && extra.mcpHubKey) {
+    try {
+      const mcpHubKeyService = new MCPHubKeyService();
+      const authResult = await mcpHubKeyService.authenticateKey(extra.mcpHubKey);
+      if (authResult) {
+        userApiKeys = authResult.serviceTokens || {};
+        console.log(`🔑 사용자 API 키 주입: ${authResult.user.githubUsername} - ${Object.keys(userApiKeys).length}개 키`);
+      }
+    } catch (error) {
+      console.warn(`⚠️ MCPHub Key 인증 실패:`, error);
+    }
+  }
+  
   try {
     // Special handling for agent group tools
     if (request.params.name === 'search_tools') {
@@ -1211,8 +1487,29 @@ export const handleCallToolRequest = async (request: any, extra: any) => {
     }
 
     // Regular tool handling (backward compatibility)
-    const serverInfo = getServerByTool(request.params.name);
+    let serverInfo = getServerByTool(request.params.name);
     if (!serverInfo) {
+      // 도구 이름에서 서버 이름 추출 시도
+      const toolParts = request.params.name.split('-');
+      if (toolParts.length >= 2) {
+        const possibleServerName = `${toolParts[0]}-${toolParts[1]}`;
+        
+        // 서버가 등록되어 있는지 확인
+        const registeredServer = serverInfos.find(info => info.name === possibleServerName);
+        if (registeredServer) {
+          // 서버 연결 시도
+          const connected = await ensureServerConnected(possibleServerName, userApiKeys);
+          if (connected) {
+            // 다시 도구 찾기
+            const updatedServerInfo = getServerByTool(request.params.name);
+            if (updatedServerInfo) {
+              // 서버 정보를 업데이트하고 계속 진행
+              serverInfo = updatedServerInfo;
+            }
+          }
+        }
+      }
+      
       throw new Error(`Server not found for tool: ${request.params.name}`);
     }
 

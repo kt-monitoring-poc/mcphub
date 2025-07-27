@@ -121,12 +121,11 @@ const UserProfileMenu: React.FC<UserProfileMenuProps> = ({ collapsed, version })
       {/* 프로필 버튼 */}
       <button
         onClick={() => setIsOpen(!isOpen)}
-        className={`flex ${collapsed ? 'justify-center' : 'items-center'} w-full p-2 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors rounded-md ${isOpen ? 'bg-gray-100 dark:bg-gray-700' : ''
-          }`}
+        className={`flex items-center space-x-2 p-2 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors rounded-md ${isOpen ? 'bg-gray-100 dark:bg-gray-700' : ''}`}
       >
         {/* 사용자 아바타 */}
         <div className="flex-shrink-0 relative">
-          <div className="w-5 h-5 flex items-center justify-center rounded-full border border-gray-300 dark:border-gray-600 bg-gray-50 dark:bg-gray-700">
+          <div className="w-6 h-6 flex items-center justify-center rounded-full border border-gray-300 dark:border-gray-600 bg-gray-50 dark:bg-gray-700">
             <User className="h-4 w-4 text-gray-700 dark:text-gray-300" />
           </div>
           {/* 새 버전 알림 표시 */}
@@ -135,11 +134,11 @@ const UserProfileMenu: React.FC<UserProfileMenuProps> = ({ collapsed, version })
           )}
         </div>
         
-        {/* 사용자 정보 (사이드바 확장 시에만 표시) */}
+        {/* 사용자 정보 */}
         {!collapsed && (
-          <div className="ml-3 flex flex-col items-start">
+          <div className="flex flex-col items-start">
             <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
-              {auth.user?.username || t('auth.user')}
+              {auth.user?.githubUsername || auth.user?.username || t('auth.user')}
             </span>
           </div>
         )}
@@ -147,7 +146,7 @@ const UserProfileMenu: React.FC<UserProfileMenuProps> = ({ collapsed, version })
 
       {/* 드롭다운 메뉴 */}
       {isOpen && (
-        <div className="absolute top-0 transform -translate-y-full left-0 w-full min-w-max bg-white border border-gray-200 dark:bg-gray-800 py-1 z-50">
+        <div className="absolute top-full right-0 mt-2 w-48 bg-white border border-gray-200 dark:bg-gray-800 dark:border-gray-700 rounded-md shadow-lg py-1 z-50">
           {/* 설정 메뉴 */}
           <button
             onClick={handleSettingsClick}

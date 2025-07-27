@@ -1,13 +1,70 @@
 {
   "mcpServers": {
      "firecrawl-mcp": {
+      "type": "sse",
+      "url": "https://mcp.firecrawl.dev/${USER_FIRECRAWL_TOKEN}/sse",
+      "name": "Firecrawl MCP Server",
+      "description": "웹 스크래핑 및 데이터 추출을 위한 Firecrawl 서비스",
+      "group": "data",
+      "enabled": true,
+      "headers": {
+        "Content-Type": "application/json",
+        "Accept": "application/json"
+      }
+    },
+    "sequentialthinking": {
       "command": "npx",
       "args": [
         "-y",
-        "firecrawl-mcp"
+        "@modelcontextprotocol/server-sequential-thinking"
+      ]
+    },
+         "test": {
+       "type": "streamable-http",
+       "url": "http://localhost:8123/mcp",
+       "name": "Test Streamable HTTP Server",
+       "description": "로컬 테스트용 StreamableHTTP MCP 서버",
+       "enabled": true,
+       "headers": {
+         "Content-Type": "application/json",
+         "Accept": "application/json"
+       }
+     },
+    "filesystem": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "@modelcontextprotocol/server-filesystem",
+        "/Users/jungchihoon/chihoon"
+      ]
+    },
+    "git": {
+      "command": "uvx",
+      "args": [
+        "mcp-server-git",
+        "--repository",
+        "/Users/jungchihoon/hades/2025-07/mcphub"
+      ],
+      "enabled": false
+    },
+    "github": {
+      "command": "docker",
+      "args": [
+        "run",
+        "-i",
+        "--rm",
+        "-e",
+        "GITHUB_PERSONAL_ACCESS_TOKEN",
+        "-e",
+        "GITHUB_TOOLSETS",
+        "-e",
+        "GITHUB_READ_ONLY",
+        "ghcr.io/github/github-mcp-server"
       ],
       "env": {
-        "FIRECRAWL_API_KEY": "fc-89c11d9ad6ab4636bbfdfff9731d0972"
+        "GITHUB_PERSONAL_ACCESS_TOKEN": "${USER_GITHUB_TOKEN}",
+        "GITHUB_TOOLSETS": "",
+        "GITHUB_READ_ONLY": ""
       }
     },
     "Sequential Thinking Tools": {
@@ -21,7 +78,8 @@
         "--key",
         "80d1c482-d213-4a38-a732-fc780af4a2d1"
       ],
-      "env": {}
+      "env": {},
+      "enabled": false
     },
     "Context7": {
       "type": "stdio",
@@ -34,7 +92,8 @@
         "--key",
         "80d1c482-d213-4a38-a732-fc780af4a2d1"
       ],
-      "env": {}
+      "env": {},
+      "enabled": false
     },
     "Github": {
       "type": "stdio",
@@ -49,7 +108,23 @@
         "--profile",
         "clear-ox-TgjNs3"
       ],
-      "env": {}
+      "env": {},
+      "enabled": false
+    }
+  },
+  "systemConfig": {
+    "routing": {
+      "enableGlobalRoute": true,
+      "enableGroupNameRoute": true,
+      "enableBearerAuth": false,
+      "bearerAuthKey": ""
+    },
+    "smartRouting": {
+      "enabled": true,
+      "openaiApiKey": "your_openai_api_key_here",
+      "openaiApiBaseUrl": "https://api.openai.com/v1",
+      "openaiApiEmbeddingModel": "text-embedding-3-small",
+      "dbUrl": "postgresql://localhost:5432/mcphub"
     }
   },
   "users": [

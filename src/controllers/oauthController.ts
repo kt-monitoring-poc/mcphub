@@ -1,5 +1,6 @@
 import { Request, Response } from 'express';
 import passport from 'passport';
+import jwt from 'jsonwebtoken';
 import { UserService } from '../services/userService.js';
 import { MCPHubKeyService } from '../services/mcpHubKeyService.js';
 import { User } from '../db/entities/User.js';
@@ -21,34 +22,59 @@ export const initiateGithubLogin = (req: Request, res: Response) => {
 /**
  * GitHub OAuth 콜백 처리
  */
-export const handleGithubCallback = (req: Request, res: Response) => {
-  passport.authenticate('github', { 
-    failureRedirect: '/login?error=oauth_failed',
-    successRedirect: '/' 
-  }, async (err: any, user: User) => {
-    if (err) {
-      console.error('❌ GitHub OAuth 콜백 오류:', err);
-      return res.redirect('/login?error=oauth_error');
-    }
+export const handleGithubCallback = async (req: Request, res: Response) => {
+  console.log('🔍 OAuth 콜백 성공 - 사용자 처리 시작');
+  
+  const user = req.user as User;
+  
+  if (!user) {
+    console.log('⚠️ OAuth 성공했지만 사용자 정보 없음');
+    return res.redirect('/login?error=no_user');
+  }
 
-    if (!user) {
-      console.log('⚠️ GitHub OAuth: 사용자 정보 없음');
-      return res.redirect('/login?error=no_user');
-    }
-
-    // 세션에 사용자 로그인 처리
-    req.logIn(user, (loginErr) => {
-      if (loginErr) {
-        console.error('❌ 세션 로그인 오류:', loginErr);
-        return res.redirect('/login?error=session_error');
-      }
-
-      console.log(`✅ GitHub OAuth 로그인 성공: ${user.githubUsername}`);
-      
-      // 성공적으로 로그인 후 리다이렉트
-      return res.redirect('/dashboard?welcome=true');
+  try {
+    console.log(`✅ GitHub OAuth 로그인 성공: ${user.githubUsername}`);
+    console.log(`🔍 사용자 정보 상세:`, {
+      id: user.id,
+      githubUsername: user.githubUsername,
+      isAdmin: user.isAdmin,
+      isAdminType: typeof user.isAdmin,
+      githubId: user.githubId,
+      email: user.email
     });
-  })(req, res);
+    
+    // JWT 토큰 생성
+    const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key-change-this';
+    
+    const payload = {
+      user: {
+        id: user.id,
+        username: user.githubUsername,
+        isAdmin: user.isAdmin || false,
+        githubId: user.githubId,
+        email: user.email
+      }
+    };
+    
+    console.log(`🔍 JWT Payload:`, payload);
+
+    const token = jwt.sign(payload, JWT_SECRET, { expiresIn: '24h' });
+    console.log(`🔑 JWT 토큰 생성 완료 (${user.githubUsername}): ${token.substring(0, 50)}...`);
+
+    // 세션 제거 - JWT만 사용
+    req.logout((err) => {
+      if (err) console.log('세션 로그아웃 오류:', err);
+    });
+
+    // 단순한 302 리다이렉트 사용
+    const redirectUrl = `/?welcome=true&token=${encodeURIComponent(token)}`;
+    console.log(`🔄 302 리다이렉트: ${redirectUrl.substring(0, 100)}...`);
+    
+    return res.redirect(302, redirectUrl);
+  } catch (error) {
+    console.error('❌ JWT 토큰 생성 오류:', error);
+    return res.redirect('/login?error=token_error');
+  }
 };
 
 /**
@@ -173,18 +199,29 @@ export const createUserKey = async (req: Request, res: Response) => {
       });
     }
 
-    const { name, description } = req.body;
-
-    if (!name || typeof name !== 'string' || name.trim().length === 0) {
-      return res.status(400).json({
-        success: false,
-        message: '키 이름은 필수입니다.'
-      });
+    // 키 이름을 고정으로 설정
+    const keyName = 'MCPHub Key';
+    const description = 'Cursor IDE에서 사용할 MCPHub Key입니다.';
+    
+    // 만료일 설정 (1-90일, 기본값: 90일)
+    const { expiryDays } = req.body;
+    let days = 90; // 기본값
+    
+    if (expiryDays !== undefined) {
+      const parsedDays = parseInt(expiryDays);
+      if (isNaN(parsedDays) || parsedDays < 1 || parsedDays > 90) {
+        return res.status(400).json({
+          success: false,
+          message: '만료일은 1일에서 90일 사이여야 합니다.'
+        });
+      }
+      days = parsedDays;
     }
 
     const newKey = await mcpHubKeyService.createKey(user.id, {
-      name: name.trim(),
-      description: description?.trim()
+      name: keyName,
+      description: description,
+      expiryDays: days
     });
 
     res.status(201).json({
@@ -217,6 +254,88 @@ export const createUserKey = async (req: Request, res: Response) => {
 };
 
 /**
+ * 특정 키의 전체 키값 조회 (복사용)
+ */
+export const getKeyValue = async (req: Request, res: Response) => {
+  try {
+    const user = req.user as User;
+    if (!user) {
+      return res.status(401).json({ 
+        success: false, 
+        message: '인증되지 않은 사용자입니다.' 
+      });
+    }
+
+    const { keyId } = req.params;
+    
+    // 사용자의 키인지 확인
+    const keys = await mcpHubKeyService.getUserKeys(user.id);
+    const key = keys.find(k => k.id === keyId);
+    
+    if (!key) {
+      return res.status(404).json({
+        success: false,
+        message: '키를 찾을 수 없습니다.'
+      });
+    }
+
+    res.json({
+      success: true,
+      data: {
+        keyValue: key.keyValue
+      }
+    });
+  } catch (error) {
+    console.error('❌ 키값 조회 오류:', error);
+    res.status(500).json({
+      success: false,
+      message: '키값 조회 중 오류가 발생했습니다.'
+    });
+  }
+};
+
+/**
+ * 특정 키의 서비스 토큰 조회
+ */
+export const getKeyTokens = async (req: Request, res: Response) => {
+  try {
+    const user = req.user as User;
+    if (!user) {
+      return res.status(401).json({ 
+        success: false, 
+        message: '인증되지 않은 사용자입니다.' 
+      });
+    }
+
+    const { keyId } = req.params;
+    
+    // 사용자의 키인지 확인
+    const keys = await mcpHubKeyService.getUserKeys(user.id);
+    const key = keys.find(k => k.id === keyId);
+    
+    if (!key) {
+      return res.status(404).json({
+        success: false,
+        message: '키를 찾을 수 없습니다.'
+      });
+    }
+
+    res.json({
+      success: true,
+      data: {
+        serviceTokens: key.serviceTokens || {}
+      }
+    });
+  } catch (error) {
+    console.error('❌ 서비스 토큰 조회 오류:', error);
+    res.status(500).json({
+      success: false,
+      message: '서비스 토큰 조회 중 오류가 발생했습니다.'
+    });
+  }
+};
+
+/**
  * MCPHub Key 서비스 토큰 업데이트
  */
 export const updateKeyTokens = async (req: Request, res: Response) => {
@@ -230,7 +349,7 @@ export const updateKeyTokens = async (req: Request, res: Response) => {
     }
 
     const { keyId } = req.params;
-    const { serviceTokens } = req.body;
+    const serviceTokens = req.body; // 직접 body를 사용 (중첩된 serviceTokens 제거)
 
     if (!serviceTokens || typeof serviceTokens !== 'object') {
       return res.status(400).json({
@@ -244,6 +363,27 @@ export const updateKeyTokens = async (req: Request, res: Response) => {
       serviceTokens, 
       user.id
     );
+
+            // API Keys가 업데이트되면 관련 MCP 서버들을 재시작
+        if (Object.keys(serviceTokens).length > 0) {
+          try {
+        
+        // GitHub 토큰이 있으면 github 서버 재시작
+        if (serviceTokens.GITHUB_TOKEN) {
+          console.log(`✅ GitHub 토큰 저장됨 - 서버는 사용 시 자동으로 연결됩니다.`);
+          // On-demand 연결 방식이므로 서버 재시작 불필요
+        }
+        
+        // Firecrawl 토큰이 있으면 firecrawl-mcp 서버 재시작 (활성화된 경우)
+        if (serviceTokens.FIRECRAWL_API_KEY || serviceTokens.FIRECRAWL_KEY) {
+          console.log(`✅ Firecrawl 토큰 저장됨 - 서버는 사용 시 자동으로 연결됩니다.`);
+          // On-demand 연결 방식이므로 서버 재시작 불필요
+        }
+      } catch (error) {
+        console.warn(`⚠️ MCP 서버 재시작 중 오류:`, error);
+        // 서버 재시작 실패는 치명적이지 않으므로 계속 진행
+      }
+    }
 
     res.json({
       success: true,
@@ -349,6 +489,44 @@ export const deactivateKey = async (req: Request, res: Response) => {
     res.status(500).json({
       success: false,
       message: '키 비활성화 중 오류가 발생했습니다.'
+    });
+  }
+};
+
+/**
+ * MCPHub Key 삭제
+ */
+export const deleteUserKey = async (req: Request, res: Response) => {
+  try {
+    const user = req.user as User;
+    if (!user) {
+      return res.status(401).json({ 
+        success: false, 
+        message: '인증되지 않은 사용자입니다.' 
+      });
+    }
+
+    const { keyId } = req.params;
+
+    await mcpHubKeyService.deleteKey(keyId, user.id);
+
+    res.json({
+      success: true,
+      message: '키가 삭제되었습니다.'
+    });
+  } catch (error) {
+    console.error('❌ 키 삭제 오류:', error);
+    
+    if (error instanceof Error) {
+      return res.status(400).json({
+        success: false,
+        message: error.message
+      });
+    }
+
+    res.status(500).json({
+      success: false,
+      message: '키 삭제 중 오류가 발생했습니다.'
     });
   }
 }; 

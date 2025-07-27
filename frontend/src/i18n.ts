@@ -4,7 +4,7 @@ import LanguageDetector from 'i18next-browser-languagedetector';
 
 // Import translations
 import enTranslation from './locales/en.json';
-import zhTranslation from './locales/zh.json';
+import koTranslation from './locales/ko.json';
 
 i18n
   // Detect user language
@@ -17,8 +17,8 @@ i18n
       en: {
         translation: enTranslation
       },
-      zh: {
-        translation: zhTranslation
+      ko: {
+        translation: koTranslation
       }
     },
     fallbackLng: 'en',

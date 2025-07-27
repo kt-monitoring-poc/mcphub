@@ -58,10 +58,12 @@ export class MCPHubKeyRepository extends BaseRepository<MCPHubKey> {
     name: string;
     description?: string;
     serviceTokens?: Record<string, string>;
+    expiryDays?: number;
   }): Promise<MCPHubKey> {
-    // 90일 후 만료 설정
+    // 만료일 설정 (기본값: 90일)
+    const days = data.expiryDays || 90;
     const expiresAt = new Date();
-    expiresAt.setDate(expiresAt.getDate() + 90);
+    expiresAt.setDate(expiresAt.getDate() + days);
 
     // 고유한 키 값 생성 (mcphub_ prefix)
     const keyValue = this.generateKeyValue();

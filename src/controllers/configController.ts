@@ -62,9 +62,7 @@ export const getRuntimeConfig = (req: Request, res: Response): void => {
  */
 export const getPublicConfig = (req: Request, res: Response): void => {
   try {
-    const settings = loadSettings();
-    const skipAuth = settings.systemConfig?.routing?.skipAuth || false;
-
+    // Future public configuration can be added here
     res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
     res.setHeader('Pragma', 'no-cache');
     res.setHeader('Expires', '0');
@@ -72,7 +70,7 @@ export const getPublicConfig = (req: Request, res: Response): void => {
     res.json({
       success: true,
       data: {
-        skipAuth,
+        // Reserved for future public configuration
       },
     });
   } catch (error) {

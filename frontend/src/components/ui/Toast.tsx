@@ -78,41 +78,41 @@ const Toast: React.FC<ToastProps> = ({
     }
   }, [visible, duration, onClose]);
 
-  // 타입별 아이콘 맵핑
+  // 타입별 아이콘 맵핑 (모두 흰색으로 변경)
   const icons = {
-    success: <Check className="w-5 h-5 text-green-500" />,
-    error: <X className="w-5 h-5 text-red-500" />,
+    success: <Check className="w-5 h-5 text-white" />,
+    error: <X className="w-5 h-5 text-white" />,
     info: (
-      <svg className="w-5 h-5 text-blue-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+      <svg className="w-5 h-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
       </svg>
     ),
     warning: (
-      <svg className="w-5 h-5 text-yellow-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+      <svg className="w-5 h-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
       </svg>
     )
   };
 
-  // 타입별 배경색 맵핑
+  // 타입별 배경색 맵핑 (더 진한 색상으로 변경)
   const bgColors = {
-    success: 'bg-green-50 border-green-200',
-    error: 'bg-red-50 border-red-200',
-    info: 'bg-blue-50 border-blue-200',
-    warning: 'bg-yellow-50 border-yellow-200'
+    success: 'bg-green-600 border-green-500',
+    error: 'bg-red-600 border-red-500',
+    info: 'bg-blue-600 border-blue-500',
+    warning: 'bg-yellow-600 border-yellow-500'
   };
 
-  // 타입별 텍스트 색상 맵핑
+  // 타입별 텍스트 색상 맵핑 (모두 흰색으로 변경)
   const textColors = {
-    success: 'text-green-800',
-    error: 'text-red-800',
-    info: 'text-blue-800',
-    warning: 'text-yellow-800'
+    success: 'text-white',
+    error: 'text-white',
+    info: 'text-white',
+    warning: 'text-white'
   };
 
   return (
     <div className={cn(
-      "fixed top-4 right-4 z-50 max-w-sm p-4 rounded-md shadow-lg border",
+      "fixed top-4 right-4 z-[9999] max-w-sm p-4 rounded-md shadow-lg border",
       bgColors[type],
       "transform transition-all duration-300 ease-in-out",
       visible ? "translate-x-0 opacity-100" : "translate-x-full opacity-0"
@@ -135,10 +135,7 @@ const Toast: React.FC<ToastProps> = ({
           <div className="-mx-1.5 -my-1.5">
             <button
               onClick={onClose}
-              className={cn(
-                "inline-flex rounded-md p-1.5",
-                `hover:bg-${type}-100 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-${type}-500`
-              )}
+              className="inline-flex rounded-md p-1.5 text-white hover:bg-white hover:bg-opacity-20 focus:outline-none focus:ring-2 focus:ring-white focus:ring-opacity-50 transition-colors"
             >
               <span className="sr-only">Dismiss</span>
               <X className="h-5 w-5" />

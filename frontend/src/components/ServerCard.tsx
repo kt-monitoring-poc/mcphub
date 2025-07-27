@@ -6,6 +6,7 @@ import { StatusBadge } from '@/components/ui/Badge'
 import ToolCard from '@/components/ui/ToolCard'
 import DeleteDialog from '@/components/ui/DeleteDialog'
 import { useToast } from '@/contexts/ToastContext'
+import { useAuth } from '@/contexts/AuthContext'
 
 interface ServerCardProps {
   server: Server
@@ -18,6 +19,7 @@ interface ServerCardProps {
 const ServerCard = ({ server, onRemove, onEdit, onToggle, onRefresh }: ServerCardProps) => {
   const { t } = useTranslation()
   const { showToast } = useToast()
+  const { user } = useAuth()
   const [isExpanded, setIsExpanded] = useState(false)
   const [showDeleteDialog, setShowDeleteDialog] = useState(false)
   const [isToggling, setIsToggling] = useState(false)
@@ -199,37 +201,42 @@ const ServerCard = ({ server, onRemove, onEdit, onToggle, onRefresh }: ServerCar
             )}
           </div>
           <div className="flex space-x-2">
-            <button
-              onClick={handleEdit}
-              className="px-3 py-1 bg-blue-100 text-blue-800 rounded hover:bg-blue-200 text-sm btn-primary"
-            >
-              {t('server.edit')}
-            </button>
-            <div className="flex items-center">
-              <button
-                onClick={handleToggle}
-                className={`px-3 py-1 text-sm rounded transition-colors ${isToggling
-                  ? 'bg-gray-200 text-gray-500'
-                  : server.enabled !== false
-                    ? 'bg-green-100 text-green-800 hover:bg-green-200 btn-secondary'
-                    : 'bg-gray-100 text-gray-800 hover:bg-gray-200 btn-primary'
-                  }`}
-                disabled={isToggling}
-              >
-                {isToggling
-                  ? t('common.processing')
-                  : server.enabled !== false
-                    ? t('server.disable')
-                    : t('server.enable')
-                }
-              </button>
-            </div>
-            <button
-              onClick={handleRemove}
-              className="px-3 py-1 bg-red-100 text-red-800 rounded hover:bg-red-200 text-sm btn-danger"
-            >
-              {t('server.delete')}
-            </button>
+            {/* 관리자만 접근 가능한 버튼들 */}
+            {user?.isAdmin && (
+              <>
+                <button
+                  onClick={handleEdit}
+                  className="px-3 py-1 bg-blue-100 text-blue-800 rounded hover:bg-blue-200 text-sm btn-primary"
+                >
+                  {t('server.edit')}
+                </button>
+                <div className="flex items-center">
+                  <button
+                    onClick={handleToggle}
+                    className={`px-3 py-1 text-sm rounded transition-colors ${isToggling
+                      ? 'bg-gray-200 text-gray-500'
+                      : server.enabled !== false
+                        ? 'bg-green-100 text-green-800 hover:bg-green-200 btn-secondary'
+                        : 'bg-gray-100 text-gray-800 hover:bg-gray-200 btn-primary'
+                      }`}
+                    disabled={isToggling}
+                  >
+                    {isToggling
+                      ? t('common.processing')
+                      : server.enabled !== false
+                        ? t('server.disable')
+                        : t('server.enable')
+                    }
+                  </button>
+                </div>
+                <button
+                  onClick={handleRemove}
+                  className="px-3 py-1 bg-red-100 text-red-800 rounded hover:bg-red-200 text-sm btn-danger"
+                >
+                  {t('server.delete')}
+                </button>
+              </>
+            )}
             <button className="text-gray-400 hover:text-gray-600 btn-secondary">
               {isExpanded ? <ChevronDown size={18} /> : <ChevronRight size={18} />}
             </button>
