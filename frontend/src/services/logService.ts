@@ -8,6 +8,11 @@ export interface LogEntry {
   source: string;
   message: string;
   processId?: string;
+  traceContext?: {
+    traceId: string;
+    spanId: string;
+    traceFlags: number;
+  };
 }
 
 // Fetch all logs

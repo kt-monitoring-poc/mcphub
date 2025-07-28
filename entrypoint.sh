@@ -19,4 +19,16 @@ fi
 
 echo "Using REQUEST_TIMEOUT: $REQUEST_TIMEOUT"
 
-exec "$@"
+# NODE_OPTIONS가 설정되어 있으면 명시적으로 적용
+if [ -n "$NODE_OPTIONS" ]; then
+  echo "Applying NODE_OPTIONS: $NODE_OPTIONS"
+  # pnpm start 명령어를 node로 직접 실행하여 NODE_OPTIONS 적용
+  if [ "$1" = "pnpm" ] && [ "$2" = "start" ]; then
+    echo "Starting with OpenTelemetry auto-instrumentation..."
+    exec node $NODE_OPTIONS dist/index.js
+  else
+    exec "$@"
+  fi
+else
+  exec "$@"
+fi

@@ -102,6 +102,13 @@ WORKDIR /app
 COPY package.json pnpm-lock.yaml ./
 RUN pnpm install
 
+# OpenTelemetry 환경변수 설정 (패키지 설치 후)
+ENV OTEL_TRACES_EXPORTER="otlp"
+ENV OTEL_LOGS_EXPORTER="otlp"
+ENV OTEL_EXPORTER_OTLP_ENDPOINT="http://collector-opentelemetry-collector.otel-collector-rnr.svc.cluster.local:4318"
+ENV OTEL_SERVICE_NAME="mcphub-backend"
+ENV NODE_OPTIONS="--require @opentelemetry/auto-instrumentations-node/register"
+
 # 소스 코드 복사
 # 의존성 설치 후 소스 코드를 복사하여 코드 변경 시에만 재빌드되도록 최적화
 COPY . .

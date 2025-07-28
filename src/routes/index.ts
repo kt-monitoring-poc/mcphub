@@ -157,7 +157,15 @@ export const initRoutes = (app: express.Application): void => {
   app.get(`${config.basePath}/public-config`, getPublicConfig);
 
   // Health check endpoint (no auth required)
-  app.get(`${config.basePath}/health`, (_req, res) => {
+  app.get(`${config.basePath}/health`, async (req, res) => {
+    // Winston 로거만 사용하여 중복 방지
+    const otelAdapter = await import('../config/otel-logger-adapter.js');
+    otelAdapter.default.winstonLogger.info(`Health check request received: ${req.method} ${req.path}`, {
+      userAgent: req.get('User-Agent'),
+      ip: req.ip,
+      timestamp: new Date().toISOString()
+    });
+    
     res.status(200).json({
       success: true,
       message: 'MCPHub is running',

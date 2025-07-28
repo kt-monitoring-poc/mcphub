@@ -19,7 +19,7 @@
         "run",
         "@xinzhongyouhai/mcp-sequentialthinking-tools",
         "--key",
-        "80d1c482-d213-4a38-a732-fc780af4a2d1"
+        "940c3c36-7fa4-4099-a950-1748fd4570f1"
       ],
       "env": {}
     },
@@ -32,7 +32,7 @@
         "run",
         "@upstash/context7-mcp",
         "--key",
-        "80d1c482-d213-4a38-a732-fc780af4a2d1"
+        "940c3c36-7fa4-4099-a950-1748fd4570f1"
       ],
       "env": {}
     },
@@ -45,7 +45,7 @@
         "run",
         "@smithery-ai/github",
         "--key",
-        "80d1c482-d213-4a38-a732-fc780af4a2d1",
+        "940c3c36-7fa4-4099-a950-1748fd4570f1",
         "--profile",
         "clear-ox-TgjNs3"
       ],

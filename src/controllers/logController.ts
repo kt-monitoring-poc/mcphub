@@ -13,6 +13,7 @@
 // filepath: /Users/sunmeng/code/github/mcphub/src/controllers/logController.ts
 import { Request, Response } from 'express';
 import logService from '../services/logService.js';
+import { getMemoryLogs } from '../config/otel-logger-adapter.js';
 
 /**
  * 모든 로그 조회
@@ -25,7 +26,8 @@ import logService from '../services/logService.js';
  */
 export const getAllLogs = (req: Request, res: Response): void => {
   try {
-    const logs = logService.getLogs();
+    // Winston 메모리 저장소에서 로그 조회
+    const logs = getMemoryLogs();
     res.json({ success: true, data: logs });
   } catch (error) {
     console.error('Error getting logs:', error);
@@ -72,18 +74,26 @@ export const streamLogs = (req: Request, res: Response): void => {
       'Connection': 'keep-alive'
     });
 
-    // 초기 데이터 전송 (기존 로그들)
-    const logs = logService.getLogs();
+    // 초기 데이터 전송 (Winston 메모리 저장소에서 로그들)
+    const logs = getMemoryLogs();
     res.write(`data: ${JSON.stringify({ type: 'initial', logs })}\n\n`);
 
-    // 새로운 로그 이벤트 구독
-    const unsubscribe = logService.subscribe((log) => {
-      res.write(`data: ${JSON.stringify({ type: 'log', log })}\n\n`);
-    });
+    // 간단한 폴링 방식으로 실시간 업데이트 (SSE 구독 대신)
+    const interval = setInterval(() => {
+      const currentLogs = getMemoryLogs();
+      if (currentLogs.length > logs.length) {
+        // 새로운 로그가 있으면 전송
+        const newLogs = currentLogs.slice(logs.length);
+        newLogs.forEach(log => {
+          res.write(`data: ${JSON.stringify({ type: 'log', log })}\n\n`);
+        });
+        logs.length = currentLogs.length; // 길이 업데이트
+      }
+    }, 1000); // 1초마다 체크
 
     // 클라이언트 연결 해제 처리
     req.on('close', () => {
-      unsubscribe();
+      clearInterval(interval);
       console.log('Client disconnected from log stream');
     });
   } catch (error) {
