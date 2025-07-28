@@ -154,7 +154,7 @@ REQUEST_TIMEOUT=60000
 ## 🔍 사용자 토큰 현황 (jungchihoon)
 
 ### 저장된 API Key 정보
-- **MCPHub Key**: `mcphub_f69e10ce08c4cbc797e5d4e369565d2a72ba7c73f14530ac183e9e4d0bbea028`
+- **MCPHub Key**: `mcphub_***[마스킹됨]***`
 - **User ID**: `3be04b53-a07b-4637-a07a-0eda5561e255`
 - **Display Name**: HADES
 - **GitHub Username**: jungchihoon
@@ -162,9 +162,9 @@ REQUEST_TIMEOUT=60000
 ### 저장된 서비스 토큰들
 ```json
 {
-  "GITHUB_TOKEN": "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",
-  "FIRECRAWL_TOKEN": "fc-89c11d9ad6ab4636bbfdfff9731d0972",
-  "FIRECRAWL_API_KEY": "fc-89c11d9ad6ab4636bbfdfff9731d0972",
+  "GITHUB_TOKEN": "ghp_***[마스킹됨]***",
+  "FIRECRAWL_TOKEN": "fc-***[마스킹됨]***",
+  "FIRECRAWL_API_KEY": "fc-***[마스킹됨]***",
   "OPENAI_API_KEY": "",
   "ANTHROPIC_API_KEY": "",
   "UPSTASH_REST_API_TOKEN": "",
