@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import React, { createContext, ReactNode, useContext, useEffect, useState } from 'react';
 
 type Theme = 'light' | 'dark' | 'system';
 
@@ -24,13 +24,15 @@ export const ThemeProvider: React.FC<{ children: ReactNode }> = ({ children }) =
     const savedTheme = localStorage.getItem('theme') as Theme;
     return savedTheme || 'system';
   });
-  
+
   const [resolvedTheme, setResolvedTheme] = useState<'light' | 'dark'>('light');
 
   // Function to set theme and save to localStorage
   const handleSetTheme = (newTheme: Theme) => {
+    console.log('🔄 Theme change requested:', newTheme);
     setTheme(newTheme);
     localStorage.setItem('theme', newTheme);
+    console.log('💾 Theme saved to localStorage:', newTheme);
   };
 
   // Effect to handle system theme changes and apply theme to document
@@ -38,27 +40,37 @@ export const ThemeProvider: React.FC<{ children: ReactNode }> = ({ children }) =
     const updateTheme = () => {
       const root = window.document.documentElement;
       const systemTheme = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
-      
+
       // Determine which theme to use
       const themeToApply = theme === 'system' ? systemTheme : theme;
+      console.log('🎨 Theme resolution:', { theme, systemTheme, themeToApply });
       setResolvedTheme(themeToApply as 'light' | 'dark');
-      
+
       // Apply or remove dark class based on theme
       if (themeToApply === 'dark') {
-        console.log('Applying dark mode to HTML root element'); // 添加日志
+        console.log('🌙 Applying dark mode to HTML root element');
         root.classList.add('dark');
-        document.body.style.backgroundColor = '#111827'; // Force a dark background to ensure visible effect
+        console.log('✅ Dark class added. Current classes:', root.className);
+        // Force remove any light mode styles
+        document.body.style.backgroundColor = '';
+        document.body.style.color = '';
       } else {
-        console.log('Removing dark mode from HTML root element'); // 添加日志
+        console.log('☀️ Removing dark mode from HTML root element');
         root.classList.remove('dark');
-        document.body.style.backgroundColor = ''; // Reset background color
+        console.log('✅ Dark class removed. Current classes:', root.className);
+        // Force remove any dark mode styles
+        document.body.style.backgroundColor = '';
+        document.body.style.color = '';
+        // Force light mode styles
+        document.body.style.backgroundColor = '#f9fafb';
+        document.body.style.color = '#111827';
       }
     };
 
     // Set up listeners for system theme changes
     const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
     mediaQuery.addEventListener('change', updateTheme);
-    
+
     // Initial theme setup
     updateTheme();
 

@@ -2,7 +2,7 @@ import ChangePasswordForm from '@/components/ChangePasswordForm';
 import { Switch } from '@/components/ui/ToggleGroup';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/contexts/ToastContext';
-import { Eye, EyeOff, FileText, Github, Globe, Key, MessageSquare, Plus, Save, Trash2 } from 'lucide-react';
+import { Eye, EyeOff, FileText, Github, Globe, Key, MessageSquare, Save } from 'lucide-react';
 import React, { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
@@ -30,7 +30,7 @@ const SettingsPage: React.FC = () => {
   }, [i18n.language]);
 
   // 기본 API Keys 설정
-  const defaultApiKeyConfigs: ApiKeyConfig[] = [
+  const apiKeyConfigs: ApiKeyConfig[] = [
     {
       key: 'FIRECRAWL_TOKEN',
       label: 'Firecrawl API Key',
@@ -68,36 +68,23 @@ const SettingsPage: React.FC = () => {
   // API Keys 상태 - 동적으로 생성
   const [apiKeys, setApiKeys] = useState<Record<string, string>>({});
   const [showPasswords, setShowPasswords] = useState<Record<string, boolean>>({});
-  const [customApiKeys, setCustomApiKeys] = useState<ApiKeyConfig[]>([]);
 
   const [savingKeys, setSavingKeys] = useState(false);
   const [userKeyId, setUserKeyId] = useState<string | null>(null);
-
-  // 새로운 커스텀 API Key 추가
-  const [newCustomKey, setNewCustomKey] = useState({
-    key: '',
-    label: '',
-    placeholder: '',
-    description: '',
-    required: false
-  });
-
-  // 모든 API Key 설정을 합침
-  const allApiKeyConfigs = [...defaultApiKeyConfigs, ...customApiKeys];
 
   // 초기 상태 설정
   useEffect(() => {
     const initialApiKeys: Record<string, string> = {};
     const initialShowPasswords: Record<string, boolean> = {};
 
-    allApiKeyConfigs.forEach(config => {
+    apiKeyConfigs.forEach(config => {
       initialApiKeys[config.key] = '';
       initialShowPasswords[config.key] = false;
     });
 
     setApiKeys(initialApiKeys);
     setShowPasswords(initialShowPasswords);
-  }, [customApiKeys]);
+  }, []);
 
   // 사용자 키 ID 로드
   useEffect(() => {
@@ -194,60 +181,6 @@ const SettingsPage: React.FC = () => {
       ...prev,
       [key]: !prev[key]
     }));
-  };
-
-  // 커스텀 API Key 추가
-  const addCustomApiKey = () => {
-    if (!newCustomKey.key || !newCustomKey.label) {
-      showToast('키 이름과 라벨을 입력해주세요.', 'error');
-      return;
-    }
-
-    // 중복 확인
-    if (allApiKeyConfigs.some(config => config.key === newCustomKey.key)) {
-      showToast('이미 존재하는 키 이름입니다.', 'error');
-      return;
-    }
-
-    const customConfig: ApiKeyConfig = {
-      key: newCustomKey.key,
-      label: newCustomKey.label,
-      placeholder: newCustomKey.placeholder || 'API Key를 입력하세요',
-      description: newCustomKey.description || '사용자 정의 API Key',
-      required: newCustomKey.required,
-      icon: <Key className="w-4 h-4" />
-    };
-
-    setCustomApiKeys(prev => [...prev, customConfig]);
-    setApiKeys(prev => ({ ...prev, [newCustomKey.key]: '' }));
-    setShowPasswords(prev => ({ ...prev, [newCustomKey.key]: false }));
-
-    // 입력 필드 초기화
-    setNewCustomKey({
-      key: '',
-      label: '',
-      placeholder: '',
-      description: '',
-      required: false
-    });
-
-    showToast('커스텀 API Key가 추가되었습니다.', 'success');
-  };
-
-  // 커스텀 API Key 삭제
-  const removeCustomApiKey = (key: string) => {
-    setCustomApiKeys(prev => prev.filter(config => config.key !== key));
-    setApiKeys(prev => {
-      const newKeys = { ...prev };
-      delete newKeys[key];
-      return newKeys;
-    });
-    setShowPasswords(prev => {
-      const newShowPasswords = { ...prev };
-      delete newShowPasswords[key];
-      return newShowPasswords;
-    });
-    showToast('커스텀 API Key가 삭제되었습니다.', 'success');
   };
 
   const [installConfig, setInstallConfig] = useState<{
@@ -441,7 +374,7 @@ const SettingsPage: React.FC = () => {
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          {allApiKeyConfigs.map((config) => (
+          {apiKeyConfigs.map((config) => (
             <div key={config.key} className="space-y-2">
               <label className="flex items-center text-sm font-medium text-gray-700">
                 <span className="mr-2">{config.icon}</span>
@@ -469,93 +402,8 @@ const SettingsPage: React.FC = () => {
                 </button>
               </div>
               <p className="text-xs text-gray-500">{config.description}</p>
-              {customApiKeys.some(ck => ck.key === config.key) && (
-                <button
-                  type="button"
-                  onClick={() => removeCustomApiKey(config.key)}
-                  className="text-red-600 hover:text-red-900 text-sm"
-                >
-                  <Trash2 className="w-4 h-4 mr-1" /> 삭제
-                </button>
-              )}
             </div>
           ))}
-        </div>
-
-        {/* 커스텀 API Key 추가 폼 */}
-        <div className="mt-6 p-4 bg-gray-50 dark:bg-gray-700 rounded-lg border border-gray-200 dark:border-gray-600">
-          <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-4">커스텀 API Key 추가</h3>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                키 이름 *
-              </label>
-              <input
-                type="text"
-                value={newCustomKey.key}
-                onChange={(e) => setNewCustomKey(prev => ({ ...prev, key: e.target.value.toUpperCase() }))}
-                placeholder="SLACK_TOKEN"
-                className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                표시 이름 *
-              </label>
-              <input
-                type="text"
-                value={newCustomKey.label}
-                onChange={(e) => setNewCustomKey(prev => ({ ...prev, label: e.target.value }))}
-                placeholder="Slack API Token"
-                className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                플레이스홀더
-              </label>
-              <input
-                type="text"
-                value={newCustomKey.placeholder}
-                onChange={(e) => setNewCustomKey(prev => ({ ...prev, placeholder: e.target.value }))}
-                placeholder="xoxb-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
-                className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                설명
-              </label>
-              <input
-                type="text"
-                value={newCustomKey.description}
-                onChange={(e) => setNewCustomKey(prev => ({ ...prev, description: e.target.value }))}
-                placeholder="Slack MCP 서버 연결에 필요"
-                className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
-              />
-            </div>
-          </div>
-          <div className="mt-4 flex items-center justify-between">
-            <div className="flex items-center">
-              <input
-                type="checkbox"
-                id="required"
-                checked={newCustomKey.required}
-                onChange={(e) => setNewCustomKey(prev => ({ ...prev, required: e.target.checked }))}
-                className="h-4 w-4 text-indigo-600 focus:ring-indigo-500 border-gray-300 rounded"
-              />
-              <label htmlFor="required" className="ml-2 block text-sm text-gray-700 dark:text-gray-300">
-                필수 API Key로 설정
-              </label>
-            </div>
-            <button
-              type="button"
-              onClick={addCustomApiKey}
-              className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 transition-colors disabled:opacity-50"
-            >
-              <Plus className="w-4 h-4 mr-2" /> 추가
-            </button>
-          </div>
         </div>
 
         <div className="mt-4 p-3 bg-gray-100 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-md">

@@ -12,12 +12,12 @@
  * - 버전 정보 표시
  */
 
-import React from 'react';
-import { useTranslation } from 'react-i18next';
-import { NavLink, useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/contexts/ToastContext';
 import { Shield } from 'lucide-react';
+import React from 'react';
+import { useTranslation } from 'react-i18next';
+import { NavLink, useNavigate } from 'react-router-dom';
 
 /**
  * Sidebar 컴포넌트의 Props 인터페이스
@@ -136,14 +136,14 @@ const Sidebar: React.FC<SidebarProps> = ({ collapsed }) => {
   console.log('🔍 Sidebar - isAdmin:', user?.isAdmin);
   console.log('🔍 Sidebar - user 타입:', typeof user);
   console.log('🔍 Sidebar - user 키들:', user ? Object.keys(user) : 'user is null');
-  
+
   const menuItems = allMenuItems.filter(item => {
     // adminOnly가 true인 항목은 관리자만 볼 수 있음
     if (item.adminOnly && !user?.isAdmin) {
       console.log(`🔍 Sidebar - 필터링됨: ${item.label} (adminOnly: ${item.adminOnly}, user.isAdmin: ${user?.isAdmin})`);
       return false;
     }
-    
+
     // admin 계정이 일반 사용자 모드에서는 최소한의 메뉴만 보이도록
     if (user?.isAdmin && !item.adminOnly) {
       // admin 계정은 일반 사용자 모드에서 대시보드, 그룹, MCPHub Keys, 설정만 보이도록
@@ -153,12 +153,12 @@ const Sidebar: React.FC<SidebarProps> = ({ collapsed }) => {
         return false;
       }
     }
-    
+
     return true;
   });
-  
+
   console.log('🔍 Sidebar - 필터링된 메뉴:', menuItems.map(item => item.label));
-  
+
   // 관리자 모드 버튼 표시 조건 디버그
   console.log('🔍 Sidebar - 관리자 모드 버튼 조건:', {
     userExists: !!user,
@@ -168,7 +168,7 @@ const Sidebar: React.FC<SidebarProps> = ({ collapsed }) => {
 
   return (
     <aside
-      className={`bg-white dark:bg-gray-800 shadow-sm transition-all duration-300 ease-in-out flex flex-col h-full relative ${collapsed ? 'w-16' : 'w-64'
+      className={`bg-white dark:bg-gray-800 shadow-sm border-r border-gray-200 dark:border-gray-700 transition-all duration-300 ease-in-out flex flex-col h-full relative ${collapsed ? 'w-16' : 'w-64'
         }`}
     >
       {/* 스크롤 가능한 네비게이션 영역 */}

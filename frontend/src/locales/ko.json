@@ -1,6 +1,6 @@
 {
   "app": {
-    "title": "MCP Hub 대시보드",
+    "title": "MCP Hub",
     "error": "오류",
     "closeButton": "닫기",
     "noServers": "사용 가능한 MCP 서버가 없습니다",
@@ -294,4 +294,4 @@
     "warning": "경고",
     "info": "정보"
   }
-} 
+}

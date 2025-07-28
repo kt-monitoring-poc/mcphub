@@ -11,11 +11,12 @@
  * - 테마 스위치
  */
 
-import React from 'react';
-import { useTranslation } from 'react-i18next';
-import { useAuth } from '@/contexts/AuthContext';
 import ThemeSwitch from '@/components/ui/ThemeSwitch';
 import UserProfileMenu from '@/components/ui/UserProfileMenu';
+import { useAuth } from '@/contexts/AuthContext';
+import React from 'react';
+import { useTranslation } from 'react-i18next';
+import { useNavigate } from 'react-router-dom';
 
 /**
  * Header 컴포넌트의 Props 인터페이스
@@ -37,10 +38,11 @@ interface HeaderProps {
  */
 const Header: React.FC<HeaderProps> = ({ onToggleSidebar }) => {
   const { t } = useTranslation();
+  const navigate = useNavigate();
   const { user } = useAuth();
 
   return (
-    <header className="bg-white dark:bg-gray-800 shadow-sm z-10">
+    <header className="bg-white dark:bg-gray-800 shadow-sm z-10 border-b border-gray-200 dark:border-gray-700">
       <div className="flex justify-between items-center px-3 py-3">
         <div className="flex items-center">
           {/* 사이드바 토글 버튼 */}
@@ -54,20 +56,25 @@ const Header: React.FC<HeaderProps> = ({ onToggleSidebar }) => {
             </svg>
           </button>
 
-          {/* 애플리케이션 제목 */}
-          <h1 className="ml-4 text-xl font-bold text-gray-900 dark:text-white">{t('app.title')}</h1>
+          {/* 애플리케이션 제목 - 클릭 가능한 링크 */}
+          <button
+            onClick={() => navigate('/')}
+            className="ml-4 text-xl font-bold text-gray-900 dark:text-white hover:text-blue-600 dark:hover:text-blue-400 hover:scale-105 transition-all duration-200 ease-in-out cursor-pointer focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-opacity-50 rounded px-2 py-1"
+          >
+            {t('app.title')}
+          </button>
         </div>
 
         {/* 우측 상단: 사용자 프로필 메뉴 및 테마 스위치 */}
         <div className="flex items-center space-x-4">
           {/* 사용자 프로필 메뉴 */}
           {user && (
-            <UserProfileMenu 
-              collapsed={false} 
-              version={import.meta.env.PACKAGE_VERSION || 'dev'} 
+            <UserProfileMenu
+              collapsed={false}
+              version={import.meta.env.PACKAGE_VERSION || 'dev'}
             />
           )}
-          
+
           {/* 테마 스위치 */}
           <ThemeSwitch />
         </div>
