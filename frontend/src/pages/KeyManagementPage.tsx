@@ -1,4 +1,4 @@
-import { AlertTriangle, Calendar, Copy, Key, Plus, RefreshCw, Shield, Trash2 } from 'lucide-react';
+import { AlertTriangle, Calendar, Code, Copy, Download, Key, Plus, RefreshCw, Shield, Trash2 } from 'lucide-react';
 import React, { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useToast } from '../contexts/ToastContext';
@@ -34,6 +34,7 @@ const KeyManagementPage: React.FC = () => {
   const [showExpiryModal, setShowExpiryModal] = useState(false);
   const [selectedExpiryDays, setSelectedExpiryDays] = useState(90);
   const [isAdminView, setIsAdminView] = useState(false);
+  const [showSetupGuide, setShowSetupGuide] = useState(false);
 
   // 키 목록 로드
   const loadKeys = async () => {
@@ -100,12 +101,11 @@ const KeyManagementPage: React.FC = () => {
           showToast('키 값이 클립보드에 복사되었습니다.', 'info');
         }
 
-        // 모달 닫기 및 목록 새로고침
+        // 키 목록 새로고침
+        await loadKeys();
         setShowExpiryModal(false);
-        loadKeys();
       } else {
-        const error = await response.json();
-        throw new Error(error.message || '키 생성 실패');
+        throw new Error('키 생성 실패');
       }
     } catch (error) {
       console.error('키 생성 오류:', error);
@@ -115,8 +115,12 @@ const KeyManagementPage: React.FC = () => {
     }
   };
 
-  // 키 만료 연장
+  // 키 만료일 연장
   const handleExtendKey = async (keyId: string, keyName: string) => {
+    if (!confirm(`${keyName}의 만료일을 90일 연장하시겠습니까?`)) {
+      return;
+    }
+
     try {
       const token = getToken();
       const response = await fetch(`/api/oauth/keys/${keyId}/extend`, {
@@ -128,21 +132,20 @@ const KeyManagementPage: React.FC = () => {
       });
 
       if (response.ok) {
-        showToast(`"${keyName}" 키의 만료일이 90일 연장되었습니다.`, 'success');
-        loadKeys();
+        showToast('키 만료일이 연장되었습니다!', 'success');
+        await loadKeys();
       } else {
-        const error = await response.json();
-        throw new Error(error.message || '키 연장 실패');
+        throw new Error('키 연장 실패');
       }
     } catch (error) {
       console.error('키 연장 오류:', error);
-      showToast(error instanceof Error ? error.message : '키 연장 중 오류가 발생했습니다.', 'error');
+      showToast('키 연장 중 오류가 발생했습니다.', 'error');
     }
   };
 
   // 키 삭제
   const handleDeleteKey = async (keyId: string, keyName: string) => {
-    if (!confirm(`"${keyName}" 키를 삭제하시겠습니까?\n\n⚠️ 이 작업은 되돌릴 수 없습니다.`)) {
+    if (!confirm(`${keyName}을 삭제하시겠습니까? 이 작업은 되돌릴 수 없습니다.`)) {
       return;
     }
 
@@ -157,44 +160,64 @@ const KeyManagementPage: React.FC = () => {
       });
 
       if (response.ok) {
-        showToast(`"${keyName}" 키가 삭제되었습니다.`, 'success');
-        loadKeys();
+        showToast('키가 삭제되었습니다.', 'success');
+        await loadKeys();
       } else {
-        const error = await response.json();
-        throw new Error(error.message || '키 삭제 실패');
+        throw new Error('키 삭제 실패');
       }
     } catch (error) {
       console.error('키 삭제 오류:', error);
-      showToast(error instanceof Error ? error.message : '키 삭제 중 오류가 발생했습니다.', 'error');
+      showToast('키 삭제 중 오류가 발생했습니다.', 'error');
     }
   };
 
-  // 키 값 복사
+  // 키 복사
   const handleCopyKey = async (keyId: string) => {
-    try {
-      const token = getToken();
-      const response = await fetch(`/api/oauth/keys/${keyId}/value`, {
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'x-auth-token': token || ''
-        }
-      });
+    const key = keys.find(k => k.id === keyId);
+    if (!key) return;
 
-      if (response.ok) {
-        const result = await response.json();
-        const fullKeyValue = result.data.keyValue;
-        await navigator.clipboard.writeText(fullKeyValue);
-        showToast('키 값이 클립보드에 복사되었습니다.', 'success');
-      } else {
-        throw new Error('키값 조회 실패');
-      }
+    try {
+      await navigator.clipboard.writeText(key.keyValue);
+      showToast('키 값이 클립보드에 복사되었습니다.', 'success');
     } catch (error) {
-      console.error('키값 복사 오류:', error);
-      showToast('키 값 복사에 실패했습니다.', 'error');
+      console.error('클립보드 복사 오류:', error);
+      showToast('클립보드 복사에 실패했습니다.', 'error');
     }
   };
 
-  // 만료일 표시 색상
+  // 설정 파일 다운로드
+  const handleDownloadConfig = () => {
+    const key = keys[0]; // 첫 번째 키 사용
+    if (!key) return;
+
+    const config = {
+      mcpServers: {
+        "mcp-hub": {
+          "type": "streamable-http",
+          "url": "http://localhost:3000/mcp",
+          "headers": {
+            "Authorization": `Bearer ${key.keyValue}`,
+            "Connection": "keep-alive",
+            "Content-Type": "application/json"
+          }
+        }
+      }
+    };
+
+    const blob = new Blob([JSON.stringify(config, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'mcp.json';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+
+    showToast('설정 파일이 다운로드되었습니다.', 'success');
+  };
+
+  // 만료일 색상
   const getExpiryColor = (daysUntilExpiry: number) => {
     if (daysUntilExpiry <= 7) return 'text-red-600 dark:text-red-400';
     if (daysUntilExpiry <= 30) return 'text-yellow-600 dark:text-yellow-400';
@@ -234,26 +257,125 @@ const KeyManagementPage: React.FC = () => {
           </div>
         </div>
 
-        {keys.length === 0 && (
-          <button
-            onClick={handleCreateKey}
-            disabled={creatingKey}
-            className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            {creatingKey ? (
-              <>
-                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
-                생성 중...
-              </>
-            ) : (
-              <>
-                <Plus className="w-4 h-4 mr-2" />
-                새 키 생성
-              </>
-            )}
-          </button>
-        )}
+        <div className="flex items-center space-x-3">
+          {keys.length > 0 && !isAdminView && (
+            <button
+              onClick={() => setShowSetupGuide(!showSetupGuide)}
+              className="inline-flex items-center px-3 py-2 border border-gray-300 dark:border-gray-600 text-sm font-medium rounded-md text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
+            >
+              <Code className="w-4 h-4 mr-2" />
+              {showSetupGuide ? '가이드 숨기기' : '설정 가이드'}
+            </button>
+          )}
+
+          {keys.length === 0 && !isAdminView && (
+            <button
+              onClick={handleCreateKey}
+              disabled={creatingKey}
+              className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {creatingKey ? (
+                <>
+                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                  생성 중...
+                </>
+              ) : (
+                <>
+                  <Plus className="w-4 h-4 mr-2" />
+                  새 키 생성
+                </>
+              )}
+            </button>
+          )}
+        </div>
       </div>
+
+      {/* 설정 가이드 (일반 사용자만) */}
+      {showSetupGuide && keys.length > 0 && !isAdminView && (
+        <div className="mb-6 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-6">
+          <div className="flex items-start">
+            <div className="flex-shrink-0">
+              <Code className="w-6 h-6 text-blue-600 dark:text-blue-400" />
+            </div>
+            <div className="ml-3 flex-1">
+              <h3 className="text-lg font-medium text-blue-900 dark:text-blue-100 mb-2">
+                Cursor IDE 설정 가이드
+              </h3>
+              <p className="text-blue-800 dark:text-blue-200 mb-4">
+                MCPHub Key를 발급받으셨군요! 이제 Cursor IDE에서 MCPHub를 사용할 수 있도록 설정해주세요.
+              </p>
+
+              <div className="space-y-4">
+                <div className="bg-white dark:bg-gray-800 rounded-lg p-4 border border-blue-200 dark:border-blue-700">
+                  <h4 className="font-medium text-gray-900 dark:text-white mb-2">1단계: 설정 파일 위치</h4>
+                  <p className="text-sm text-gray-600 dark:text-gray-300 mb-2">
+                    운영체제에 따라 다음 경로에 <code className="bg-gray-100 dark:bg-gray-700 px-1 rounded">mcp.json</code> 파일을 생성하세요:
+                  </p>
+                  <div className="space-y-1 text-sm">
+                    <div><strong className="text-gray-900 dark:text-white">macOS/Linux:</strong> <code className="bg-gray-100 dark:bg-gray-700 px-2 py-1 rounded text-gray-800 dark:text-gray-200">~/.cursor/mcp.json</code></div>
+                    <div><strong className="text-gray-900 dark:text-white">Windows:</strong> <code className="bg-gray-100 dark:bg-gray-700 px-2 py-1 rounded text-gray-800 dark:text-gray-200">%APPDATA%\Cursor\User\mcp.json</code></div>
+                  </div>
+                </div>
+
+                <div className="bg-white dark:bg-gray-800 rounded-lg p-4 border border-blue-200 dark:border-blue-700">
+                  <h4 className="font-medium text-gray-900 dark:text-white mb-2">2단계: 설정 파일 내용</h4>
+                  <p className="text-sm text-gray-600 dark:text-gray-300 mb-3">
+                    아래 설정을 <code className="bg-gray-100 dark:bg-gray-700 px-1 rounded">mcp.json</code> 파일에 복사하세요:
+                  </p>
+                  <div className="relative">
+                    <pre className="bg-gray-900 text-green-400 p-4 rounded-lg text-sm overflow-x-auto">
+                      {`{
+  "mcpServers": {
+    "mcp-hub": {
+      "type": "streamable-http",
+      "url": "http://localhost:3000/mcp",
+      "headers": {
+        "Authorization": "Bearer MCPHub Key를 여기에 복사 붙여넣기",
+        "Connection": "keep-alive",
+        "Content-Type": "application/json"
+      }
+    }
+  }
+}`}
+                    </pre>
+                    <button
+                      onClick={handleDownloadConfig}
+                      className="absolute top-2 right-2 p-2 bg-gray-800 hover:bg-gray-700 rounded text-white"
+                      title="설정 파일 다운로드"
+                    >
+                      <Download className="w-4 h-4" />
+                    </button>
+                  </div>
+                  <div className="mt-3 p-3 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg">
+                    <p className="text-sm text-yellow-800 dark:text-yellow-200">
+                      💡 <strong>위의 "MCPHub Key를 여기에 복사 붙여넣기" 부분을 위의 키 값으로 교체하세요.</strong>
+                    </p>
+                  </div>
+                </div>
+
+                <div className="bg-white dark:bg-gray-800 rounded-lg p-4 border border-blue-200 dark:border-blue-700">
+                  <h4 className="font-medium text-gray-900 dark:text-white mb-2">3단계: Cursor IDE 재시작</h4>
+                  <p className="text-sm text-gray-600 dark:text-gray-300 mb-2">
+                    설정 파일을 저장한 후 Cursor IDE를 완전히 재시작하세요.
+                  </p>
+                  <p className="text-sm text-gray-600 dark:text-gray-300">
+                    재시작 후 Cursor IDE에서 MCP 도구들이 정상적으로 표시되는지 확인하세요.
+                  </p>
+                </div>
+
+                <div className="bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg p-4">
+                  <h4 className="font-medium text-yellow-900 dark:text-yellow-100 mb-2">💡 사용 팁</h4>
+                  <ul className="text-sm text-yellow-800 dark:text-yellow-200 space-y-1">
+                    <li>• 설정 → API Keys에서 필요한 서비스 키를 입력하세요</li>
+                    <li>• 문제가 있으면 Cursor IDE를 완전히 재시작해보세요</li>
+                    <li>• MCPHub 서버 연결 문제가 있으면 관리자에게 문의하세요</li>
+                  </ul>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* 키 목록 */}
       {keys.length === 0 ? (
@@ -263,6 +385,17 @@ const KeyManagementPage: React.FC = () => {
           <p className="text-gray-600 dark:text-gray-400 mb-4">
             첫 번째 키를 생성해서 Cursor IDE에서 MCPHub를 사용해보세요.
           </p>
+
+          {/* 키가 없을 때도 간단한 가이드 표시 */}
+          <div className="max-w-md mx-auto bg-gray-50 dark:bg-gray-800 rounded-lg p-4 border border-gray-200 dark:border-gray-700">
+            <h4 className="font-medium text-gray-900 dark:text-white mb-2">📋 사용 순서</h4>
+            <ol className="text-sm text-gray-600 dark:text-gray-400 space-y-1">
+              <li>1. MCPHub Key 생성</li>
+              <li>2. 설정 → API Keys에서 서비스 키 입력</li>
+              <li>3. Cursor IDE에 MCPHub 등록</li>
+              <li>4. MCP 도구 사용 시작!</li>
+            </ol>
+          </div>
         </div>
       ) : (
         <div className="grid gap-4">
@@ -319,9 +452,9 @@ const KeyManagementPage: React.FC = () => {
 
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
                     <div>
-                      <span className="text-gray-500 dark:text-gray-400">키 값:</span>
+                      <span className="text-gray-500 dark:text-gray-300">키 값:</span>
                       <div className="flex items-center mt-1">
-                        <code className="bg-gray-100 dark:bg-gray-700 px-2 py-1 rounded text-xs font-mono">
+                        <code className="bg-gray-100 dark:bg-gray-700 px-2 py-1 rounded text-xs font-mono text-gray-800 dark:text-gray-200">
                           {key.keyValue}
                         </code>
                         <button
@@ -335,22 +468,22 @@ const KeyManagementPage: React.FC = () => {
                     </div>
 
                     <div>
-                      <span className="text-gray-500 dark:text-gray-400">만료일:</span>
+                      <span className="text-gray-500 dark:text-gray-300">만료일:</span>
                       <div className={`flex items-center mt-1 ${getExpiryColor(key.daysUntilExpiry)}`}>
                         <Calendar className="w-4 h-4 mr-1" />
-                        {new Date(key.expiresAt).toLocaleDateString()} ({key.daysUntilExpiry}일 남음)
+                        <span className="text-gray-900 dark:text-gray-100">{new Date(key.expiresAt).toLocaleDateString()} ({key.daysUntilExpiry}일 남음)</span>
                       </div>
                     </div>
 
                     <div>
-                      <span className="text-gray-500 dark:text-gray-400">사용 횟수:</span>
-                      <div className="mt-1">{key.usageCount.toLocaleString()}회</div>
+                      <span className="text-gray-500 dark:text-gray-300">사용 횟수:</span>
+                      <div className="mt-1 text-gray-900 dark:text-gray-100">{key.usageCount.toLocaleString()}회</div>
                     </div>
                   </div>
 
                   {key.serviceTokens.length > 0 && (
                     <div className="mt-4">
-                      <span className="text-gray-500 dark:text-gray-400 text-sm">연결된 서비스:</span>
+                      <span className="text-gray-500 dark:text-gray-300 text-sm">연결된 서비스:</span>
                       <div className="flex flex-wrap gap-2 mt-1">
                         {key.serviceTokens.map((service) => (
                           <span key={service} className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800 dark:bg-blue-800 dark:text-blue-100">
@@ -394,7 +527,7 @@ const KeyManagementPage: React.FC = () => {
             <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-4">
               키 만료일 선택
             </h3>
-            <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
+            <p className="text-sm text-gray-600 dark:text-gray-300 mb-4">
               MCPHub Key의 만료일을 선택해주세요. (1일 ~ 90일)
             </p>
 
@@ -410,7 +543,7 @@ const KeyManagementPage: React.FC = () => {
                 onChange={(e) => setSelectedExpiryDays(parseInt(e.target.value))}
                 className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer dark:bg-gray-700"
               />
-              <div className="flex justify-between text-xs text-gray-500 mt-1">
+              <div className="flex justify-between text-xs text-gray-500 dark:text-gray-400 mt-1">
                 <span>1일</span>
                 <span>90일</span>
               </div>
