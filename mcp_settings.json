@@ -13,19 +13,17 @@
       }
     },
     "github": {
-      "url": "https://api.githubcopilot.com/mcp/",
+      "type": "streamable-http",
+      "url": "https://api.githubcopilot.com/mcp",
+      "name": "GitHub MCP Server",
+      "description": "GitHub 저장소, 이슈, PR 관리를 위한 GitHub Copilot MCP 서버",
+      "group": "development",
+      "enabled": true,
       "headers": {
-        "Authorization": "Bearer ${USER_GITHUB_TOKEN}"
-      },
-      "enabled": false
-    },
-    "sequentialthinking": {
-      "command": "npx",
-      "args": [
-        "-y",
-        "@modelcontextprotocol/server-sequential-thinking"
-      ],
-      "enabled": true
+        "Authorization": "Bearer ${USER_GITHUB_TOKEN}",
+        "Content-Type": "application/json",
+        "Accept": "application/json"
+      }
     },
     "test": {
       "type": "streamable-http",
@@ -37,15 +35,6 @@
         "Content-Type": "application/json",
         "Accept": "application/json"
       }
-    },
-    "filesystem": {
-      "command": "npx",
-      "args": [
-        "-y",
-        "@modelcontextprotocol/server-filesystem",
-        "/Users/jungchihoon/chihoon"
-      ],
-      "enabled": true
     },
     "confluence": {
       "type": "streamable-http",
@@ -77,7 +66,7 @@
   "users": [
     {
       "username": "admin",
-      "password": "$2b$10$CjBkv9.DDlRSbPpA6LJpGON7NM5s3BCmSchflVSvTsPy2l5tvzfBO",
+      "password": "$2b$10$7CV9ufVLDeaOK7CDgwzm4.12b0I.ueBKVMmjJuiEnn4m2jABRrYra",
       "isAdmin": true
     }
   ]
