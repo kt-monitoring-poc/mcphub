@@ -1,0 +1,26 @@
+{
+    "mcpServers": {
+        "mcphub": {
+            "command": "node",
+            "args": [
+                "-e",
+                "console.log('MCPHub Cursor Bridge 시작...'); require('http').createServer((req, res) => { const url = new URL(req.url, 'http://localhost'); if (url.pathname === '/mcp' && req.method === 'POST') { let body = ''; req.on('data', chunk => body += chunk); req.on('end', async () => { try { const data = JSON.parse(body); const response = await fetch('http://localhost:3000/api/mcp/call-tool', { method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer YOUR_MCPHUB_KEY_HERE' }, body: JSON.stringify(data) }); const result = await response.json(); res.writeHead(200, {'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*'}); res.end(JSON.stringify(result)); } catch (error) { res.writeHead(500, {'Content-Type': 'application/json'}); res.end(JSON.stringify({error: error.message})); } }); } else { res.writeHead(404); res.end('Not Found'); } }).listen(8124, () => console.log('MCPHub Bridge listening on port 8124'));"
+            ],
+            "cwd": ".",
+            "env": {}
+        }
+    }
+}
+// 사용법:
+// 1. YOUR_MCPHUB_KEY_HERE를 실제 MCPHub Key로 교체하세요
+// 2. 이 파일을 ~/.cursor/mcp_settings.json에 복사하세요
+// 3. Cursor IDE를 재시작하세요
+//
+// MCPHub Key 확인:
+// - MCPHub 웹사이트 (http://localhost:3000)에 로그인
+// - Settings 페이지로 이동
+// - MCPHub Keys 섹션에서 키 확인 또는 생성
+//
+// 연결 확인:
+// - Cursor IDE에서 MCP 도구 사용 가능
+// - MCPHub의 모든 연결된 MCP 서버에 접근 가능 

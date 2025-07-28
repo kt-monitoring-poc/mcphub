@@ -12,42 +12,12 @@
         "Accept": "application/json"
       }
     },
-    "github-mcp": {
-      "type": "streamable-http",
-      "url": "https://api.github.com/mcp/${USER_GITHUB_TOKEN}",
-      "name": "GitHub MCP Server",
-      "description": "GitHub API를 통한 저장소 및 이슈 관리",
-      "group": "development",
-      "enabled": true,
+    "github": {
+      "url": "https://api.githubcopilot.com/mcp/",
       "headers": {
-        "Content-Type": "application/json",
-        "Accept": "application/vnd.github.v3+json",
         "Authorization": "Bearer ${USER_GITHUB_TOKEN}"
-      }
-    },
-    "openai-mcp": {
-      "type": "streamable-http",
-      "url": "https://api.openai.com/mcp",
-      "name": "OpenAI MCP Server",
-      "description": "OpenAI API를 통한 AI 모델 접근",
-      "group": "ai",
-      "enabled": true,
-      "headers": {
-        "Content-Type": "application/json",
-        "Authorization": "Bearer ${USER_OPENAI_API_KEY}"
-      }
-    },
-    "anthropic-mcp": {
-      "type": "streamable-http",
-      "url": "https://api.anthropic.com/mcp",
-      "name": "Anthropic MCP Server",
-      "description": "Anthropic Claude API를 통한 AI 모델 접근",
-      "group": "ai",
-      "enabled": true,
-      "headers": {
-        "Content-Type": "application/json",
-        "Authorization": "Bearer ${USER_ANTHROPIC_API_KEY}"
-      }
+      },
+      "enabled": false
     },
     "sequentialthinking": {
       "command": "npx",
@@ -77,56 +47,37 @@
       ],
       "enabled": true
     },
-    "git": {
-      "command": "uvx",
-      "args": [
-        "mcp-server-git",
-        "--repository",
-        "/Users/jungchihoon/hades/2025-07/mcphub"
-      ],
-      "enabled": false
+    "confluence": {
+      "type": "streamable-http",
+      "url": "https://api.atlassian.com/mcp/confluence",
+      "name": "Confluence MCP Server",
+      "description": "Atlassian Confluence 문서 및 페이지 관리",
+      "group": "collaboration",
+      "enabled": false,
+      "headers": {
+        "Authorization": "Bearer ${USER_CONFLUENCE_TOKEN}",
+        "Content-Type": "application/json",
+        "Accept": "application/json"
+      }
     },
-    "github-stdio": {
-      "command": "docker",
-      "args": [
-        "run",
-        "-i",
-        "--rm",
-        "-e",
-        "GITHUB_PERSONAL_ACCESS_TOKEN",
-        "-e",
-        "GITHUB_TOOLSETS",
-        "-e",
-        "GITHUB_READ_ONLY",
-        "ghcr.io/github/github-mcp-server"
-      ],
-      "env": {
-        "GITHUB_PERSONAL_ACCESS_TOKEN": "${USER_GITHUB_TOKEN}",
-        "GITHUB_TOOLSETS": "",
-        "GITHUB_READ_ONLY": ""
-      },
-      "enabled": false
-    }
-  },
-  "systemConfig": {
-    "routing": {
-      "enableGlobalRoute": true,
-      "enableGroupNameRoute": true,
-      "enableBearerAuth": false,
-      "bearerAuthKey": ""
-    },
-    "smartRouting": {
-      "enabled": true,
-      "openaiApiKey": "your_openai_api_key_here",
-      "openaiApiBaseUrl": "https://api.openai.com/v1",
-      "openaiApiEmbeddingModel": "text-embedding-3-small",
-      "dbUrl": "postgresql://localhost:5432/mcphub"
+    "jira": {
+      "type": "streamable-http",
+      "url": "https://api.atlassian.com/mcp/jira",
+      "name": "Jira MCP Server",
+      "description": "Atlassian Jira 이슈 및 프로젝트 관리",
+      "group": "collaboration",
+      "enabled": false,
+      "headers": {
+        "Authorization": "Bearer ${USER_JIRA_TOKEN}",
+        "Content-Type": "application/json",
+        "Accept": "application/json"
+      }
     }
   },
   "users": [
     {
       "username": "admin",
-      "password": "$2b$10$Vt7krIvjNgyN67LXqly0uOcTpN0LI55cYRbcKC71pUDAP0nJ7RPa.",
+      "password": "$2b$10$CjBkv9.DDlRSbPpA6LJpGON7NM5s3BCmSchflVSvTsPy2l5tvzfBO",
       "isAdmin": true
     }
   ]

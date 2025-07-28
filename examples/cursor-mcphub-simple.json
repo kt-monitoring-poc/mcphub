@@ -1,0 +1,36 @@
+{
+    "mcpServers": {
+        "mcphub": {
+            "type": "streamable-http",
+            "url": "http://localhost:3000/mcp",
+            "headers": {
+                "Authorization": "Bearer mcphub_e9a2d03d95400afe74274c07122169fca44e79395818a78fb18b2afbfa69ae82",
+                "Content-Type": "application/json"
+            }
+        }
+    }
+}
+// MCPHub와 Cursor IDE 연결 설정
+// 
+// 사용법:
+// 1. YOUR_MCPHUB_KEY_HERE를 실제 MCPHub Key로 교체
+// 2. 이 파일을 ~/.cursor/mcp_settings.json에 복사
+// 3. Cursor IDE 재시작
+//
+// MCPHub Key 확인 방법:
+// 1. http://localhost:3000에서 GitHub로 로그인
+// 2. Settings > MCPHub Keys에서 키 확인/생성
+// 3. 키 형식: mcphub_xxxxxxxxxxxxxxxxx
+//
+// 현재 jungchihoon 사용자의 키:
+// mcphub_e9a2d03d95400afe74274c07122169fca44e79395818a78fb18b2afbfa69ae82
+//
+// 연결 후 사용 가능한 도구들:
+// - Firecrawl: 웹 스크래핑 (FIRECRAWL_TOKEN 필요)
+// - GitHub: GitHub API 접근 (GITHUB_TOKEN 필요)  
+// - Sequential Thinking: 사고 과정 추적
+// - Filesystem: 파일 시스템 접근
+//
+// 주의사항:
+// - MCPHub 서버가 http://localhost:3000에서 실행 중이어야 함
+// - GitHub와 Firecrawl 토큰을 Settings에서 미리 저장해야 함 

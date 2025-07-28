@@ -1,6 +1,6 @@
-import React, { useState, useEffect } from 'react';
+import { AlertTriangle, Calendar, Copy, Key, Plus, RefreshCw, Shield, Trash2 } from 'lucide-react';
+import React, { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Key, Plus, Calendar, Shield, Copy, AlertTriangle, RefreshCw, Trash2 } from 'lucide-react';
 import { useToast } from '../contexts/ToastContext';
 import { getToken } from '../services/authService';
 
@@ -16,6 +16,13 @@ interface MCPHubKey {
   serviceTokens: string[];
   createdAt: string;
   daysUntilExpiry: number;
+  // 관리자 뷰용 사용자 정보
+  user?: {
+    id: string;
+    githubUsername: string;
+    displayName?: string;
+    isAdmin: boolean;
+  };
 }
 
 const KeyManagementPage: React.FC = () => {
@@ -26,6 +33,7 @@ const KeyManagementPage: React.FC = () => {
   const [creatingKey, setCreatingKey] = useState(false);
   const [showExpiryModal, setShowExpiryModal] = useState(false);
   const [selectedExpiryDays, setSelectedExpiryDays] = useState(90);
+  const [isAdminView, setIsAdminView] = useState(false);
 
   // 키 목록 로드
   const loadKeys = async () => {
@@ -41,6 +49,7 @@ const KeyManagementPage: React.FC = () => {
       if (response.ok) {
         const result = await response.json();
         setKeys(result.data || []);
+        setIsAdminView(result.isAdminView || false);
       } else {
         throw new Error('키 목록 로드 실패');
       }
@@ -84,7 +93,7 @@ const KeyManagementPage: React.FC = () => {
       if (response.ok) {
         const result = await response.json();
         showToast('새 MCPHub Key가 생성되었습니다!', 'success');
-        
+
         // 생성된 키 값을 클립보드에 복사
         if (result.data?.keyValue) {
           await navigator.clipboard.writeText(result.data.keyValue);
@@ -213,13 +222,18 @@ const KeyManagementPage: React.FC = () => {
         <div className="flex items-center">
           <Key className="w-8 h-8 text-indigo-600 dark:text-indigo-400 mr-3" />
           <div>
-            <h1 className="text-2xl font-bold text-gray-900 dark:text-white">MCPHub Key 관리</h1>
+            <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
+              {isAdminView ? '전체 MCPHub Keys 관리' : 'MCPHub Key 관리'}
+            </h1>
             <p className="text-gray-600 dark:text-gray-400">
-              Cursor IDE에서 사용할 MCPHub Key를 관리하세요
+              {isAdminView
+                ? '모든 사용자의 MCPHub Key를 관리하세요'
+                : 'Cursor IDE에서 사용할 MCPHub Key를 관리하세요'
+              }
             </p>
           </div>
         </div>
-        
+
         {keys.length === 0 && (
           <button
             onClick={handleCreateKey}
@@ -269,7 +283,7 @@ const KeyManagementPage: React.FC = () => {
                           비활성
                         </span>
                       )}
-                      
+
                       {key.daysUntilExpiry <= 7 && (
                         <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800 dark:bg-red-800 dark:text-red-100">
                           <AlertTriangle className="w-3 h-3 mr-1" />
@@ -278,6 +292,26 @@ const KeyManagementPage: React.FC = () => {
                       )}
                     </div>
                   </div>
+
+                  {/* 관리자 뷰에서 사용자 정보 표시 */}
+                  {isAdminView && key.user && (
+                    <div className="mb-3 p-3 bg-gray-50 dark:bg-gray-700 rounded-lg">
+                      <div className="flex items-center space-x-2">
+                        <span className="text-sm font-medium text-gray-700 dark:text-gray-300">사용자:</span>
+                        <span className="text-sm text-gray-900 dark:text-white font-semibold">
+                          {key.user.displayName || key.user.githubUsername}
+                        </span>
+                        <span className="text-sm text-gray-500 dark:text-gray-400">
+                          (@{key.user.githubUsername})
+                        </span>
+                        {key.user.isAdmin && (
+                          <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-purple-100 text-purple-800 dark:bg-purple-800 dark:text-purple-100">
+                            관리자
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  )}
 
                   {key.description && (
                     <p className="text-gray-600 dark:text-gray-400 mb-3">{key.description}</p>
@@ -338,7 +372,7 @@ const KeyManagementPage: React.FC = () => {
                       <RefreshCw className="w-4 h-4" />
                     </button>
                   )}
-                  
+
                   <button
                     onClick={() => handleDeleteKey(key.id, key.name)}
                     className="p-2 text-gray-400 hover:text-red-600 dark:hover:text-red-400"
@@ -363,7 +397,7 @@ const KeyManagementPage: React.FC = () => {
             <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
               MCPHub Key의 만료일을 선택해주세요. (1일 ~ 90일)
             </p>
-            
+
             <div className="mb-6">
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                 만료일: {selectedExpiryDays}일

@@ -44,7 +44,7 @@ export class MCPHubKeyService {
     }
 
     console.log(`🔑 새 MCPHub Key 생성: ${user.githubUsername} (ID: ${userId}) - ${data.name}`);
-    
+
     const newKey = await this.mcpHubKeyRepository.createKey({
       userId,
       name: data.name,
@@ -54,7 +54,7 @@ export class MCPHubKeyService {
     });
 
     console.log(`✅ MCPHub Key 생성 완료: ${user.githubUsername} - ${newKey.keyValue.substring(0, 20)}... (만료: ${newKey.expiresAt.toLocaleDateString()})`);
-    
+
     return newKey;
   }
 
@@ -94,7 +94,7 @@ export class MCPHubKeyService {
     });
 
     console.log(`✅ MCPHub Key 인증 성공: ${key.user.githubUsername} - ${key.name}`);
-    
+
     return {
       key,
       user: key.user,
@@ -107,6 +107,20 @@ export class MCPHubKeyService {
    */
   async getUserKeys(userId: string): Promise<MCPHubKey[]> {
     return this.mcpHubKeyRepository.findByUserId(userId);
+  }
+
+  /**
+   * 모든 사용자의 키 목록 조회 (관리자용)
+   */
+  async getAllUserKeys(): Promise<MCPHubKey[]> {
+    const repository = AppDataSource.getRepository(MCPHubKey);
+
+    return repository
+      .createQueryBuilder('key')
+      .leftJoinAndSelect('key.user', 'user')
+      .where('key.isActive = :isActive', { isActive: true })
+      .orderBy('key.createdAt', 'DESC')
+      .getMany();
   }
 
   /**
@@ -131,7 +145,7 @@ export class MCPHubKeyService {
     }
 
     console.log(`🔗 서비스 토큰 업데이트: ${key.name} - ${Object.keys(serviceTokens).join(', ')}`);
-    
+
     const updatedKey = await this.mcpHubKeyRepository.updateServiceTokens(keyId, serviceTokens);
     if (!updatedKey) {
       throw new Error('토큰 업데이트에 실패했습니다.');
@@ -155,7 +169,7 @@ export class MCPHubKeyService {
     }
 
     console.log(`${isActive ? '🟢' : '🔴'} 키 ${isActive ? '활성화' : '비활성화'}: ${key.name}`);
-    
+
     const updatedKey = await this.mcpHubKeyRepository.setKeyActive(keyId, isActive);
     if (!updatedKey) {
       throw new Error('키 상태 변경에 실패했습니다.');
@@ -179,7 +193,7 @@ export class MCPHubKeyService {
     }
 
     console.log(`📅 키 만료일 연장: ${key.name} - 새로운 90일`);
-    
+
     const updatedKey = await this.mcpHubKeyRepository.extendExpiry(keyId);
     if (!updatedKey) {
       throw new Error('키 만료일 연장에 실패했습니다.');
@@ -206,16 +220,16 @@ export class MCPHubKeyService {
     // 사용자 정보 가져오기
     const user = await this.userRepository.findById(key.userId);
     const username = user ? user.githubUsername : 'Unknown';
-    
+
     console.log(`🗑️ 키 삭제: ${username} (ID: ${key.userId}) - ${key.name}`);
-    
+
     // 실제로 DB에서 삭제
     const result = await this.mcpHubKeyRepository.delete(keyId);
-    
+
     if (result) {
       console.log(`✅ 키 삭제 완료: ${username} - ${key.name}`);
     }
-    
+
     return result;
   }
 
@@ -227,7 +241,7 @@ export class MCPHubKeyService {
     expiredKeys: MCPHubKey[];
   }> {
     console.log(`🧹 만료된 키 정리 작업 시작...`);
-    
+
     const expiredKeys = await this.mcpHubKeyRepository.findExpiredKeys();
     const deactivatedCount = await this.mcpHubKeyRepository.deactivateExpiredKeys();
 
@@ -264,7 +278,7 @@ export class MCPHubKeyService {
     }[];
   }> {
     const baseStats = await this.mcpHubKeyRepository.getKeyStats();
-    
+
     // 최다 사용 키 TOP 5
     const repository = AppDataSource.getRepository(MCPHubKey);
     const topUsedKeysData = await repository
@@ -293,7 +307,7 @@ export class MCPHubKeyService {
    */
   async getKeysWithServiceToken(serviceName: string): Promise<MCPHubKey[]> {
     const repository = AppDataSource.getRepository(MCPHubKey);
-    
+
     return repository
       .createQueryBuilder('key')
       .leftJoinAndSelect('key.user', 'user')
@@ -322,7 +336,7 @@ export class MCPHubKeyService {
     // 키 이름 중복 확인 (변경하려는 경우)
     if (updateData.name && updateData.name !== key.name) {
       const existingKeys = await this.mcpHubKeyRepository.findByUserId(key.userId);
-      const nameExists = existingKeys.some(k => 
+      const nameExists = existingKeys.some(k =>
         k.name === updateData.name && k.isActive && k.id !== keyId
       );
       if (nameExists) {
@@ -338,7 +352,7 @@ export class MCPHubKeyService {
     }
 
     console.log(`📝 키 정보 업데이트: ${key.name}`);
-    
+
     const updatedKey = await this.mcpHubKeyRepository.update(keyId, key);
     if (!updatedKey) {
       throw new Error('키 정보 업데이트에 실패했습니다.');

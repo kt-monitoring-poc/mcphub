@@ -1,9 +1,9 @@
 import { Request, Response } from 'express';
-import passport from 'passport';
 import jwt from 'jsonwebtoken';
-import { UserService } from '../services/userService.js';
-import { MCPHubKeyService } from '../services/mcpHubKeyService.js';
+import passport from 'passport';
 import { User } from '../db/entities/User.js';
+import { MCPHubKeyService } from '../services/mcpHubKeyService.js';
+import { UserService } from '../services/userService.js';
 
 // Service 인스턴스
 const userService = new UserService();
@@ -14,7 +14,7 @@ const mcpHubKeyService = new MCPHubKeyService();
  */
 export const initiateGithubLogin = (req: Request, res: Response) => {
   console.log('🚀 GitHub OAuth 로그인 시작');
-  passport.authenticate('github', { 
+  passport.authenticate('github', {
     scope: ['user:email'] // 이메일 정보 요청
   })(req, res);
 };
@@ -24,9 +24,9 @@ export const initiateGithubLogin = (req: Request, res: Response) => {
  */
 export const handleGithubCallback = async (req: Request, res: Response) => {
   console.log('🔍 OAuth 콜백 성공 - 사용자 처리 시작');
-  
+
   const user = req.user as User;
-  
+
   if (!user) {
     console.log('⚠️ OAuth 성공했지만 사용자 정보 없음');
     return res.redirect('/login?error=no_user');
@@ -42,10 +42,10 @@ export const handleGithubCallback = async (req: Request, res: Response) => {
       githubId: user.githubId,
       email: user.email
     });
-    
+
     // JWT 토큰 생성
     const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key-change-this';
-    
+
     const payload = {
       user: {
         id: user.id,
@@ -55,7 +55,7 @@ export const handleGithubCallback = async (req: Request, res: Response) => {
         email: user.email
       }
     };
-    
+
     console.log(`🔍 JWT Payload:`, payload);
 
     const token = jwt.sign(payload, JWT_SECRET, { expiresIn: '24h' });
@@ -69,7 +69,7 @@ export const handleGithubCallback = async (req: Request, res: Response) => {
     // 단순한 302 리다이렉트 사용
     const redirectUrl = `/?welcome=true&token=${encodeURIComponent(token)}`;
     console.log(`🔄 302 리다이렉트: ${redirectUrl.substring(0, 100)}...`);
-    
+
     return res.redirect(302, redirectUrl);
   } catch (error) {
     console.error('❌ JWT 토큰 생성 오류:', error);
@@ -89,9 +89,9 @@ export const logout = (req: Request, res: Response) => {
   req.logout((err) => {
     if (err) {
       console.error('❌ 로그아웃 오류:', err);
-      return res.status(500).json({ 
-        success: false, 
-        message: '로그아웃 중 오류가 발생했습니다.' 
+      return res.status(500).json({
+        success: false,
+        message: '로그아웃 중 오류가 발생했습니다.'
       });
     }
 
@@ -99,7 +99,7 @@ export const logout = (req: Request, res: Response) => {
       if (sessionErr) {
         console.error('❌ 세션 삭제 오류:', sessionErr);
       }
-      
+
       res.clearCookie('connect.sid');
       res.redirect('/login?logout=success');
     });
@@ -113,9 +113,9 @@ export const getCurrentUser = async (req: Request, res: Response) => {
   try {
     const user = req.user as User;
     if (!user) {
-      return res.status(401).json({ 
-        success: false, 
-        message: '인증되지 않은 사용자입니다.' 
+      return res.status(401).json({
+        success: false,
+        message: '인증되지 않은 사용자입니다.'
       });
     }
 
@@ -157,26 +157,71 @@ export const getUserKeys = async (req: Request, res: Response) => {
   try {
     const user = req.user as User;
     if (!user) {
-      return res.status(401).json({ 
-        success: false, 
-        message: '인증되지 않은 사용자입니다.' 
+      return res.status(401).json({
+        success: false,
+        message: '인증되지 않은 사용자입니다.'
       });
     }
 
-    const keys = await mcpHubKeyService.getUserKeys(user.id);
-    
-    // 키 값 마스킹 (보안)
-    const maskedKeys = keys.map(key => ({
-      ...key,
-      keyValue: `${key.keyValue.substring(0, 12)}***${key.keyValue.substring(key.keyValue.length - 4)}`,
-      user: undefined, // 사용자 정보 제거
-      serviceTokens: key.serviceTokens ? Object.keys(key.serviceTokens) : [] // 토큰 키만 반환
-    }));
+    // 관리자인 경우 모든 사용자의 키를 조회
+    if (user.isAdmin) {
+      const allKeys = await mcpHubKeyService.getAllUserKeys();
 
-    res.json({
-      success: true,
-      data: maskedKeys
-    });
+      // 키 값 마스킹 (보안) 및 만료일 계산
+      const maskedKeys = allKeys.map(key => {
+        // 만료일까지 남은 일수 계산
+        const now = new Date();
+        const expiresAt = new Date(key.expiresAt);
+        const timeDiff = expiresAt.getTime() - now.getTime();
+        const daysUntilExpiry = Math.ceil(timeDiff / (1000 * 3600 * 24));
+
+        return {
+          ...key,
+          keyValue: `${key.keyValue.substring(0, 12)}***${key.keyValue.substring(key.keyValue.length - 4)}`,
+          // 관리자용으로 사용자 정보 포함
+          user: {
+            id: key.user.id,
+            githubUsername: key.user.githubUsername,
+            displayName: key.user.displayName,
+            isAdmin: key.user.isAdmin
+          },
+          serviceTokens: key.serviceTokens ? Object.keys(key.serviceTokens) : [], // 토큰 키만 반환
+          daysUntilExpiry: daysUntilExpiry
+        };
+      });
+
+      res.json({
+        success: true,
+        data: maskedKeys,
+        isAdminView: true
+      });
+    } else {
+      // 일반 사용자는 자신의 키만 조회
+      const keys = await mcpHubKeyService.getUserKeys(user.id);
+
+      // 키 값 마스킹 (보안) 및 만료일 계산
+      const maskedKeys = keys.map(key => {
+        // 만료일까지 남은 일수 계산
+        const now = new Date();
+        const expiresAt = new Date(key.expiresAt);
+        const timeDiff = expiresAt.getTime() - now.getTime();
+        const daysUntilExpiry = Math.ceil(timeDiff / (1000 * 3600 * 24));
+
+        return {
+          ...key,
+          keyValue: `${key.keyValue.substring(0, 12)}***${key.keyValue.substring(key.keyValue.length - 4)}`,
+          user: undefined, // 사용자 정보 제거
+          serviceTokens: key.serviceTokens ? Object.keys(key.serviceTokens) : [], // 토큰 키만 반환
+          daysUntilExpiry: daysUntilExpiry
+        };
+      });
+
+      res.json({
+        success: true,
+        data: maskedKeys,
+        isAdminView: false
+      });
+    }
   } catch (error) {
     console.error('❌ 사용자 키 목록 조회 오류:', error);
     res.status(500).json({
@@ -193,20 +238,20 @@ export const createUserKey = async (req: Request, res: Response) => {
   try {
     const user = req.user as User;
     if (!user) {
-      return res.status(401).json({ 
-        success: false, 
-        message: '인증되지 않은 사용자입니다.' 
+      return res.status(401).json({
+        success: false,
+        message: '인증되지 않은 사용자입니다.'
       });
     }
 
     // 키 이름을 고정으로 설정
     const keyName = 'MCPHub Key';
     const description = 'Cursor IDE에서 사용할 MCPHub Key입니다.';
-    
+
     // 만료일 설정 (1-90일, 기본값: 90일)
     const { expiryDays } = req.body;
     let days = 90; // 기본값
-    
+
     if (expiryDays !== undefined) {
       const parsedDays = parseInt(expiryDays);
       if (isNaN(parsedDays) || parsedDays < 1 || parsedDays > 90) {
@@ -238,7 +283,7 @@ export const createUserKey = async (req: Request, res: Response) => {
     });
   } catch (error) {
     console.error('❌ MCPHub Key 생성 오류:', error);
-    
+
     if (error instanceof Error) {
       return res.status(400).json({
         success: false,
@@ -260,18 +305,18 @@ export const getKeyValue = async (req: Request, res: Response) => {
   try {
     const user = req.user as User;
     if (!user) {
-      return res.status(401).json({ 
-        success: false, 
-        message: '인증되지 않은 사용자입니다.' 
+      return res.status(401).json({
+        success: false,
+        message: '인증되지 않은 사용자입니다.'
       });
     }
 
     const { keyId } = req.params;
-    
+
     // 사용자의 키인지 확인
     const keys = await mcpHubKeyService.getUserKeys(user.id);
     const key = keys.find(k => k.id === keyId);
-    
+
     if (!key) {
       return res.status(404).json({
         success: false,
@@ -301,18 +346,18 @@ export const getKeyTokens = async (req: Request, res: Response) => {
   try {
     const user = req.user as User;
     if (!user) {
-      return res.status(401).json({ 
-        success: false, 
-        message: '인증되지 않은 사용자입니다.' 
+      return res.status(401).json({
+        success: false,
+        message: '인증되지 않은 사용자입니다.'
       });
     }
 
     const { keyId } = req.params;
-    
+
     // 사용자의 키인지 확인
     const keys = await mcpHubKeyService.getUserKeys(user.id);
     const key = keys.find(k => k.id === keyId);
-    
+
     if (!key) {
       return res.status(404).json({
         success: false,
@@ -342,9 +387,9 @@ export const updateKeyTokens = async (req: Request, res: Response) => {
   try {
     const user = req.user as User;
     if (!user) {
-      return res.status(401).json({ 
-        success: false, 
-        message: '인증되지 않은 사용자입니다.' 
+      return res.status(401).json({
+        success: false,
+        message: '인증되지 않은 사용자입니다.'
       });
     }
 
@@ -359,23 +404,23 @@ export const updateKeyTokens = async (req: Request, res: Response) => {
     }
 
     const updatedKey = await mcpHubKeyService.updateServiceTokens(
-      keyId, 
-      serviceTokens, 
+      keyId,
+      serviceTokens,
       user.id
     );
 
-            // API Keys가 업데이트되면 관련 MCP 서버들을 재시작
-        if (Object.keys(serviceTokens).length > 0) {
-          try {
-        
+    // API Keys가 업데이트되면 관련 MCP 서버들을 재시작
+    if (Object.keys(serviceTokens).length > 0) {
+      try {
+
         // GitHub 토큰이 있으면 github 서버 재시작
         if (serviceTokens.GITHUB_TOKEN) {
           console.log(`✅ GitHub 토큰 저장됨 - 서버는 사용 시 자동으로 연결됩니다.`);
           // On-demand 연결 방식이므로 서버 재시작 불필요
         }
-        
+
         // Firecrawl 토큰이 있으면 firecrawl-mcp 서버 재시작 (활성화된 경우)
-        if (serviceTokens.FIRECRAWL_API_KEY || serviceTokens.FIRECRAWL_KEY) {
+        if (serviceTokens.FIRECRAWL_TOKEN) {
           console.log(`✅ Firecrawl 토큰 저장됨 - 서버는 사용 시 자동으로 연결됩니다.`);
           // On-demand 연결 방식이므로 서버 재시작 불필요
         }
@@ -396,7 +441,7 @@ export const updateKeyTokens = async (req: Request, res: Response) => {
     });
   } catch (error) {
     console.error('❌ 서비스 토큰 업데이트 오류:', error);
-    
+
     if (error instanceof Error) {
       return res.status(400).json({
         success: false,
@@ -418,9 +463,9 @@ export const extendKeyExpiry = async (req: Request, res: Response) => {
   try {
     const user = req.user as User;
     if (!user) {
-      return res.status(401).json({ 
-        success: false, 
-        message: '인증되지 않은 사용자입니다.' 
+      return res.status(401).json({
+        success: false,
+        message: '인증되지 않은 사용자입니다.'
       });
     }
 
@@ -440,7 +485,7 @@ export const extendKeyExpiry = async (req: Request, res: Response) => {
     });
   } catch (error) {
     console.error('❌ 키 만료 연장 오류:', error);
-    
+
     if (error instanceof Error) {
       return res.status(400).json({
         success: false,
@@ -462,9 +507,9 @@ export const deactivateKey = async (req: Request, res: Response) => {
   try {
     const user = req.user as User;
     if (!user) {
-      return res.status(401).json({ 
-        success: false, 
-        message: '인증되지 않은 사용자입니다.' 
+      return res.status(401).json({
+        success: false,
+        message: '인증되지 않은 사용자입니다.'
       });
     }
 
@@ -478,7 +523,7 @@ export const deactivateKey = async (req: Request, res: Response) => {
     });
   } catch (error) {
     console.error('❌ 키 비활성화 오류:', error);
-    
+
     if (error instanceof Error) {
       return res.status(400).json({
         success: false,
@@ -500,9 +545,9 @@ export const deleteUserKey = async (req: Request, res: Response) => {
   try {
     const user = req.user as User;
     if (!user) {
-      return res.status(401).json({ 
-        success: false, 
-        message: '인증되지 않은 사용자입니다.' 
+      return res.status(401).json({
+        success: false,
+        message: '인증되지 않은 사용자입니다.'
       });
     }
 
@@ -516,7 +561,7 @@ export const deleteUserKey = async (req: Request, res: Response) => {
     });
   } catch (error) {
     console.error('❌ 키 삭제 오류:', error);
-    
+
     if (error instanceof Error) {
       return res.status(400).json({
         success: false,

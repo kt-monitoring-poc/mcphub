@@ -13,21 +13,20 @@
  * - 연결 상태 모니터링
  */
 
-import { Request, Response } from 'express';
-import { randomUUID } from 'node:crypto';
-import { Transport } from '@modelcontextprotocol/sdk/shared/transport.js';
 import { SSEServerTransport } from '@modelcontextprotocol/sdk/server/sse.js';
 import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
-import { isInitializeRequest } from '@modelcontextprotocol/sdk/types.js';
+import { randomUUID } from 'crypto';
+import { Request, Response } from 'express';
+import config, { loadSettings } from '../config/index.js';
 import { deleteMcpServer, getMcpServer } from './mcpService.js';
-import { loadSettings } from '../config/index.js';
-import config from '../config/index.js';
 
-/**
- * 활성 전송 계층 저장소
- * 세션 ID를 키로 하여 전송 계층과 그룹 정보를 저장합니다.
- */
-const transports: { [sessionId: string]: { transport: Transport; group: string } } = {};
+interface TransportInfo {
+  transport: StreamableHTTPServerTransport | SSEServerTransport;
+  group?: string;
+  userServiceTokens?: Record<string, string>; // 세션별 사용자 토큰 저장
+}
+
+const transports: Record<string, TransportInfo> = {};
 
 /**
  * 세션의 그룹 정보 조회
@@ -42,35 +41,35 @@ export const getGroup = (sessionId: string): string => {
 };
 
 /**
- * Bearer 토큰 인증 검증
+ * Bearer 인증 검증
  * 
- * 요청 헤더의 Authorization Bearer 토큰을 검증합니다.
- * 라우팅 설정에서 Bearer 인증이 활성화된 경우에만 검증을 수행합니다.
+ * 시스템 설정의 Bearer 인증 키와 요청의 Bearer 토큰을 비교합니다.
  * 
  * @param {Request} req - Express 요청 객체
+ * @param {any} routingConfig - 라우팅 설정 객체
  * @returns {boolean} 인증 성공 여부
  */
-const validateBearerAuth = (req: Request): boolean => {
-  const settings = loadSettings();
-  const routingConfig = settings.systemConfig?.routing || {
-    enableGlobalRoute: true,
-    enableGroupNameRoute: true,
-    enableBearerAuth: false,
-    bearerAuthKey: '',
-  };
-
-  // Bearer 인증이 활성화된 경우에만 검증
-  if (routingConfig.enableBearerAuth) {
-    const authHeader = req.headers.authorization;
-    if (!authHeader || !authHeader.startsWith('Bearer ')) {
-      return false;
-    }
-
-    const token = authHeader.substring(7); // "Bearer " 접두사 제거
-    return token === routingConfig.bearerAuthKey;
+const validateBearerAuth = (req: Request, routingConfig?: any): boolean => {
+  if (!routingConfig || !routingConfig.enableBearerAuth) {
+    return false;
   }
 
-  return true;
+  const authHeader = req.headers.authorization;
+  if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    return false;
+  }
+
+  return authHeader.substring(7) === routingConfig.bearerAuthKey;
+};
+
+/**
+ * 초기화 요청 여부 확인
+ * 
+ * @param {any} body - 요청 본문
+ * @returns {boolean} 초기화 요청 여부
+ */
+const isInitializeRequest = (body: any): boolean => {
+  return body && body.method === 'initialize';
 };
 
 /**
@@ -119,7 +118,7 @@ export const handleSseConnection = async (req: Request, res: Response): Promise<
   console.log(
     `New SSE connection established: ${transport.sessionId} with group: ${group || 'global'}`,
   );
-  
+
   // MCP 서버와 연결
   await getMcpServer(transport.sessionId, group).connect(transport);
 };
@@ -159,8 +158,6 @@ export const handleSseMessage = async (req: Request, res: Response): Promise<voi
   }
 
   const { transport, group } = transportData;
-  req.params.group = group;
-  req.query.group = group;
   console.log(`Received message for sessionId: ${sessionId} in group: ${group}`);
 
   // SSE 전송 계층을 통해 메시지 처리
@@ -168,12 +165,73 @@ export const handleSseMessage = async (req: Request, res: Response): Promise<voi
 };
 
 /**
+ * MCP 기타 요청 처리
+ * 
+ * MCP 초기화 이외의 기타 요청들을 처리합니다.
+ * 
+ * @param {Request} req - Express 요청 객체
+ * @param {Response} res - Express 응답 객체
+ * @returns {Promise<void>}
+ */
+export const handleMcpOtherRequest = async (req: Request, res: Response): Promise<void> => {
+  const sessionId = req.headers['mcp-session-id'] as string | undefined;
+  const group = req.params.group;
+
+  console.log(`Handling MCP other request`);
+
+  // Bearer 인증 확인
+  if (!validateBearerAuth(req)) {
+    res.status(401).send('Bearer authentication required or invalid token');
+    return;
+  }
+
+  if (!sessionId || !transports[sessionId]) {
+    res.status(400).send('Invalid session ID');
+    return;
+  }
+
+  const transport = transports[sessionId].transport as StreamableHTTPServerTransport;
+  await transport.handleRequest(req, res, req.body);
+};
+
+/**
+ * MCPHub Key를 사용한 사용자 인증
+ * 
+ * @param {string} token - Bearer 토큰
+ * @returns {Promise<Record<string, string> | null>} 사용자 서비스 토큰 또는 null
+ */
+const authenticateWithMcpHubKey = async (token: string): Promise<Record<string, string> | null> => {
+  if (!token.startsWith('mcphub_')) {
+    return null;
+  }
+
+  console.log('🔍 MCPHub Key 감지, 인증 중...');
+  try {
+    const { MCPHubKeyService } = await import('../services/mcpHubKeyService.js');
+    const mcpHubKeyService = new MCPHubKeyService();
+    const authResult = await mcpHubKeyService.authenticateKey(token);
+
+    if (authResult) {
+      console.log('✅ MCPHub Key 인증 성공:', authResult.user.githubUsername);
+      console.log('🔑 인증된 사용자 토큰들:', Object.keys(authResult.serviceTokens || {}));
+      return authResult.serviceTokens || {};
+    } else {
+      console.log('❌ MCPHub Key 인증 실패');
+      return null;
+    }
+  } catch (error) {
+    console.error('❌ MCPHub Key 인증 오류:', error);
+    return null;
+  }
+};
+
+/**
  * MCP POST 요청 처리
  * 
- * StreamableHTTP를 통한 MCP 요청을 처리합니다.
- * 기존 세션이 있으면 재사용하고, 초기화 요청인 경우 새 세션을 생성합니다.
+ * MCP 초기화 및 기타 POST 요청들을 처리합니다.
+ * StreamableHTTP 전송 계층을 사용하여 실시간 통신을 지원합니다.
  * 
- * @param {Request} req - Express 요청 객체 (mcp-session-id 헤더 및 group 매개변수 포함)
+ * @param {Request} req - Express 요청 객체
  * @param {Response} res - Express 응답 객체
  * @returns {Promise<void>}
  */
@@ -181,14 +239,33 @@ export const handleMcpPostRequest = async (req: Request, res: Response): Promise
   const sessionId = req.headers['mcp-session-id'] as string | undefined;
   const group = req.params.group;
   const body = req.body;
-  
+
   console.log(
     `Handling MCP post request for sessionId: ${sessionId} and group: ${group} with body: ${JSON.stringify(body)}`,
   );
-  
-  // Bearer 인증 확인
-  if (!validateBearerAuth(req)) {
-    res.status(401).send('Bearer authentication required or invalid token');
+
+  // MCPHub Key 인증 수행
+  let userServiceTokens: Record<string, string> = {};
+  const authHeader = req.headers.authorization;
+
+  if (authHeader && authHeader.startsWith('Bearer ')) {
+    const token = authHeader.substring(7);
+    console.log('🔍 Bearer Token 감지:', token ? `${token.substring(0, 20)}...` : 'None');
+
+    const authenticatedTokens = await authenticateWithMcpHubKey(token);
+    if (authenticatedTokens) {
+      userServiceTokens = authenticatedTokens;
+    } else {
+      // 일반 Bearer 인증 확인
+      const settings = loadSettings();
+      const routingConfig = settings.systemConfig?.routing || {};
+      if (!validateBearerAuth(req, routingConfig)) {
+        res.status(401).send('Bearer authentication required or invalid token');
+        return;
+      }
+    }
+  } else {
+    res.status(401).send('Authorization header required');
     return;
   }
 
@@ -197,25 +274,42 @@ export const handleMcpPostRequest = async (req: Request, res: Response): Promise
     enableGlobalRoute: true,
     enableGroupNameRoute: true,
   };
-  
+
   // 전역 라우트 접근 권한 확인
   if (!group && !routingConfig.enableGlobalRoute) {
     res.status(403).send('Global routes are disabled. Please specify a group ID.');
     return;
   }
 
+  console.log('🔑 최종 사용자 서비스 토큰 키들:', Object.keys(userServiceTokens));
+
   let transport: StreamableHTTPServerTransport;
-  
+
   // 기존 세션 재사용 또는 새 세션 생성
   if (sessionId && transports[sessionId]) {
     console.log(`Reusing existing transport for sessionId: ${sessionId}`);
     transport = transports[sessionId].transport as StreamableHTTPServerTransport;
+
+    // 기존 세션의 사용자 토큰 사용 (새 인증이 있다면 업데이트)
+    if (Object.keys(userServiceTokens).length > 0) {
+      transports[sessionId].userServiceTokens = userServiceTokens;
+      console.log('🔄 세션 사용자 토큰 업데이트됨');
+    } else if (transports[sessionId].userServiceTokens) {
+      userServiceTokens = transports[sessionId].userServiceTokens;
+      console.log('🔄 기존 세션 사용자 토큰 재사용:', Object.keys(userServiceTokens));
+    }
+
   } else if (!sessionId && isInitializeRequest(req.body)) {
     // 새로운 StreamableHTTP 전송 계층 생성
     transport = new StreamableHTTPServerTransport({
       sessionIdGenerator: () => randomUUID(),
-      onsessioninitialized: (sessionId) => {
-        transports[sessionId] = { transport, group };
+      onsessioninitialized: (sessionId: string) => {
+        transports[sessionId] = {
+          transport,
+          group,
+          userServiceTokens: userServiceTokens
+        };
+        console.log('💾 새 세션에 사용자 토큰 저장:', Object.keys(userServiceTokens));
       },
     });
 
@@ -230,8 +324,9 @@ export const handleMcpPostRequest = async (req: Request, res: Response): Promise
     };
 
     console.log(`MCP connection established: ${transport.sessionId}`);
-    // MCP 서버와 연결
-    await getMcpServer(transport.sessionId, group).connect(transport);
+    console.log(`🔗 사용자 토큰과 함께 MCP 서버 연결 시도...`);
+    // MCP 서버와 연결 (사용자 토큰 전달)
+    await getMcpServer(transport.sessionId, group, userServiceTokens).connect(transport);
   } else {
     // 유효하지 않은 요청
     res.status(400).json({
@@ -248,38 +343,6 @@ export const handleMcpPostRequest = async (req: Request, res: Response): Promise
   console.log(`Handling request using transport with type ${transport.constructor.name}`);
   // 전송 계층을 통해 요청 처리
   await transport.handleRequest(req, res, req.body);
-};
-
-/**
- * 기타 MCP 요청 처리
- * 
- * POST 이외의 MCP 요청(GET, PUT, DELETE 등)을 처리합니다.
- * 기존 세션의 전송 계층을 사용하여 요청을 처리합니다.
- * 
- * @param {Request} req - Express 요청 객체 (mcp-session-id 헤더 포함)
- * @param {Response} res - Express 응답 객체
- * @returns {Promise<void>}
- */
-export const handleMcpOtherRequest = async (req: Request, res: Response) => {
-  console.log('Handling MCP other request');
-  
-  // Bearer 인증 확인
-  if (!validateBearerAuth(req)) {
-    res.status(401).send('Bearer authentication required or invalid token');
-    return;
-  }
-
-  const sessionId = req.headers['mcp-session-id'] as string | undefined;
-  
-  // 세션 ID 및 전송 계층 유효성 검사
-  if (!sessionId || !transports[sessionId]) {
-    res.status(400).send('Invalid or missing session ID');
-    return;
-  }
-
-  const { transport } = transports[sessionId];
-  // StreamableHTTP 전송 계층을 통해 요청 처리
-  await (transport as StreamableHTTPServerTransport).handleRequest(req, res);
 };
 
 /**

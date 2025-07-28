@@ -1,21 +1,20 @@
-import React, { useState } from 'react';
-import { Outlet, useNavigate, useLocation } from 'react-router-dom';
-import { useTranslation } from 'react-i18next';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/contexts/ToastContext';
-import { 
-  LayoutDashboard, 
-  Server, 
-  Users, 
-  Settings, 
-  Key, 
+import {
   FileText,
+  Key,
+  LayoutDashboard,
   LogOut,
   Menu,
+  Settings,
+  Users,
   X
 } from 'lucide-react';
+import React, { useState } from 'react';
+import { useTranslation } from 'react-i18next';
+import { Outlet, useLocation, useNavigate } from 'react-router-dom';
 
-interface AdminLayoutProps {}
+interface AdminLayoutProps { }
 
 const AdminLayout: React.FC<AdminLayoutProps> = () => {
   const { t } = useTranslation();
@@ -45,7 +44,7 @@ const AdminLayout: React.FC<AdminLayoutProps> = () => {
     },
     {
       path: '/admin/keys',
-      label: '키 발급 현황',
+      label: 'MCPHub Keys 관리',
       icon: <Key className="h-5 w-5" />
     },
     {
@@ -87,7 +86,7 @@ const AdminLayout: React.FC<AdminLayoutProps> = () => {
               MCPHub 관리자
             </h1>
           </div>
-          
+
           <div className="flex items-center space-x-4">
             <span className="text-sm text-gray-600 dark:text-gray-300">
               관리자: {user?.githubUsername || user?.username}
@@ -111,19 +110,17 @@ const AdminLayout: React.FC<AdminLayoutProps> = () => {
 
       <div className="flex">
         {/* 사이드바 */}
-        <aside className={`bg-white dark:bg-gray-800 shadow-sm transition-all duration-300 ${
-          sidebarOpen ? 'w-64' : 'w-16'
-        }`}>
+        <aside className={`bg-white dark:bg-gray-800 shadow-sm transition-all duration-300 ${sidebarOpen ? 'w-64' : 'w-16'
+          }`}>
           <nav className="p-4 space-y-2">
             {adminMenuItems.map((item) => (
               <button
                 key={item.path}
                 onClick={() => navigate(item.path)}
-                className={`w-full flex items-center space-x-3 px-3 py-2 rounded-lg transition-colors ${
-                  location.pathname === item.path
+                className={`w-full flex items-center space-x-3 px-3 py-2 rounded-lg transition-colors ${location.pathname === item.path
                     ? 'bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-300'
                     : 'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'
-                }`}
+                  }`}
               >
                 {item.icon}
                 {sidebarOpen && <span>{item.label}</span>}
@@ -133,9 +130,8 @@ const AdminLayout: React.FC<AdminLayoutProps> = () => {
         </aside>
 
         {/* 메인 콘텐츠 */}
-        <main className={`flex-1 transition-all duration-300 ${
-          sidebarOpen ? 'ml-0' : 'ml-0'
-        }`}>
+        <main className={`flex-1 transition-all duration-300 ${sidebarOpen ? 'ml-0' : 'ml-0'
+          }`}>
           <div className="p-6">
             <Outlet />
           </div>

@@ -1,6 +1,6 @@
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { ApiResponse, Server } from '@/types';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Server, ApiResponse } from '@/types';
 import { getApiUrl } from '../utils/runtime';
 
 // Configuration options
@@ -12,7 +12,7 @@ const CONFIG = {
   },
   // Normal operation phase configuration
   normal: {
-    pollingInterval: 10000, // Polling interval during normal operation (10 seconds)
+    pollingInterval: 30000, // Polling interval during normal operation (30 seconds)
   },
 };
 

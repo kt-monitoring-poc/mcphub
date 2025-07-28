@@ -1,13 +1,21 @@
-import React, { useState, useEffect } from 'react';
-import { useTranslation } from 'react-i18next';
-import { useNavigate } from 'react-router-dom';
 import ChangePasswordForm from '@/components/ChangePasswordForm';
 import { Switch } from '@/components/ui/ToggleGroup';
-import { useSettingsData } from '@/hooks/useSettingsData';
-import { useToast } from '@/contexts/ToastContext';
-import { generateRandomKey } from '@/utils/key';
 import { useAuth } from '@/contexts/AuthContext';
-import { Key, Github, FileText, MessageSquare, Globe, Save, Eye, EyeOff } from 'lucide-react';
+import { useToast } from '@/contexts/ToastContext';
+import { Eye, EyeOff, FileText, Github, Globe, Key, MessageSquare, Plus, Save, Trash2 } from 'lucide-react';
+import React, { useEffect, useState } from 'react';
+import { useTranslation } from 'react-i18next';
+import { useNavigate } from 'react-router-dom';
+
+// API Key 설정 인터페이스
+interface ApiKeyConfig {
+  key: string;
+  label: string;
+  placeholder: string;
+  description: string;
+  required: boolean;
+  icon: React.ReactNode;
+}
 
 const SettingsPage: React.FC = () => {
   const { t, i18n } = useTranslation();
@@ -21,27 +29,75 @@ const SettingsPage: React.FC = () => {
     setCurrentLanguage(i18n.language);
   }, [i18n.language]);
 
-  // API Keys 상태
-  const [apiKeys, setApiKeys] = useState({
-    FIRECRAWL_API_KEY: '',
-    GITHUB_TOKEN: '',
-    OPENAI_API_KEY: '',
-    ANTHROPIC_API_KEY: '',
-    UPSTASH_REST_API_TOKEN: '',
-    UPSTASH_REST_API_URL: ''
-  });
+  // 기본 API Keys 설정
+  const defaultApiKeyConfigs: ApiKeyConfig[] = [
+    {
+      key: 'FIRECRAWL_TOKEN',
+      label: 'Firecrawl API Key',
+      placeholder: 'fc-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx',
+      description: '웹 스크래핑 및 검색 기능에 필요',
+      required: true,
+      icon: <Globe className="w-4 h-4" />
+    },
+    {
+      key: 'GITHUB_TOKEN',
+      label: 'GitHub Token',
+      placeholder: 'ghp_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx',
+      description: 'GitHub API 접근에 필요',
+      required: true,
+      icon: <Github className="w-4 h-4" />
+    },
+    {
+      key: 'CONFLUENCE_TOKEN',
+      label: 'Confluence API Token',
+      placeholder: 'ATATT3xFfGF0...',
+      description: 'Confluence MCP 서버 연결에 필요',
+      required: false,
+      icon: <FileText className="w-4 h-4" />
+    },
+    {
+      key: 'JIRA_TOKEN',
+      label: 'Jira API Token',
+      placeholder: 'ATATT3xFfGF0...',
+      description: 'Jira MCP 서버 연결에 필요',
+      required: false,
+      icon: <MessageSquare className="w-4 h-4" />
+    }
+  ];
 
-  const [showPasswords, setShowPasswords] = useState({
-    FIRECRAWL_API_KEY: false,
-    GITHUB_TOKEN: false,
-    OPENAI_API_KEY: false,
-    ANTHROPIC_API_KEY: false,
-    UPSTASH_REST_API_TOKEN: false,
-    UPSTASH_REST_API_URL: false
-  });
+  // API Keys 상태 - 동적으로 생성
+  const [apiKeys, setApiKeys] = useState<Record<string, string>>({});
+  const [showPasswords, setShowPasswords] = useState<Record<string, boolean>>({});
+  const [customApiKeys, setCustomApiKeys] = useState<ApiKeyConfig[]>([]);
 
   const [savingKeys, setSavingKeys] = useState(false);
   const [userKeyId, setUserKeyId] = useState<string | null>(null);
+
+  // 새로운 커스텀 API Key 추가
+  const [newCustomKey, setNewCustomKey] = useState({
+    key: '',
+    label: '',
+    placeholder: '',
+    description: '',
+    required: false
+  });
+
+  // 모든 API Key 설정을 합침
+  const allApiKeyConfigs = [...defaultApiKeyConfigs, ...customApiKeys];
+
+  // 초기 상태 설정
+  useEffect(() => {
+    const initialApiKeys: Record<string, string> = {};
+    const initialShowPasswords: Record<string, boolean> = {};
+
+    allApiKeyConfigs.forEach(config => {
+      initialApiKeys[config.key] = '';
+      initialShowPasswords[config.key] = false;
+    });
+
+    setApiKeys(initialApiKeys);
+    setShowPasswords(initialShowPasswords);
+  }, [customApiKeys]);
 
   // 사용자 키 ID 로드
   useEffect(() => {
@@ -74,6 +130,7 @@ const SettingsPage: React.FC = () => {
   const loadApiKeys = async (keyId: string) => {
     try {
       const token = localStorage.getItem('mcphub_token');
+
       const response = await fetch(`/api/oauth/keys/${keyId}/tokens`, {
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -83,9 +140,14 @@ const SettingsPage: React.FC = () => {
 
       if (response.ok) {
         const data = await response.json();
-        if (data.serviceTokens) {
-          setApiKeys(prev => ({ ...prev, ...data.serviceTokens }));
+
+        if (data.success && data.data && data.data.serviceTokens) {
+          setApiKeys(prev => ({ ...prev, ...data.data.serviceTokens }));
+          showToast('API Keys 로드 완료', 'success');
         }
+      } else {
+        const errorData = await response.json();
+        console.error('API Keys 로드 실패:', errorData);
       }
     } catch (error) {
       console.error('API Keys 로드 오류:', error);
@@ -127,11 +189,65 @@ const SettingsPage: React.FC = () => {
   };
 
   // 비밀번호 표시/숨김 토글
-  const togglePasswordVisibility = (key: keyof typeof showPasswords) => {
+  const togglePasswordVisibility = (key: string) => {
     setShowPasswords(prev => ({
       ...prev,
       [key]: !prev[key]
     }));
+  };
+
+  // 커스텀 API Key 추가
+  const addCustomApiKey = () => {
+    if (!newCustomKey.key || !newCustomKey.label) {
+      showToast('키 이름과 라벨을 입력해주세요.', 'error');
+      return;
+    }
+
+    // 중복 확인
+    if (allApiKeyConfigs.some(config => config.key === newCustomKey.key)) {
+      showToast('이미 존재하는 키 이름입니다.', 'error');
+      return;
+    }
+
+    const customConfig: ApiKeyConfig = {
+      key: newCustomKey.key,
+      label: newCustomKey.label,
+      placeholder: newCustomKey.placeholder || 'API Key를 입력하세요',
+      description: newCustomKey.description || '사용자 정의 API Key',
+      required: newCustomKey.required,
+      icon: <Key className="w-4 h-4" />
+    };
+
+    setCustomApiKeys(prev => [...prev, customConfig]);
+    setApiKeys(prev => ({ ...prev, [newCustomKey.key]: '' }));
+    setShowPasswords(prev => ({ ...prev, [newCustomKey.key]: false }));
+
+    // 입력 필드 초기화
+    setNewCustomKey({
+      key: '',
+      label: '',
+      placeholder: '',
+      description: '',
+      required: false
+    });
+
+    showToast('커스텀 API Key가 추가되었습니다.', 'success');
+  };
+
+  // 커스텀 API Key 삭제
+  const removeCustomApiKey = (key: string) => {
+    setCustomApiKeys(prev => prev.filter(config => config.key !== key));
+    setApiKeys(prev => {
+      const newKeys = { ...prev };
+      delete newKeys[key];
+      return newKeys;
+    });
+    setShowPasswords(prev => {
+      const newShowPasswords = { ...prev };
+      delete newShowPasswords[key];
+      return newShowPasswords;
+    });
+    showToast('커스텀 API Key가 삭제되었습니다.', 'success');
   };
 
   const [installConfig, setInstallConfig] = useState<{
@@ -323,162 +439,122 @@ const SettingsPage: React.FC = () => {
             {savingKeys ? '저장 중...' : '저장'}
           </button>
         </div>
-        
+
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          {/* Firecrawl API Key */}
-          <div className="space-y-2">
-            <label className="flex items-center text-sm font-medium text-gray-700">
-              <Globe className="w-4 h-4 mr-2" />
-              Firecrawl API Key
-              <span className="ml-2 text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded">필수</span>
-            </label>
-            <div className="relative">
-              <input
-                type={showPasswords.FIRECRAWL_API_KEY ? 'text' : 'password'}
-                value={apiKeys.FIRECRAWL_API_KEY}
-                onChange={(e) => setApiKeys(prev => ({ ...prev, FIRECRAWL_API_KEY: e.target.value }))}
-                placeholder="fc-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
-                className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
-              />
-              <button
-                type="button"
-                onClick={() => togglePasswordVisibility('FIRECRAWL_API_KEY')}
-                className="absolute inset-y-0 right-0 pr-3 flex items-center"
-              >
-                {showPasswords.FIRECRAWL_API_KEY ? <EyeOff className="w-4 h-4 text-gray-400" /> : <Eye className="w-4 h-4 text-gray-400" />}
-              </button>
+          {allApiKeyConfigs.map((config) => (
+            <div key={config.key} className="space-y-2">
+              <label className="flex items-center text-sm font-medium text-gray-700">
+                <span className="mr-2">{config.icon}</span>
+                {config.label}
+                {config.required ? (
+                  <span className="ml-2 text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded">필수</span>
+                ) : (
+                  <span className="ml-2 text-xs bg-gray-100 text-gray-800 px-2 py-1 rounded">선택</span>
+                )}
+              </label>
+              <div className="relative">
+                <input
+                  type={showPasswords[config.key] ? 'text' : 'password'}
+                  value={apiKeys[config.key]}
+                  onChange={(e) => setApiKeys(prev => ({ ...prev, [config.key]: e.target.value }))}
+                  placeholder={config.placeholder}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
+                />
+                <button
+                  type="button"
+                  onClick={() => togglePasswordVisibility(config.key)}
+                  className="absolute inset-y-0 right-0 pr-3 flex items-center"
+                >
+                  {showPasswords[config.key] ? <EyeOff className="w-4 h-4 text-gray-400" /> : <Eye className="w-4 h-4 text-gray-400" />}
+                </button>
+              </div>
+              <p className="text-xs text-gray-500">{config.description}</p>
+              {customApiKeys.some(ck => ck.key === config.key) && (
+                <button
+                  type="button"
+                  onClick={() => removeCustomApiKey(config.key)}
+                  className="text-red-600 hover:text-red-900 text-sm"
+                >
+                  <Trash2 className="w-4 h-4 mr-1" /> 삭제
+                </button>
+              )}
             </div>
-            <p className="text-xs text-gray-500">웹 스크래핑 및 검색 기능에 필요</p>
-          </div>
+          ))}
+        </div>
 
-          {/* GitHub Token */}
-          <div className="space-y-2">
-            <label className="flex items-center text-sm font-medium text-gray-700">
-              <Github className="w-4 h-4 mr-2" />
-              GitHub Token
-              <span className="ml-2 text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded">필수</span>
-            </label>
-            <div className="relative">
+        {/* 커스텀 API Key 추가 폼 */}
+        <div className="mt-6 p-4 bg-gray-50 dark:bg-gray-700 rounded-lg border border-gray-200 dark:border-gray-600">
+          <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-4">커스텀 API Key 추가</h3>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                키 이름 *
+              </label>
               <input
-                type={showPasswords.GITHUB_TOKEN ? 'text' : 'password'}
-                value={apiKeys.GITHUB_TOKEN}
-                onChange={(e) => setApiKeys(prev => ({ ...prev, GITHUB_TOKEN: e.target.value }))}
-                placeholder="ghp_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+                type="text"
+                value={newCustomKey.key}
+                onChange={(e) => setNewCustomKey(prev => ({ ...prev, key: e.target.value.toUpperCase() }))}
+                placeholder="SLACK_TOKEN"
                 className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
               />
-              <button
-                type="button"
-                onClick={() => togglePasswordVisibility('GITHUB_TOKEN')}
-                className="absolute inset-y-0 right-0 pr-3 flex items-center"
-              >
-                {showPasswords.GITHUB_TOKEN ? <EyeOff className="w-4 h-4 text-gray-400" /> : <Eye className="w-4 h-4 text-gray-400" />}
-              </button>
             </div>
-            <p className="text-xs text-gray-500">GitHub API 접근에 필요</p>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                표시 이름 *
+              </label>
+              <input
+                type="text"
+                value={newCustomKey.label}
+                onChange={(e) => setNewCustomKey(prev => ({ ...prev, label: e.target.value }))}
+                placeholder="Slack API Token"
+                className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                플레이스홀더
+              </label>
+              <input
+                type="text"
+                value={newCustomKey.placeholder}
+                onChange={(e) => setNewCustomKey(prev => ({ ...prev, placeholder: e.target.value }))}
+                placeholder="xoxb-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+                className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                설명
+              </label>
+              <input
+                type="text"
+                value={newCustomKey.description}
+                onChange={(e) => setNewCustomKey(prev => ({ ...prev, description: e.target.value }))}
+                placeholder="Slack MCP 서버 연결에 필요"
+                className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
+              />
+            </div>
           </div>
-
-          {/* OpenAI API Key */}
-          <div className="space-y-2">
-            <label className="flex items-center text-sm font-medium text-gray-700">
-              <MessageSquare className="w-4 h-4 mr-2" />
-              OpenAI API Key
-              <span className="ml-2 text-xs bg-gray-100 text-gray-800 px-2 py-1 rounded">선택</span>
-            </label>
-            <div className="relative">
+          <div className="mt-4 flex items-center justify-between">
+            <div className="flex items-center">
               <input
-                type={showPasswords.OPENAI_API_KEY ? 'text' : 'password'}
-                value={apiKeys.OPENAI_API_KEY}
-                onChange={(e) => setApiKeys(prev => ({ ...prev, OPENAI_API_KEY: e.target.value }))}
-                placeholder="sk-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
-                className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
+                type="checkbox"
+                id="required"
+                checked={newCustomKey.required}
+                onChange={(e) => setNewCustomKey(prev => ({ ...prev, required: e.target.checked }))}
+                className="h-4 w-4 text-indigo-600 focus:ring-indigo-500 border-gray-300 rounded"
               />
-              <button
-                type="button"
-                onClick={() => togglePasswordVisibility('OPENAI_API_KEY')}
-                className="absolute inset-y-0 right-0 pr-3 flex items-center"
-              >
-                {showPasswords.OPENAI_API_KEY ? <EyeOff className="w-4 h-4 text-gray-400" /> : <Eye className="w-4 h-4 text-gray-400" />}
-              </button>
+              <label htmlFor="required" className="ml-2 block text-sm text-gray-700 dark:text-gray-300">
+                필수 API Key로 설정
+              </label>
             </div>
-            <p className="text-xs text-gray-500">AI 기능에 필요 (선택사항)</p>
-          </div>
-
-          {/* Anthropic API Key */}
-          <div className="space-y-2">
-            <label className="flex items-center text-sm font-medium text-gray-700">
-              <FileText className="w-4 h-4 mr-2" />
-              Anthropic API Key
-              <span className="ml-2 text-xs bg-gray-100 text-gray-800 px-2 py-1 rounded">선택</span>
-            </label>
-            <div className="relative">
-              <input
-                type={showPasswords.ANTHROPIC_API_KEY ? 'text' : 'password'}
-                value={apiKeys.ANTHROPIC_API_KEY}
-                onChange={(e) => setApiKeys(prev => ({ ...prev, ANTHROPIC_API_KEY: e.target.value }))}
-                placeholder="sk-ant-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
-                className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
-              />
-              <button
-                type="button"
-                onClick={() => togglePasswordVisibility('ANTHROPIC_API_KEY')}
-                className="absolute inset-y-0 right-0 pr-3 flex items-center"
-              >
-                {showPasswords.ANTHROPIC_API_KEY ? <EyeOff className="w-4 h-4 text-gray-400" /> : <Eye className="w-4 h-4 text-gray-400" />}
-              </button>
-            </div>
-            <p className="text-xs text-gray-500">Claude AI 기능에 필요 (선택사항)</p>
-          </div>
-
-          {/* Upstash REST API Token */}
-          <div className="space-y-2">
-            <label className="flex items-center text-sm font-medium text-gray-700">
-              <Globe className="w-4 h-4 mr-2" />
-              Upstash REST API Token
-              <span className="ml-2 text-xs bg-gray-100 text-gray-800 px-2 py-1 rounded">선택</span>
-            </label>
-            <div className="relative">
-              <input
-                type={showPasswords.UPSTASH_REST_API_TOKEN ? 'text' : 'password'}
-                value={apiKeys.UPSTASH_REST_API_TOKEN}
-                onChange={(e) => setApiKeys(prev => ({ ...prev, UPSTASH_REST_API_TOKEN: e.target.value }))}
-                placeholder="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
-                className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
-              />
-              <button
-                type="button"
-                onClick={() => togglePasswordVisibility('UPSTASH_REST_API_TOKEN')}
-                className="absolute inset-y-0 right-0 pr-3 flex items-center"
-              >
-                {showPasswords.UPSTASH_REST_API_TOKEN ? <EyeOff className="w-4 h-4 text-gray-400" /> : <Eye className="w-4 h-4 text-gray-400" />}
-              </button>
-            </div>
-            <p className="text-xs text-gray-500">Redis 캐싱에 필요 (선택사항)</p>
-          </div>
-
-          {/* Upstash REST API URL */}
-          <div className="space-y-2">
-            <label className="flex items-center text-sm font-medium text-gray-700">
-              <Globe className="w-4 h-4 mr-2" />
-              Upstash REST API URL
-              <span className="ml-2 text-xs bg-gray-100 text-gray-800 px-2 py-1 rounded">선택</span>
-            </label>
-            <div className="relative">
-              <input
-                type={showPasswords.UPSTASH_REST_API_URL ? 'text' : 'password'}
-                value={apiKeys.UPSTASH_REST_API_URL}
-                onChange={(e) => setApiKeys(prev => ({ ...prev, UPSTASH_REST_API_URL: e.target.value }))}
-                placeholder="https://xxx.upstash.io"
-                className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
-              />
-              <button
-                type="button"
-                onClick={() => togglePasswordVisibility('UPSTASH_REST_API_URL')}
-                className="absolute inset-y-0 right-0 pr-3 flex items-center"
-              >
-                {showPasswords.UPSTASH_REST_API_URL ? <EyeOff className="w-4 h-4 text-gray-400" /> : <Eye className="w-4 h-4 text-gray-400" />}
-              </button>
-            </div>
-            <p className="text-xs text-gray-500">Redis 연결 URL (선택사항)</p>
+            <button
+              type="button"
+              onClick={addCustomApiKey}
+              className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 transition-colors disabled:opacity-50"
+            >
+              <Plus className="w-4 h-4 mr-2" /> 추가
+            </button>
           </div>
         </div>
 

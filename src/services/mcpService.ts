@@ -10,20 +10,19 @@
  * - 벡터 검색을 위한 도구 임베딩 저장
  */
 
-import { Server } from '@modelcontextprotocol/sdk/server/index.js';
-import { CallToolRequestSchema, ListToolsRequestSchema } from '@modelcontextprotocol/sdk/types.js';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { SSEClientTransport } from '@modelcontextprotocol/sdk/client/sse.js';
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js';
-import { ServerInfo, ServerConfig, ToolInfo } from '../types/index.js';
-import { loadSettings, saveSettings, expandEnvVars, replaceEnvVars } from '../config/index.js';
-import config from '../config/index.js';
-import { getGroup } from './sseService.js';
-import { getServersInGroup } from './groupService.js';
-import { saveToolsAsVectorEmbeddings, searchToolsByVector } from './vectorSearchService.js';
+import { Server } from '@modelcontextprotocol/sdk/server/index.js';
+import { CallToolRequestSchema, ListToolsRequestSchema } from '@modelcontextprotocol/sdk/types.js';
 import { OpenAPIClient } from '../clients/openapi.js';
+import config, { expandEnvVars, loadSettings, replaceEnvVars, saveSettings } from '../config/index.js';
 import { MCPHubKeyService } from '../services/mcpHubKeyService.js';
+import { ServerConfig, ServerInfo, ToolInfo } from '../types/index.js';
+import { getServersInGroup } from './groupService.js';
+import { getGroup } from './sseService.js';
+import { saveToolsAsVectorEmbeddings, searchToolsByVector } from './vectorSearchService.js';
 
 /**
  * 세션별 MCP 서버 인스턴스 저장소
@@ -83,23 +82,24 @@ export const initUpstreamServers = async (): Promise<void> => {
 };
 
 /**
- * 세션별 MCP 서버 인스턴스 가져오기 또는 생성
+ * 세션별 MCP 서버 인스턴스 생성 또는 반환
  * 
- * 각 클라이언트 세션에 대해 별도의 MCP 서버 인스턴스를 관리합니다.
- * 세션 ID가 없는 경우 새로운 서버를 생성하여 반환합니다.
+ * 세션 ID가 제공되면 해당 세션의 서버 인스턴스를 반환하고,
+ * 없으면 새로운 서버 인스턴스를 생성합니다.
  * 
- * @param {string} [sessionId] - 클라이언트 세션 ID
- * @param {string} [group] - 서버 그룹 이름
+ * @param {string} [sessionId] - 세션 ID (선택적)
+ * @param {string} [group] - 그룹 이름 (선택적)
+ * @param {Record<string, string>} [userServiceTokens] - 사용자 서비스 토큰 (선택적)
  * @returns {Server} MCP 서버 인스턴스
  */
-export const getMcpServer = (sessionId?: string, group?: string): Server => {
+export const getMcpServer = (sessionId?: string, group?: string, userServiceTokens?: Record<string, string>): Server => {
   if (!sessionId) {
-    return createMcpServer(config.mcpHubName, config.mcpHubVersion, group);
+    return createMcpServer(config.mcpHubName, config.mcpHubVersion, group, userServiceTokens);
   }
 
   if (!servers[sessionId]) {
     const serverGroup = group || getGroup(sessionId);
-    const server = createMcpServer(config.mcpHubName, config.mcpHubVersion, serverGroup);
+    const server = createMcpServer(config.mcpHubName, config.mcpHubVersion, serverGroup, userServiceTokens);
     servers[sessionId] = server;
   } else {
     console.log(`MCP server already exists for sessionId: ${sessionId}`);
@@ -242,7 +242,7 @@ const createTransportFromConfig = (name: string, conf: ServerConfig): any => {
       env: env,
       stderr: 'pipe',
     });
-    
+
     // 자식 프로세스의 stderr 출력을 로그로 기록
     transport.stderr?.on('data', (data) => {
       console.log(`[${name}] [child] ${data}`);
@@ -339,7 +339,7 @@ const callToolWithReconnect = async (
           try {
             const tools = await client.listTools({}, serverInfo.options || {});
             serverInfo.tools = tools.tools.map((tool) => ({
-              name: `${serverInfo.name}-${tool.name}`,
+              name: `${serverInfo.name}-${tool.name}`, // 서버 접두사 유지 (main 브랜치 방식)
               description: tool.description || '',
               inputSchema: tool.inputSchema || {},
             }));
@@ -390,24 +390,37 @@ function applyUserApiKeysToConfig(
   serverConfig: ServerConfig,
   userApiKeys: Record<string, string>
 ): ServerConfig {
+  console.log('🔧 applyUserApiKeysToConfig 호출됨:', {
+    serverConfigUrl: serverConfig.url,
+    userApiKeys: Object.keys(userApiKeys),
+    userApiKeysValues: userApiKeys
+  });
+
   const updatedConfig = JSON.parse(JSON.stringify(serverConfig));
-  
+
   // URL의 ${USER_*} 템플릿 치환
   if (updatedConfig.url && typeof updatedConfig.url === 'string') {
     let processedUrl = updatedConfig.url;
+    console.log('🔧 원본 URL:', processedUrl);
+
     Object.keys(userApiKeys).forEach(tokenKey => {
       const templatePattern = `\${USER_${tokenKey}}`;
+      console.log('🔧 템플릿 패턴 검색:', templatePattern, '값:', userApiKeys[tokenKey]);
+
       if (processedUrl.includes(templatePattern)) {
         const tokenValue = userApiKeys[tokenKey];
+        console.log('🔧 템플릿 발견! 치환 중:', templatePattern, '->', tokenValue ? `${tokenValue.substring(0, 10)}...` : 'null');
         processedUrl = processedUrl.replace(
-          new RegExp(templatePattern.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'g'), 
+          new RegExp(templatePattern.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'g'),
           tokenValue
         );
       }
     });
+
+    console.log('🔧 처리된 URL:', processedUrl);
     updatedConfig.url = processedUrl;
   }
-  
+
   // 환경변수의 ${USER_*} 템플릿 치환
   if (updatedConfig.env) {
     Object.keys(updatedConfig.env).forEach(envKey => {
@@ -418,8 +431,9 @@ function applyUserApiKeysToConfig(
           const templatePattern = `\${USER_${tokenKey}}`;
           if (replacedValue.includes(templatePattern)) {
             const tokenValue = userApiKeys[tokenKey];
+            console.log('🔧 환경변수 템플릿 치환:', templatePattern, '->', tokenValue ? `${tokenValue.substring(0, 10)}...` : 'null');
             replacedValue = replacedValue.replace(
-              new RegExp(templatePattern.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'g'), 
+              new RegExp(templatePattern.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'g'),
               tokenValue
             );
           }
@@ -428,7 +442,29 @@ function applyUserApiKeysToConfig(
       }
     });
   }
-  
+
+  // 헤더의 ${USER_*} 템플릿 치환
+  if (updatedConfig.headers) {
+    Object.keys(updatedConfig.headers).forEach(headerKey => {
+      const headerValue = updatedConfig.headers[headerKey];
+      if (typeof headerValue === 'string' && headerValue.includes('${USER_')) {
+        let replacedValue = headerValue;
+        Object.keys(userApiKeys).forEach(tokenKey => {
+          const templatePattern = `\${USER_${tokenKey}}`;
+          if (replacedValue.includes(templatePattern)) {
+            const tokenValue = userApiKeys[tokenKey];
+            console.log('🔧 헤더 템플릿 치환:', templatePattern, '->', tokenValue ? `${tokenValue.substring(0, 10)}...` : 'null');
+            replacedValue = replacedValue.replace(
+              new RegExp(templatePattern.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'g'),
+              tokenValue
+            );
+          }
+        });
+        updatedConfig.headers[headerKey] = replacedValue;
+      }
+    });
+  }
+
   return updatedConfig;
 }
 
@@ -453,7 +489,7 @@ export const ensureServerConnected = async (
     // 서버 설정 가져오기
     const settings = loadSettings();
     const serverConfig = settings.mcpServers[serverName];
-    
+
     if (!serverConfig) {
       console.error(`❌ 서버 설정을 찾을 수 없음: ${serverName}`);
       return false;
@@ -462,13 +498,13 @@ export const ensureServerConnected = async (
     // 사용자 토큰이 필요한 서버인지 확인
     if (serverConfig.url && serverConfig.url.includes('${USER_')) {
       console.log(`🔑 사용자 토큰으로 ${serverName} 서버 연결 시도...`);
-      
+
       // 사용자 API Keys를 적용한 설정 생성
       const configWithKeys = applyUserApiKeysToConfig(serverConfig, userApiKeys);
-      
+
       // Transport 생성
       const transport = createTransportFromConfig(serverName, configWithKeys);
-      
+
       const client = new Client(
         {
           name: `mcp-client-${serverName}`,
@@ -490,7 +526,7 @@ export const ensureServerConnected = async (
       // 도구 목록 가져오기
       const tools = await client.listTools();
       const toolsList: ToolInfo[] = tools.tools?.map(tool => ({
-        name: `${serverName}-${tool.name}`,
+        name: `${serverName}-${tool.name}`, // 서버 접두사 유지 (main 브랜치 방식)
         description: tool.description || '',
         inputSchema: tool.inputSchema || {},
       })) || [];
@@ -504,10 +540,10 @@ export const ensureServerConnected = async (
       }
 
       console.log(`🎉 ${serverName} 서버 연결 완료 - ${toolsList.length}개 도구 로드됨`);
-      
+
       // 도구 임베딩 저장
       saveToolsAsVectorEmbeddings(serverName, toolsList);
-      
+
       return true;
     }
 
@@ -516,14 +552,14 @@ export const ensureServerConnected = async (
 
   } catch (error) {
     console.error(`❌ 서버 연결 실패: ${serverName}`, error);
-    
+
     // 서버 정보 오류 상태로 업데이트
     const serverInfo = serverInfos.find(info => info.name === serverName);
     if (serverInfo) {
       serverInfo.status = 'disconnected';
       serverInfo.error = `연결 실패: ${error instanceof Error ? error.message : 'Unknown error'}`;
     }
-    
+
     return false;
   }
 };
@@ -536,27 +572,27 @@ export const ensureServerConnected = async (
  * @returns {Promise<boolean>} 재시작 성공 여부
  */
 export const restartServerWithUserKeys = async (
-  serverName: string, 
+  serverName: string,
   userApiKeys: Record<string, string>
 ): Promise<boolean> => {
   try {
     console.log(`🔄 사용자 API Keys로 서버 재시작: ${serverName}`);
-    
+
     const settings = loadSettings();
     const serverConfig = settings.mcpServers[serverName];
-    
+
     if (!serverConfig) {
       console.error(`❌ 서버 설정을 찾을 수 없음: ${serverName}`);
       return false;
     }
-    
+
     // 기존 서버 정보 찾기
     const existingServerInfo = serverInfos.find(info => info.name === serverName);
     if (!existingServerInfo) {
       console.error(`❌ 실행 중인 서버를 찾을 수 없음: ${serverName}`);
       return false;
     }
-    
+
     // 기존 클라이언트 연결 해제
     if (existingServerInfo.client) {
       try {
@@ -566,11 +602,11 @@ export const restartServerWithUserKeys = async (
         console.warn(`⚠️ 클라이언트 연결 해제 실패: ${serverName}`, error);
       }
     }
-    
+
     // 사용자 API Keys를 적용한 새 Transport 생성
     const configWithKeys = applyUserApiKeysToConfig(serverConfig, userApiKeys);
     const transport = createTransportFromConfig(serverName, configWithKeys);
-    
+
     const client = new Client(
       {
         name: `mcp-client-${serverName}-with-keys`,
@@ -584,42 +620,42 @@ export const restartServerWithUserKeys = async (
         },
       },
     );
-    
+
     // 새 클라이언트 연결
     await client.connect(transport);
     console.log(`✅ 새 클라이언트 연결 성공: ${serverName}`);
-    
+
     // 도구 목록 가져오기
     const tools = await client.listTools();
     const toolsList: ToolInfo[] = tools.tools?.map(tool => ({
-      name: `${serverName}-${tool.name}`,
+      name: `${serverName}-${tool.name}`, // 서버 접두사 유지 (main 브랜치 방식)
       description: tool.description || '',
       inputSchema: tool.inputSchema || {},
     })) || [];
-    
+
     // 서버 정보 업데이트
     existingServerInfo.client = client;
     existingServerInfo.status = 'connected';
     existingServerInfo.tools = toolsList;
     existingServerInfo.error = null;
-    
+
     console.log(`🎉 ${serverName} 서버 재시작 완료 - ${toolsList.length}개 도구 로드됨`);
-    
+
     // 도구 임베딩 저장
     saveToolsAsVectorEmbeddings(serverName, toolsList);
-    
+
     return true;
-    
+
   } catch (error) {
     console.error(`❌ 서버 재시작 실패: ${serverName}`, error);
-    
+
     // 서버 정보 오류 상태로 업데이트
     const serverInfo = serverInfos.find(info => info.name === serverName);
     if (serverInfo) {
       serverInfo.status = 'disconnected';
       serverInfo.error = `재시작 실패: ${error instanceof Error ? error.message : 'Unknown error'}`;
     }
-    
+
     return false;
   }
 };
@@ -714,7 +750,7 @@ export const initializeClientsFromSettings = async (isInit: boolean): Promise<Se
         // Convert OpenAPI tools to MCP tool format
         const openApiTools = openApiClient.getTools();
         const mcpTools: ToolInfo[] = openApiTools.map((tool) => ({
-          name: `${name}-${tool.name}`,
+          name: `${name}-${tool.name}`, // 서버 접두사 유지 (main 브랜치 방식)
           description: tool.description,
           inputSchema: tool.inputSchema,
         }));
@@ -759,8 +795,8 @@ export const initializeClientsFromSettings = async (isInit: boolean): Promise<Se
 
     const initRequestOptions = isInit
       ? {
-          timeout: Number(config.initTimeout) || 60000,
-        }
+        timeout: Number(config.initTimeout) || 60000,
+      }
       : undefined;
 
     // Get request options from server configuration, with fallbacks
@@ -794,7 +830,7 @@ export const initializeClientsFromSettings = async (isInit: boolean): Promise<Se
             console.log(`Successfully listed ${tools.tools.length} tools for server: ${name}`);
 
             serverInfo.tools = tools.tools.map((tool) => ({
-              name: `${name}-${tool.name}`,
+              name: `${name}-${tool.name}`, // 서버 접두사 유지 (main 브랜치 방식)
               description: tool.description || '',
               inputSchema: tool.inputSchema || {},
             }));
@@ -1058,13 +1094,48 @@ export const toggleServerStatus = async (
   }
 };
 
-export const handleListToolsRequest = async (_: any, extra: any) => {
+export const handleListToolsRequest = async (_: any, extra: any, group?: string, userServiceTokens?: Record<string, string>) => {
   const sessionId = extra.sessionId || '';
-  const group = getGroup(sessionId);
-  console.log(`Handling ListToolsRequest for group: ${group}`);
+  const requestGroup = group || getGroup(sessionId);
+  console.log(`Handling ListToolsRequest for group: ${requestGroup}`);
+
+  // 사용자 토큰이 있다면 동적 서버 연결 시도
+  if (userServiceTokens && Object.keys(userServiceTokens).length > 0) {
+    console.log('🔑 사용자 토큰으로 동적 서버 연결 시도...');
+    console.log('🔑 사용자 토큰 목록:', Object.keys(userServiceTokens));
+    console.log('🔑 사용자 토큰 값:', userServiceTokens);
+
+    // GitHub 토큰이 있으면 github 서버 연결 시도
+    if (userServiceTokens.GITHUB_TOKEN) {
+      console.log('🔗 GitHub 토큰 발견:', userServiceTokens.GITHUB_TOKEN ? `${userServiceTokens.GITHUB_TOKEN.substring(0, 10)}...` : 'null');
+      console.log('🔗 GitHub 서버 연결 시도...');
+      try {
+        await ensureServerConnected('github', userServiceTokens);
+      } catch (error) {
+        console.warn('⚠️ GitHub 서버 연결 실패:', error);
+      }
+    } else {
+      console.log('🔗 GitHub 토큰이 없음');
+    }
+
+    // Firecrawl 토큰이 있으면 firecrawl-mcp 서버 연결 시도
+    if (userServiceTokens.FIRECRAWL_TOKEN) {
+      console.log('🔗 Firecrawl 토큰 발견:', userServiceTokens.FIRECRAWL_TOKEN ? `${userServiceTokens.FIRECRAWL_TOKEN.substring(0, 10)}...` : 'null');
+      console.log('🔗 Firecrawl 서버 연결 시도...');
+      try {
+        await ensureServerConnected('firecrawl-mcp', userServiceTokens);
+      } catch (error) {
+        console.warn('⚠️ Firecrawl 서버 연결 실패:', error);
+      }
+    } else {
+      console.log('🔗 Firecrawl 토큰이 없음');
+    }
+  } else {
+    console.log('🔑 사용자 토큰이 없음 또는 비어있음');
+  }
 
   // Special handling for $smart group to return special tools
-  if (group === '$smart') {
+  if (requestGroup === '$smart') {
     return {
       tools: [
         {
@@ -1132,19 +1203,19 @@ Available servers: ${serversList}`;
 
   const allServerInfos = serverInfos.filter((serverInfo) => {
     if (serverInfo.enabled === false) return false;
-    if (!group) return true;
-    const serversInGroup = getServersInGroup(group);
-    if (!serversInGroup || serversInGroup.length === 0) return serverInfo.name === group;
+    if (!requestGroup) return true;
+    const serversInGroup = getServersInGroup(requestGroup);
+    if (!serversInGroup || serversInGroup.length === 0) return serverInfo.name === requestGroup;
     return serversInGroup.includes(serverInfo.name);
   });
 
   const allTools = [];
-  
+
   // Add server-based grouping tools (one per connected server)
   for (const serverInfo of allServerInfos) {
     if (serverInfo.tools && serverInfo.tools.length > 0 && serverInfo.status === 'connected') {
       const enabledTools = filterToolsByConfig(serverInfo.name, serverInfo.tools);
-      
+
       if (enabledTools.length > 0) {
         // Create a server-level tool that represents all tools in this server
         allTools.push({
@@ -1196,24 +1267,28 @@ Available servers: ${serversList}`;
   };
 };
 
-export const handleCallToolRequest = async (request: any, extra: any) => {
+export const handleCallToolRequest = async (request: any, extra: any, group?: string, userServiceTokens?: Record<string, string>) => {
   console.log(`Handling CallToolRequest for tool: ${JSON.stringify(request.params)}`);
-  
-  // 사용자 API 키 주입 로직
-  let userApiKeys: Record<string, string> = {};
-  if (extra && extra.mcpHubKey) {
+
+  // 사용자 API 키 주입 로직 (기존 방식과 새로운 방식 모두 지원)
+  let userApiKeys: Record<string, string> = userServiceTokens || {};
+
+  // 기존 방식도 지원 (하위 호환성)
+  if (extra && extra.mcpHubKey && Object.keys(userApiKeys).length === 0) {
     try {
       const mcpHubKeyService = new MCPHubKeyService();
       const authResult = await mcpHubKeyService.authenticateKey(extra.mcpHubKey);
       if (authResult) {
         userApiKeys = authResult.serviceTokens || {};
-        console.log(`🔑 사용자 API 키 주입: ${authResult.user.githubUsername} - ${Object.keys(userApiKeys).length}개 키`);
+        console.log(`🔑 사용자 API 키 주입 (레거시): ${authResult.user.githubUsername} - ${Object.keys(userApiKeys).length}개 키`);
       }
     } catch (error) {
       console.warn(`⚠️ MCPHub Key 인증 실패:`, error);
     }
+  } else if (Object.keys(userApiKeys).length > 0) {
+    console.log(`🔑 사용자 API 키 사용: ${Object.keys(userApiKeys).length}개 키`);
   }
-  
+
   try {
     // Special handling for agent group tools
     if (request.params.name === 'search_tools') {
@@ -1416,34 +1491,34 @@ export const handleCallToolRequest = async (request: any, extra: any) => {
 
     // Handle server-based tool calls (new format: server_<servername>)
     const toolName = request.params.name;
-    
+
     if (toolName.startsWith('server_')) {
       const serverName = toolName.replace('server_', '');
       const serverInfo = getServerByName(serverName);
-      
+
       if (!serverInfo) {
         throw new Error(`Server not found: ${serverName}`);
       }
-      
+
       if (serverInfo.status !== 'connected') {
         throw new Error(`Server ${serverName} is not connected (status: ${serverInfo.status})`);
       }
-      
+
       const { tool_name, arguments: toolArgs = {} } = request.params.arguments || {};
-      
+
       if (!tool_name) {
         throw new Error('tool_name parameter is required for server-based tool calls');
       }
-      
+
       // Find the actual tool in the server
       const fullToolName = `${serverName}-${tool_name}`;
       const toolExists = serverInfo.tools.some((tool) => tool.name === fullToolName);
-      
+
       if (!toolExists) {
         const availableTools = serverInfo.tools.map(t => t.name.replace(`${serverName}-`, '')).join(', ');
         throw new Error(`Tool '${tool_name}' not found on server '${serverName}'. Available tools: ${availableTools}`);
       }
-      
+
       // Handle OpenAPI servers
       if (serverInfo.openApiClient) {
         console.log(
@@ -1462,17 +1537,17 @@ export const handleCallToolRequest = async (request: any, extra: any) => {
           ],
         };
       }
-      
+
       // Handle MCP servers
       const client = serverInfo.client;
       if (!client) {
         throw new Error(`Client not found for server: ${serverName}`);
       }
-      
+
       console.log(
         `Invoking MCP tool '${tool_name}' on server '${serverName}' with arguments: ${JSON.stringify(toolArgs)}`,
       );
-      
+
       const result = await callToolWithReconnect(
         serverInfo,
         {
@@ -1481,7 +1556,7 @@ export const handleCallToolRequest = async (request: any, extra: any) => {
         },
         serverInfo.options || {},
       );
-      
+
       console.log(`Tool call result: ${JSON.stringify(result)}`);
       return result;
     }
@@ -1493,7 +1568,7 @@ export const handleCallToolRequest = async (request: any, extra: any) => {
       const toolParts = request.params.name.split('-');
       if (toolParts.length >= 2) {
         const possibleServerName = `${toolParts[0]}-${toolParts[1]}`;
-        
+
         // 서버가 등록되어 있는지 확인
         const registeredServer = serverInfos.find(info => info.name === possibleServerName);
         if (registeredServer) {
@@ -1509,7 +1584,7 @@ export const handleCallToolRequest = async (request: any, extra: any) => {
           }
         }
       }
-      
+
       throw new Error(`Server not found for tool: ${request.params.name}`);
     }
 
@@ -1571,7 +1646,7 @@ export const handleCallToolRequest = async (request: any, extra: any) => {
 };
 
 // Create McpServer instance
-export const createMcpServer = (name: string, version: string, group?: string): Server => {
+export const createMcpServer = (name: string, version: string, group?: string, userServiceTokens?: Record<string, string>): Server => {
   // Determine server name based on routing type
   let serverName = name;
 
@@ -1589,7 +1664,14 @@ export const createMcpServer = (name: string, version: string, group?: string): 
   // If no group, use default name (global routing)
 
   const server = new Server({ name: serverName, version }, { capabilities: { tools: {} } });
-  server.setRequestHandler(ListToolsRequestSchema, handleListToolsRequest);
-  server.setRequestHandler(CallToolRequestSchema, handleCallToolRequest);
+
+  // 사용자 토큰을 서버 인스턴스에 저장
+  if (userServiceTokens) {
+    (server as any).userServiceTokens = userServiceTokens;
+    console.log('🔑 서버에 사용자 토큰 저장:', Object.keys(userServiceTokens));
+  }
+
+  server.setRequestHandler(ListToolsRequestSchema, (request, extra) => handleListToolsRequest(request, extra, group, userServiceTokens));
+  server.setRequestHandler(CallToolRequestSchema, (request, extra) => handleCallToolRequest(request, extra, group, userServiceTokens));
   return server;
 };

@@ -1,6 +1,6 @@
-import React, { useState, useEffect } from 'react';
+import { Calendar, CheckCircle, Key, RefreshCw, User, XCircle } from 'lucide-react';
+import React, { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Key, User, Calendar, Shield, Copy, RefreshCw, CheckCircle, XCircle } from 'lucide-react';
 import { useToast } from '../../contexts/ToastContext';
 import { getToken } from '../../services/authService';
 
@@ -48,49 +48,7 @@ const KeyStatusPage: React.FC = () => {
       }
     } catch (error) {
       console.error('사용자 키 현황 로드 오류:', error);
-      // 임시로 목 데이터 사용
-      setUserKeys([
-        {
-          userId: '1',
-          username: 'admin',
-          hasKey: true,
-          keyInfo: {
-            id: 'key1',
-            name: 'Admin Key',
-            isActive: true,
-            expiresAt: '2024-12-31T23:59:59Z',
-            lastUsedAt: '2024-01-15T10:30:00Z',
-            usageCount: 150,
-            createdAt: '2024-01-01T00:00:00Z',
-            daysUntilExpiry: 350
-          },
-          isActive: true
-        },
-        {
-          userId: '2',
-          username: 'jungchihoon',
-          githubUsername: 'jungchihoon',
-          hasKey: false,
-          isActive: true
-        },
-        {
-          userId: '3',
-          username: 'ch-jung_ktdev',
-          githubUsername: 'ch-jung_ktdev',
-          hasKey: true,
-          keyInfo: {
-            id: 'key3',
-            name: 'Dev Key',
-            isActive: true,
-            expiresAt: '2024-06-30T23:59:59Z',
-            lastUsedAt: '2024-01-14T15:20:00Z',
-            usageCount: 45,
-            createdAt: '2024-01-10T00:00:00Z',
-            daysUntilExpiry: 165
-          },
-          isActive: true
-        }
-      ]);
+      showToast('사용자 키 현황을 로드하는 중 오류가 발생했습니다.', 'error');
     } finally {
       setLoading(false);
     }
@@ -151,8 +109,8 @@ const KeyStatusPage: React.FC = () => {
       {/* 헤더 */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">키 발급 현황</h1>
-          <p className="text-gray-600 dark:text-gray-400">사용자별 MCPHub 키 발급 및 사용 현황</p>
+          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">MCPHub Keys 관리</h1>
+          <p className="text-gray-600 dark:text-gray-400">전체 사용자의 MCPHub 키 발급 현황 및 관리</p>
         </div>
         <button
           onClick={loadUserKeyStatus}
@@ -207,31 +165,28 @@ const KeyStatusPage: React.FC = () => {
       <div className="flex space-x-2">
         <button
           onClick={() => setFilter('all')}
-          className={`px-4 py-2 rounded-lg transition-colors ${
-            filter === 'all' 
-              ? 'bg-blue-600 text-white' 
-              : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
-          }`}
+          className={`px-4 py-2 rounded-lg transition-colors ${filter === 'all'
+            ? 'bg-blue-600 text-white'
+            : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+            }`}
         >
           전체 ({stats.total})
         </button>
         <button
           onClick={() => setFilter('hasKey')}
-          className={`px-4 py-2 rounded-lg transition-colors ${
-            filter === 'hasKey' 
-              ? 'bg-blue-600 text-white' 
-              : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
-          }`}
+          className={`px-4 py-2 rounded-lg transition-colors ${filter === 'hasKey'
+            ? 'bg-blue-600 text-white'
+            : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+            }`}
         >
           키 발급 ({stats.hasKey})
         </button>
         <button
           onClick={() => setFilter('noKey')}
-          className={`px-4 py-2 rounded-lg transition-colors ${
-            filter === 'noKey' 
-              ? 'bg-blue-600 text-white' 
-              : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
-          }`}
+          className={`px-4 py-2 rounded-lg transition-colors ${filter === 'noKey'
+            ? 'bg-blue-600 text-white'
+            : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+            }`}
         >
           미발급 ({stats.noKey})
         </button>
@@ -301,9 +256,8 @@ const KeyStatusPage: React.FC = () => {
                         <span className={`text-sm ${getExpiryColor(user.keyInfo.daysUntilExpiry)}`}>
                           {formatDate(user.keyInfo.expiresAt)}
                         </span>
-                        <span className={`ml-2 text-xs px-2 py-1 rounded-full ${
-                          getExpiryColor(user.keyInfo.daysUntilExpiry).replace('text-', 'bg-').replace('-600', '-100')
-                        }`}>
+                        <span className={`ml-2 text-xs px-2 py-1 rounded-full ${getExpiryColor(user.keyInfo.daysUntilExpiry).replace('text-', 'bg-').replace('-600', '-100')
+                          }`}>
                           {getExpiryStatus(user.keyInfo.daysUntilExpiry)}
                         </span>
                       </div>
