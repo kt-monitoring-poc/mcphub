@@ -1,23 +1,22 @@
-import React from 'react';
-import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
-import { AuthProvider } from './contexts/AuthContext';
-import { ToastProvider } from './contexts/ToastContext';
-import { ThemeProvider } from './contexts/ThemeContext';
-import MainLayout from './layouts/MainLayout';
-import AdminLayout from './layouts/AdminLayout';
+import { Navigate, Route, BrowserRouter as Router, Routes } from 'react-router-dom';
 import ProtectedRoute from './components/ProtectedRoute';
-import LoginPage from './pages/LoginPage';
+import { AuthProvider } from './contexts/AuthContext';
+import { ThemeProvider } from './contexts/ThemeContext';
+import { ToastProvider } from './contexts/ToastContext';
+import AdminLayout from './layouts/AdminLayout';
+import MainLayout from './layouts/MainLayout';
 import DashboardPage from './pages/Dashboard';
-import ServersPage from './pages/ServersPage';
 import GroupsPage from './pages/GroupsPage';
-import SettingsPage from './pages/SettingsPage';
-import MarketPage from './pages/MarketPage';
-import LogsPage from './pages/LogsPage';
-import KeyStatusPage from './pages/admin/KeyStatusPage';
 import KeyManagementPage from './pages/KeyManagementPage';
+import LoginPage from './pages/LoginPage';
+import LogsPage from './pages/LogsPage';
+import MarketPage from './pages/MarketPage';
+import ServersPage from './pages/ServersPage';
+import SettingsPage from './pages/SettingsPage';
 import AdminDashboard from './pages/admin/AdminDashboard';
-import UsersPage from './pages/admin/UsersPage';
 import AdminSettingsPage from './pages/admin/AdminSettingsPage';
+import KeyStatusPage from './pages/admin/KeyStatusPage';
+import UsersPage from './pages/admin/UsersPage';
 import { getBasePath } from './utils/runtime';
 
 function App() {
@@ -52,6 +51,7 @@ function App() {
                   <Route path="/admin/settings" element={<AdminSettingsPage />} />
                   <Route path="/admin/keys" element={<KeyStatusPage />} />
                   <Route path="/admin/servers" element={<ServersPage />} />
+                  <Route path="/admin/mcp-servers" element={<McpServersPage />} />
                   <Route path="/admin/users" element={<UsersPage />} />
                 </Route>
               </Route>

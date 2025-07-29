@@ -28,30 +28,14 @@ import {
   searchMarketServersByQuery,
 } from '../controllers/marketController.js';
 import {
-  createUserKey,
-  deactivateKey,
-  deleteUserKey,
-  extendKeyExpiry,
-  getFullKeyValue,
-  getKeyTokens,
-  getKeyValue,
-  getCurrentUser as getOAuthUser,
-  getUserKeys,
-  handleGithubCallback,
-  initiateGithubLogin,
-  logout,
-  updateKeyTokens
-} from '../controllers/oauthController.js';
-import {
   createServer,
   deleteServer,
   getAllServers,
-  getAllSettings,
   toggleServer,
   toggleTool,
   updateServer,
   updateSystemConfig,
-  updateToolDescription,
+  updateToolDescription
 } from '../controllers/serverController.js';
 import { callTool } from '../controllers/toolController.js';
 import { UserTokenController } from '../controllers/userTokenController.js';
@@ -63,6 +47,7 @@ import {
   handleLegacyMessages,
   handleLegacySseEndpoint
 } from '../services/sseService.js';
+import mcpServerRoutes from './mcpServerRoutes.js';
 
 const router = express.Router();
 const userTokenController = new UserTokenController();
@@ -88,7 +73,6 @@ export const initRoutes = (app: express.Application): void => {
   router.post('/groups/:id/servers', addServerToExistingGroup);
   router.delete('/groups/:id/servers/:serverName', removeServerFromExistingGroup);
   router.get('/groups/:id/servers', getGroupServers);
-  // New route for batch updating servers in a group
   router.put('/groups/:id/servers/batch', updateGroupServersBatch);
 
   // Tool management routes
@@ -217,6 +201,9 @@ export const initRoutes = (app: express.Application): void => {
       res.status(500).json({ success: false, message: 'Failed to get session info' });
     }
   });
+
+  // MCP 서버 관리 라우트 추가
+  app.use(`${config.basePath}/api/mcp`, mcpServerRoutes);
 
   app.use(`${config.basePath}/api`, router);
 

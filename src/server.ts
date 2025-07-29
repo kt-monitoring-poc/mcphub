@@ -97,8 +97,12 @@ export class AppServer {
       // Express 미들웨어 초기화 (CORS, 바디 파서 등)
       initMiddlewares(this.app);
 
-      // API 라우터 초기화
+      // Routes 초기화
       initRoutes(this.app);
+
+      // MCP 서버 관리 라우트 추가
+      const mcpServerRoutes = await import('./routes/mcpServerRoutes.js');
+      this.app.use(`${config.basePath}/api/mcp`, mcpServerRoutes.default);
       console.log('Server initialized successfully');
 
       // MCP 서버들 초기화 및 연결
