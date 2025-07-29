@@ -153,6 +153,54 @@ export const getCurrentUser = async (req: Request, res: Response) => {
 /**
  * 사용자 MCPHub Key 목록 조회
  */
+/**
+ * 키 복사를 위한 전체 키 값 조회
+ */
+export const getFullKeyValue = async (req: Request, res: Response) => {
+  try {
+    const user = req.user as User;
+    const keyId = req.params.keyId;
+
+    if (!user) {
+      return res.status(401).json({
+        success: false,
+        message: '인증되지 않은 사용자입니다.'
+      });
+    }
+
+    if (!keyId) {
+      return res.status(400).json({
+        success: false,
+        message: '키 ID가 필요합니다.'
+      });
+    }
+
+    // 해당 키가 사용자 소유인지 확인
+    const userKeys = await mcpHubKeyService.getUserKeys(user.id);
+    const requestedKey = userKeys.find(key => key.id === keyId);
+
+    if (!requestedKey) {
+      return res.status(404).json({
+        success: false,
+        message: '키를 찾을 수 없거나 권한이 없습니다.'
+      });
+    }
+
+    res.json({
+      success: true,
+      data: {
+        keyValue: requestedKey.keyValue
+      }
+    });
+  } catch (error) {
+    console.error('Get full key value error:', error);
+    res.status(500).json({
+      success: false,
+      message: '서버 오류가 발생했습니다.'
+    });
+  }
+};
+
 export const getUserKeys = async (req: Request, res: Response) => {
   try {
     const user = req.user as User;

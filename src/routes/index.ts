@@ -2,59 +2,60 @@ import express from 'express';
 import { check } from 'express-validator';
 import passport from 'passport';
 import config from '../config/index.js';
+import { getRecentActivities, getSystemStats, getUserKeyStatus } from '../controllers/adminController.js';
+import { changePassword, getCurrentUser, login, register } from '../controllers/authController.js';
+import { getPublicConfig, getRuntimeConfig } from '../controllers/configController.js';
+import { uploadDxtFile, uploadMiddleware } from '../controllers/dxtController.js';
 import {
-  getAllServers,
-  getAllSettings,
-  createServer,
-  updateServer,
-  deleteServer,
-  toggleServer,
-  toggleTool,
-  updateToolDescription,
-  updateSystemConfig,
-} from '../controllers/serverController.js';
-import {
-  getGroups,
-  getGroup,
-  createNewGroup,
-  updateExistingGroup,
-  deleteExistingGroup,
   addServerToExistingGroup,
-  removeServerFromExistingGroup,
+  createNewGroup,
+  deleteExistingGroup,
+  getGroup,
+  getGroups,
   getGroupServers,
+  removeServerFromExistingGroup,
+  updateExistingGroup,
   updateGroupServersBatch,
 } from '../controllers/groupController.js';
+import { clearLogs, getAllLogs, streamLogs } from '../controllers/logController.js';
 import {
-  getAllMarketServers,
-  getMarketServer,
   getAllMarketCategories,
+  getAllMarketServers,
   getAllMarketTags,
-  searchMarketServersByQuery,
+  getMarketServer,
   getMarketServersByCategory,
   getMarketServersByTag,
+  searchMarketServersByQuery,
 } from '../controllers/marketController.js';
-import { login, register, getCurrentUser, changePassword } from '../controllers/authController.js';
-import { getAllLogs, clearLogs, streamLogs } from '../controllers/logController.js';
-import { getRuntimeConfig, getPublicConfig } from '../controllers/configController.js';
+import {
+  createUserKey,
+  deactivateKey,
+  deleteUserKey,
+  extendKeyExpiry,
+  getFullKeyValue,
+  getKeyTokens,
+  getKeyValue,
+  getCurrentUser as getOAuthUser,
+  getUserKeys,
+  handleGithubCallback,
+  initiateGithubLogin,
+  logout,
+  updateKeyTokens
+} from '../controllers/oauthController.js';
+import {
+  createServer,
+  deleteServer,
+  getAllServers,
+  getAllSettings,
+  toggleServer,
+  toggleTool,
+  updateServer,
+  updateSystemConfig,
+  updateToolDescription,
+} from '../controllers/serverController.js';
 import { callTool } from '../controllers/toolController.js';
-import { uploadDxtFile, uploadMiddleware } from '../controllers/dxtController.js';
-import { getSystemStats, getRecentActivities, getUserKeyStatus } from '../controllers/adminController.js';
 import { UserTokenController } from '../controllers/userTokenController.js';
 import { auth } from '../middlewares/auth.js';
-import { 
-  initiateGithubLogin, 
-  handleGithubCallback, 
-  logout, 
-  getCurrentUser as getOAuthUser, 
-  getUserKeys, 
-  createUserKey, 
-  getKeyValue,
-  getKeyTokens,
-  updateKeyTokens, 
-  extendKeyExpiry, 
-  deactivateKey,
-  deleteUserKey
-} from '../controllers/oauthController.js';
 
 const router = express.Router();
 const userTokenController = new UserTokenController();
@@ -137,17 +138,18 @@ export const initRoutes = (app: express.Application): void => {
 
   // GitHub OAuth routes
   router.get('/auth/github', initiateGithubLogin);
-  router.get('/auth/github/callback', 
+  router.get('/auth/github/callback',
     passport.authenticate('github', { failureRedirect: '/login?error=oauth_failed' }),
     handleGithubCallback
   );
   router.post('/auth/logout', logout);
-  
+
   // OAuth User routes
   router.get('/oauth/user', auth, getOAuthUser);
   router.get('/oauth/keys', auth, getUserKeys);
   router.post('/oauth/keys', auth, createUserKey);
   router.get('/oauth/keys/:keyId/value', auth, getKeyValue);
+  router.get('/oauth/keys/:keyId/full-value', auth, getFullKeyValue);
   router.get('/oauth/keys/:keyId/tokens', auth, getKeyTokens);
   router.put('/oauth/keys/:keyId/tokens', auth, updateKeyTokens);
   router.post('/oauth/keys/:keyId/extend', auth, extendKeyExpiry);

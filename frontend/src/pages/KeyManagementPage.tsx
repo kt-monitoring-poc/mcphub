@@ -173,12 +173,22 @@ const KeyManagementPage: React.FC = () => {
 
   // 키 복사
   const handleCopyKey = async (keyId: string) => {
-    const key = keys.find(k => k.id === keyId);
-    if (!key) return;
-
     try {
-      await navigator.clipboard.writeText(key.keyValue);
-      showToast('키 값이 클립보드에 복사되었습니다.', 'success');
+      const token = getToken();
+      const response = await fetch(`/api/oauth/keys/${keyId}/full-value`, {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'x-auth-token': token || ''
+        }
+      });
+
+      if (response.ok) {
+        const result = await response.json();
+        await navigator.clipboard.writeText(result.data.keyValue);
+        showToast('키 값이 클립보드에 복사되었습니다.', 'success');
+      } else {
+        throw new Error('키 값을 가져올 수 없습니다.');
+      }
     } catch (error) {
       console.error('클립보드 복사 오류:', error);
       showToast('클립보드 복사에 실패했습니다.', 'error');

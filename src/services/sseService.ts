@@ -198,25 +198,41 @@ export const handleMcpOtherRequest = async (req: Request, res: Response): Promis
  * MCPHub Key를 사용한 사용자 인증
  * 
  * @param {string} token - Bearer 토큰
+ * @param {boolean} suppressLogs - 로그 출력 억제 (세션 재사용 시)
  * @returns {Promise<Record<string, string> | null>} 사용자 서비스 토큰 또는 null
  */
-const authenticateWithMcpHubKey = async (token: string): Promise<Record<string, string> | null> => {
+const authenticateWithMcpHubKey = async (token: string, suppressLogs = false): Promise<Record<string, string> | null> => {
   if (!token.startsWith('mcphub_')) {
     return null;
   }
 
-  console.log('🔍 MCPHub Key 감지, 인증 중...');
+  if (!suppressLogs) {
+    console.log('🔍 MCPHub Key 감지, 인증 중...');
+  }
+
   try {
     const { MCPHubKeyService } = await import('../services/mcpHubKeyService.js');
     const mcpHubKeyService = new MCPHubKeyService();
     const authResult = await mcpHubKeyService.authenticateKey(token);
 
     if (authResult) {
-      console.log('✅ MCPHub Key 인증 성공:', authResult.user.githubUsername);
-      console.log('🔑 인증된 사용자 토큰들:', Object.keys(authResult.serviceTokens || {}));
-      return authResult.serviceTokens || {};
+      if (!suppressLogs) {
+        console.log('✅ MCPHub Key 인증 성공:', authResult.user.githubUsername);
+      }
+      // 빈 토큰 필터링
+      const validTokens = Object.fromEntries(
+        Object.entries(authResult.serviceTokens || {}).filter(([_, value]) => value && value.trim() !== '')
+      );
+
+      if (!suppressLogs && Object.keys(validTokens).length > 0) {
+        console.log('🔑 유효한 사용자 토큰들:', Object.keys(validTokens));
+      }
+
+      return validTokens;
     } else {
-      console.log('❌ MCPHub Key 인증 실패');
+      if (!suppressLogs) {
+        console.log('❌ MCPHub Key 인증 실패');
+      }
       return null;
     }
   } catch (error) {
@@ -247,12 +263,12 @@ export const handleMcpPostRequest = async (req: Request, res: Response): Promise
   // MCPHub Key 인증 수행
   let userServiceTokens: Record<string, string> = {};
   const authHeader = req.headers.authorization;
+  const isNewSession = !sessionId || !transports[sessionId];
 
   if (authHeader && authHeader.startsWith('Bearer ')) {
     const token = authHeader.substring(7);
-    console.log('🔍 Bearer Token 감지:', token ? `${token.substring(0, 20)}...` : 'None');
 
-    const authenticatedTokens = await authenticateWithMcpHubKey(token);
+    const authenticatedTokens = await authenticateWithMcpHubKey(token, !isNewSession);
     if (authenticatedTokens) {
       userServiceTokens = authenticatedTokens;
     } else {
@@ -281,22 +297,21 @@ export const handleMcpPostRequest = async (req: Request, res: Response): Promise
     return;
   }
 
-  console.log('🔑 최종 사용자 서비스 토큰 키들:', Object.keys(userServiceTokens));
+  if (isNewSession && Object.keys(userServiceTokens).length > 0) {
+    console.log('🔑 최종 사용자 서비스 토큰 키들:', Object.keys(userServiceTokens));
+  }
 
   let transport: StreamableHTTPServerTransport;
 
   // 기존 세션 재사용 또는 새 세션 생성
   if (sessionId && transports[sessionId]) {
-    console.log(`Reusing existing transport for sessionId: ${sessionId}`);
     transport = transports[sessionId].transport as StreamableHTTPServerTransport;
 
     // 기존 세션의 사용자 토큰 사용 (새 인증이 있다면 업데이트)
     if (Object.keys(userServiceTokens).length > 0) {
       transports[sessionId].userServiceTokens = userServiceTokens;
-      console.log('🔄 세션 사용자 토큰 업데이트됨');
     } else if (transports[sessionId].userServiceTokens) {
       userServiceTokens = transports[sessionId].userServiceTokens;
-      console.log('🔄 기존 세션 사용자 토큰 재사용:', Object.keys(userServiceTokens));
     }
 
   } else if (!sessionId && isInitializeRequest(req.body)) {

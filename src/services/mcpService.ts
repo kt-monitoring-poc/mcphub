@@ -480,12 +480,6 @@ export const ensureServerConnected = async (
   userApiKeys: Record<string, string>
 ): Promise<boolean> => {
   try {
-    // 이미 연결되어 있으면 true 반환
-    const serverInfo = serverInfos.find(info => info.name === serverName);
-    if (serverInfo?.status === 'connected') {
-      return true;
-    }
-
     // 서버 설정 가져오기
     const settings = loadSettings();
     const serverConfig = settings.mcpServers[serverName];
@@ -493,6 +487,18 @@ export const ensureServerConnected = async (
     if (!serverConfig) {
       console.error(`❌ 서버 설정을 찾을 수 없음: ${serverName}`);
       return false;
+    }
+
+    // disabled 서버는 건너뛰기
+    if (serverConfig.enabled === false) {
+      console.log(`⏭️ ${serverName} 서버는 비활성화됨`);
+      return false;
+    }
+
+    // 이미 연결되어 있으면 true 반환
+    const serverInfo = serverInfos.find(info => info.name === serverName);
+    if (serverInfo?.status === 'connected') {
+      return true;
     }
 
     // 사용자 토큰이 필요한 서버인지 확인
@@ -519,9 +525,19 @@ export const ensureServerConnected = async (
         },
       );
 
-      // 연결 시도
-      await client.connect(transport);
-      console.log(`✅ ${serverName} 서버 연결 성공`);
+      // 타임아웃과 함께 연결 시도
+      const connectPromise = client.connect(transport);
+      const timeoutPromise = new Promise<never>((_, reject) =>
+        setTimeout(() => reject(new Error('Connection timeout')), 10000) // 10초 타임아웃
+      );
+
+      try {
+        await Promise.race([connectPromise, timeoutPromise]);
+        console.log(`✅ ${serverName} 서버 연결 성공`);
+      } catch (error) {
+        console.error(`❌ ${serverName} 서버 연결 실패:`, error);
+        return false;
+      }
 
       // 도구 목록 가져오기
       const tools = await client.listTools();
