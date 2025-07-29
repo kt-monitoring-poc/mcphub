@@ -42,7 +42,7 @@ export const initMiddlewares = (app: express.Application): void => {
 
   // Protect API routes with authentication middleware, but exclude auth endpoints
   app.use(`${config.basePath}/api`, (req, res, next) => {
-    // Skip authentication for login, register, OAuth endpoints, health check, groups, market, and auth/me
+    // Skip authentication for login, register, OAuth endpoints, health check, groups, market, keys, and auth/me
     if (
       req.path === '/auth/login' ||
       req.path === '/auth/register' ||
@@ -52,7 +52,8 @@ export const initMiddlewares = (app: express.Application): void => {
       req.path.startsWith('/auth/logout') ||
       req.path === '/health' ||
       req.path === '/groups' ||
-      req.path.startsWith('/market')
+      req.path.startsWith('/market') ||
+      req.path.startsWith('/keys')
     ) {
       next();
     } else {
