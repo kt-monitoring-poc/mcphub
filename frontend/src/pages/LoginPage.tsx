@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next';
 import { useAuth } from '../contexts/AuthContext';
 import ThemeSwitch from '@/components/ui/ThemeSwitch';
 import { GitHubIcon } from '../components/icons/GitHubIcon';
+import authService from '../services/authService'; // Added import for authService
 
 const LoginPage: React.FC = () => {
   const { t } = useTranslation();
@@ -29,7 +30,13 @@ const LoginPage: React.FC = () => {
       const success = await login(username, password);
 
       if (success) {
-        navigate('/');
+        // 로그인 성공 후 사용자 정보를 가져와서 관리자 여부 확인
+        const userInfo = await authService.getCurrentUser();
+        if (userInfo.success && userInfo.user?.isAdmin) {
+          navigate('/admin/dashboard');
+        } else {
+          navigate('/');
+        }
       } else {
         setError('로그인에 실패했습니다. 사용자명과 비밀번호를 확인해주세요.');
       }
