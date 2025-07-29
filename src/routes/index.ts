@@ -88,6 +88,35 @@ export const initRoutes = (app: express.Application): void => {
     }
   });
 
+  // 현재 사용자 정보 가져오기 API 추가
+  router.get('/auth/me', (req, res) => {
+    try {
+      const authHeader = req.headers['x-auth-token'] as string;
+
+      if (!authHeader) {
+        return res.status(401).json({
+          success: false,
+          message: 'No token provided'
+        });
+      }
+
+      const token = authHeader.startsWith('Bearer ') ? authHeader.slice(7) : authHeader;
+
+      const decoded = jwt.verify(token, JWT_SECRET) as any;
+
+      res.json({
+        success: true,
+        user: decoded.user
+      });
+    } catch (error) {
+      console.error('Token verification error:', error);
+      res.status(401).json({
+        success: false,
+        message: 'Invalid token'
+      });
+    }
+  });
+
   // Core API routes - only keeping working ones for now
   router.get('/servers', getAllServers);
   router.post('/servers', createServer);
@@ -159,9 +188,9 @@ export const initRoutes = (app: express.Application): void => {
     res.json({
       success: true,
       data: [
-        { name: 'development', displayName: '개발', enabled: true },
-        { name: 'data', displayName: '데이터', enabled: true },
-        { name: 'collaboration', displayName: '협업', enabled: true }
+        { name: 'development', displayName: '개발', enabled: true, servers: [] },
+        { name: 'data', displayName: '데이터', enabled: true, servers: [] },
+        { name: 'collaboration', displayName: '협업', enabled: true, servers: [] }
       ]
     });
   });

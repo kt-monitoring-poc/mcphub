@@ -1,8 +1,8 @@
 import {
   AuthResponse,
+  ChangePasswordCredentials,
   LoginCredentials,
   RegisterCredentials,
-  ChangePasswordCredentials,
 } from '../types';
 import { getApiUrl } from '../utils/runtime';
 
@@ -91,7 +91,7 @@ export const getCurrentUser = async (): Promise<AuthResponse> => {
   }
 
   try {
-    const response = await fetch(getApiUrl('/auth/user'), {
+    const response = await fetch(getApiUrl('/auth/me'), {
       method: 'GET',
       headers: {
         'x-auth-token': token,

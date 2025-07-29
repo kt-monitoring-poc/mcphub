@@ -1,9 +1,9 @@
-import { useState } from 'react'
-import { useTranslation } from 'react-i18next'
-import { Group, Server } from '@/types'
-import { Edit, Trash, Copy, Check } from '@/components/icons/LucideIcons'
+import { Check, Copy, Edit, Trash } from '@/components/icons/LucideIcons'
 import DeleteDialog from '@/components/ui/DeleteDialog'
 import { useToast } from '@/contexts/ToastContext'
+import { Group, Server } from '@/types'
+import { useState } from 'react'
+import { useTranslation } from 'react-i18next'
 
 interface GroupCardProps {
   group: Group
@@ -90,7 +90,7 @@ const GroupCard = ({
         </div>
         <div className="flex items-center space-x-3">
           <div className="bg-blue-50 text-blue-700 px-3 py-1 rounded-full text-sm btn-secondary">
-            {t('groups.serverCount', { count: group.servers.length })}
+            {t('groups.serverCount', { count: group.servers?.length || 0 })}
           </div>
           <button
             onClick={handleEdit}

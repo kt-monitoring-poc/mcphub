@@ -142,7 +142,7 @@ export const useMarketData = () => {
       try {
         setLoading(true);
         const token = localStorage.getItem('mcphub_token');
-        const response = await fetch(getApiUrl(`/market/servers/${name}`), {
+        const response = await fetch(getApiUrl(`/market/${name}`), {
           headers: {
             'x-auth-token': token || '',
           },
@@ -188,7 +188,7 @@ export const useMarketData = () => {
 
         const token = localStorage.getItem('mcphub_token');
         const response = await fetch(
-          getApiUrl(`/market/servers/search?query=${encodeURIComponent(query)}`),
+          getApiUrl(`/market/search?query=${encodeURIComponent(query)}`),
           {
             headers: {
               'x-auth-token': token || '',
