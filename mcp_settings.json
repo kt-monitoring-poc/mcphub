@@ -13,15 +13,19 @@
       }
     },
     "github": {
-      "type": "sse",
-      "url": "https://api.githubcopilot.com/mcp/",
+      "type": "stdio",
+      "command": "npx",
+      "args": [
+        "-y",
+        "@modelcontextprotocol/server-github"
+      ],
+      "env": {
+        "GITHUB_PERSONAL_ACCESS_TOKEN": "${USER_GITHUB_TOKEN}"
+      },
       "name": "GitHub MCP Server",
-      "description": "GitHub 저장소, 이슈, PR 관리를 위한 GitHub Copilot MCP 서버",
+      "description": "GitHub 저장소, 이슈, PR 관리를 위한 공식 GitHub MCP 서버",
       "group": "development",
-      "enabled": false,
-      "headers": {
-        "Authorization": "Bearer ${USER_GITHUB_TOKEN}"
-      }
+      "enabled": true
     },
     "test": {
       "type": "streamable-http",

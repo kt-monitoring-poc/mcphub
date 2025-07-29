@@ -56,6 +56,13 @@ import {
 import { callTool } from '../controllers/toolController.js';
 import { UserTokenController } from '../controllers/userTokenController.js';
 import { auth } from '../middlewares/auth.js';
+import {
+  getConnectionCount,
+  getConnectionStatus,
+  getSessionInfo,
+  handleLegacyMessages,
+  handleLegacySseEndpoint
+} from '../services/sseService.js';
 
 const router = express.Router();
 const userTokenController = new UserTokenController();
@@ -184,7 +191,46 @@ export const initRoutes = (app: express.Application): void => {
     });
   });
 
+  // Session monitoring endpoints
+  router.get('/api/sessions/status', auth, (req, res) => {
+    try {
+      const status = {
+        totalConnections: getConnectionCount(),
+        connections: getConnectionStatus()
+      };
+      res.json({ success: true, data: status });
+    } catch (error) {
+      console.error('Session status error:', error);
+      res.status(500).json({ success: false, message: 'Failed to get session status' });
+    }
+  });
+
+  router.get('/api/sessions/:sessionId', auth, (req, res) => {
+    try {
+      const sessionInfo = getSessionInfo(req.params.sessionId);
+      if (!sessionInfo) {
+        return res.status(404).json({ success: false, message: 'Session not found' });
+      }
+      res.json({ success: true, data: sessionInfo });
+    } catch (error) {
+      console.error('Session info error:', error);
+      res.status(500).json({ success: false, message: 'Failed to get session info' });
+    }
+  });
+
   app.use(`${config.basePath}/api`, router);
+
+  // 🔄 Backwards Compatibility: 레거시 SSE 엔드포인트 (protocol 2024-11-05)
+  // 이 엔드포인트들은 오래된 MCP 클라이언트 지원을 위함
+  app.get(`${config.basePath}/sse`, async (req, res) => {
+    console.log('📡 레거시 SSE 엔드포인트 요청');
+    await handleLegacySseEndpoint(req, res);
+  });
+
+  app.post(`${config.basePath}/messages`, async (req, res) => {
+    console.log('📬 레거시 메시지 엔드포인트 요청');
+    await handleLegacyMessages(req, res);
+  });
 };
 
 export default router;

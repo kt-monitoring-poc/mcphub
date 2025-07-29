@@ -18,15 +18,112 @@ import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/
 import { randomUUID } from 'crypto';
 import { Request, Response } from 'express';
 import config, { loadSettings } from '../config/index.js';
-import { deleteMcpServer, getMcpServer } from './mcpService.js';
+import { getMcpServer } from './mcpService.js';
 
+/**
+ * 전송 계층 정보를 저장하는 인터페이스
+ * 
+ * 각 세션별로 전송 계층, 그룹, 사용자 토큰 등의 정보를 관리합니다.
+ * 연결 상태, 활동 시간, 재연결 시도 등의 모니터링 정보도 포함합니다.
+ */
 interface TransportInfo {
   transport: StreamableHTTPServerTransport | SSEServerTransport;
   group?: string;
   userServiceTokens?: Record<string, string>; // 세션별 사용자 토큰 저장
+  connectionStatus: 'connecting' | 'connected' | 'disconnected' | 'error';
+  lastActivityTime: number; // 마지막 활동 시간
+  heartbeatInterval?: NodeJS.Timeout; // Keep-alive 타이머
+  reconnectAttempts: number; // 재연결 시도 횟수
+  createdAt: number; // 세션 생성 시간
 }
 
-const transports: Record<string, TransportInfo> = {};
+// 전송 계층 저장소 (Streamable HTTP + SSE 모두 지원)
+const transports: {
+  streamable: Record<string, TransportInfo>,
+  sse: Record<string, TransportInfo>
+} = {
+  streamable: {},
+  sse: {}
+};
+
+// 상수 정의
+const HEARTBEAT_INTERVAL = 30000; // 30초
+const INACTIVITY_TIMEOUT = 120000; // 2분
+
+/**
+ * 세션 상태 모니터링 및 정리
+ */
+const monitorTransports = () => {
+  const now = Date.now();
+
+  Object.entries(transports.streamable).forEach(([sessionId, transportInfo]) => {
+    const timeSinceLastActivity = now - transportInfo.lastActivityTime;
+
+    // 비활성 세션 정리
+    if (timeSinceLastActivity > INACTIVITY_TIMEOUT && transportInfo.connectionStatus !== 'connected') {
+      console.log(`🧹 비활성 세션 정리 (Streamable): ${sessionId}`);
+      cleanupTransport(sessionId, 'streamable');
+    }
+  });
+
+  Object.entries(transports.sse).forEach(([sessionId, transportInfo]) => {
+    const timeSinceLastActivity = now - transportInfo.lastActivityTime;
+
+    // 비활성 세션 정리
+    if (timeSinceLastActivity > INACTIVITY_TIMEOUT && transportInfo.connectionStatus !== 'connected') {
+      console.log(`🧹 비활성 세션 정리 (SSE): ${sessionId}`);
+      cleanupTransport(sessionId, 'sse');
+    }
+  });
+};
+
+/**
+ * Transport 정리 함수
+ */
+const cleanupTransport = (sessionId: string, type: 'streamable' | 'sse') => {
+  const transportInfo = transports[type][sessionId];
+  if (transportInfo) {
+    // Heartbeat 타이머 정리
+    if (transportInfo.heartbeatInterval) {
+      clearInterval(transportInfo.heartbeatInterval);
+    }
+
+    // Transport 연결 종료
+    try {
+      if (transportInfo.transport.onclose) {
+        transportInfo.transport.onclose();
+      }
+    } catch (error) {
+      console.error(`Transport 정리 중 오류:`, error);
+    }
+
+    delete transports[type][sessionId];
+    // MCP 서버 연결 해제는 mcpService에서 처리
+    console.log(`🔌 세션 정리 완료: ${sessionId} (Type: ${type})`);
+  }
+};
+
+/**
+ * Heartbeat 전송 함수
+ */
+const sendHeartbeat = (sessionId: string, type: 'streamable' | 'sse') => {
+  const transportInfo = transports[type][sessionId];
+  if (transportInfo && transportInfo.connectionStatus === 'connected') {
+    try {
+      // StreamableHTTP transport에 ping 전송
+      if (transportInfo.transport instanceof StreamableHTTPServerTransport) {
+        // ping/pong 메커니즘은 클라이언트에서 구현되므로 여기서는 상태만 업데이트
+        transportInfo.lastActivityTime = Date.now();
+      }
+    } catch (error) {
+      console.error(`Heartbeat 전송 실패 ${sessionId}:`, error);
+      transportInfo.connectionStatus = 'error';
+    }
+  }
+};
+
+// 모니터링 타이머 시작 (1분마다 실행)
+setInterval(monitorTransports, 60000);
 
 /**
  * 세션의 그룹 정보 조회
@@ -36,8 +133,8 @@ const transports: Record<string, TransportInfo> = {};
  * @param {string} sessionId - 조회할 세션 ID
  * @returns {string} 그룹 이름 (그룹이 없으면 빈 문자열)
  */
-export const getGroup = (sessionId: string): string => {
-  return transports[sessionId]?.group || '';
+export const getGroup = (sessionId: string, type: 'streamable' | 'sse'): string => {
+  return transports[type][sessionId]?.group || '';
 };
 
 /**
@@ -106,12 +203,11 @@ export const handleSseConnection = async (req: Request, res: Response): Promise<
 
   // SSE 전송 계층 생성 및 등록
   const transport = new SSEServerTransport(`${config.basePath}/messages`, res);
-  transports[transport.sessionId] = { transport, group: group };
+  transports.sse[transport.sessionId] = { transport, group: group, connectionStatus: 'connecting', lastActivityTime: Date.now(), reconnectAttempts: 0, createdAt: Date.now() };
 
   // 연결 종료 시 정리 작업
   res.on('close', () => {
-    delete transports[transport.sessionId];
-    deleteMcpServer(transport.sessionId);
+    cleanupTransport(transport.sessionId, 'sse');
     console.log(`SSE connection closed: ${transport.sessionId}`);
   });
 
@@ -121,6 +217,93 @@ export const handleSseConnection = async (req: Request, res: Response): Promise<
 
   // MCP 서버와 연결
   await getMcpServer(transport.sessionId, group).connect(transport);
+};
+
+/**
+ * 레거시 SSE 클라이언트를 위한 호환성 엔드포인트
+ * Protocol version 2024-11-05 지원
+ * 
+ * @param {Request} req - Express 요청 객체
+ * @param {Response} res - Express 응답 객체  
+ * @param {string} group - 서버 그룹 (옵션)
+ * @param {Record<string, string>} userServiceTokens - 사용자 서비스 토큰
+ */
+export const handleLegacySseEndpoint = async (
+  req: Request,
+  res: Response,
+  group?: string,
+  userServiceTokens: Record<string, string> = {}
+) => {
+  console.log('🔗 레거시 SSE 연결 설정 중...');
+
+  // SSE 전송 계층 생성
+  const transport = new SSEServerTransport('/messages', res);
+  const now = Date.now();
+
+  transports.sse[transport.sessionId] = {
+    transport,
+    group: group,
+    userServiceTokens: userServiceTokens,
+    connectionStatus: 'connecting',
+    lastActivityTime: now,
+    reconnectAttempts: 0,
+    createdAt: now
+  };
+
+  // Heartbeat 설정
+  transports.sse[transport.sessionId].heartbeatInterval = setInterval(() => {
+    sendHeartbeat(transport.sessionId, 'sse');
+  }, HEARTBEAT_INTERVAL);
+
+  // 연결 종료 시 정리 작업
+  res.on('close', () => {
+    cleanupTransport(transport.sessionId, 'sse');
+    console.log(`🔌 레거시 SSE 연결 종료: ${transport.sessionId}`);
+  });
+
+  console.log(`🔗 레거시 SSE 세션 생성됨: ${transport.sessionId} (protocol 2024-11-05)`);
+
+  // MCP 서버와 연결
+  await getMcpServer(transport.sessionId, group, userServiceTokens).connect(transport);
+
+  // 연결 성공 시 상태 업데이트
+  transports.sse[transport.sessionId].connectionStatus = 'connected';
+  console.log(`✅ 레거시 SSE 세션 연결 완료: ${transport.sessionId}`);
+};
+
+/**
+ * 레거시 메시지 엔드포인트 (POST /messages)
+ * SSE 클라이언트의 메시지 처리용
+ * 
+ * @param {Request} req - Express 요청 객체
+ * @param {Response} res - Express 응답 객체
+ */
+export const handleLegacyMessages = async (req: Request, res: Response) => {
+  const sessionId = req.query.sessionId as string;
+
+  // 세션 ID 유효성 검사
+  if (!sessionId) {
+    console.error('Missing sessionId in query parameters');
+    res.status(400).send('Missing sessionId parameter');
+    return;
+  }
+
+  // 전송 계층 존재 확인
+  const transportData = transports.sse[sessionId];
+  if (!transportData) {
+    console.warn(`No transport found for sessionId: ${sessionId}`);
+    res.status(404).send('No transport found for sessionId');
+    return;
+  }
+
+  const { transport, group } = transportData;
+  console.log(`Received message for sessionId: ${sessionId} in group: ${group}`);
+
+  // 세션 활동 시간 업데이트
+  transports.sse[sessionId].lastActivityTime = Date.now();
+
+  // SSE 전송 계층을 통해 메시지 처리
+  await (transport as SSEServerTransport).handlePostMessage(req, res, req.body);
 };
 
 /**
@@ -150,7 +333,7 @@ export const handleSseMessage = async (req: Request, res: Response): Promise<voi
   }
 
   // 전송 계층 존재 확인
-  const transportData = transports[sessionId];
+  const transportData = transports.sse[sessionId];
   if (!transportData) {
     console.warn(`No transport found for sessionId: ${sessionId}`);
     res.status(404).send('No transport found for sessionId');
@@ -185,12 +368,12 @@ export const handleMcpOtherRequest = async (req: Request, res: Response): Promis
     return;
   }
 
-  if (!sessionId || !transports[sessionId]) {
+  if (!sessionId || !transports.streamable[sessionId]) {
     res.status(400).send('Invalid session ID');
     return;
   }
 
-  const transport = transports[sessionId].transport as StreamableHTTPServerTransport;
+  const transport = transports.streamable[sessionId].transport as StreamableHTTPServerTransport;
   await transport.handleRequest(req, res, req.body);
 };
 
@@ -263,7 +446,7 @@ export const handleMcpPostRequest = async (req: Request, res: Response): Promise
   // MCPHub Key 인증 수행
   let userServiceTokens: Record<string, string> = {};
   const authHeader = req.headers.authorization;
-  const isNewSession = !sessionId || !transports[sessionId];
+  const isNewSession = !sessionId || !transports.streamable[sessionId];
 
   if (authHeader && authHeader.startsWith('Bearer ')) {
     const token = authHeader.substring(7);
@@ -304,14 +487,18 @@ export const handleMcpPostRequest = async (req: Request, res: Response): Promise
   let transport: StreamableHTTPServerTransport;
 
   // 기존 세션 재사용 또는 새 세션 생성
-  if (sessionId && transports[sessionId]) {
-    transport = transports[sessionId].transport as StreamableHTTPServerTransport;
+  if (sessionId && transports.streamable[sessionId]) {
+    transport = transports.streamable[sessionId].transport as StreamableHTTPServerTransport;
+
+    // 세션 활동 시간 업데이트
+    transports.streamable[sessionId].lastActivityTime = Date.now();
+    transports.streamable[sessionId].connectionStatus = 'connected';
 
     // 기존 세션의 사용자 토큰 사용 (새 인증이 있다면 업데이트)
     if (Object.keys(userServiceTokens).length > 0) {
-      transports[sessionId].userServiceTokens = userServiceTokens;
-    } else if (transports[sessionId].userServiceTokens) {
-      userServiceTokens = transports[sessionId].userServiceTokens;
+      transports.streamable[sessionId].userServiceTokens = userServiceTokens;
+    } else if (transports.streamable[sessionId].userServiceTokens) {
+      userServiceTokens = transports.streamable[sessionId].userServiceTokens;
     }
 
   } else if (!sessionId && isInitializeRequest(req.body)) {
@@ -319,22 +506,33 @@ export const handleMcpPostRequest = async (req: Request, res: Response): Promise
     transport = new StreamableHTTPServerTransport({
       sessionIdGenerator: () => randomUUID(),
       onsessioninitialized: (sessionId: string) => {
-        transports[sessionId] = {
+        const now = Date.now();
+        const transportInfo: TransportInfo = {
           transport,
           group,
-          userServiceTokens: userServiceTokens
+          userServiceTokens: userServiceTokens,
+          connectionStatus: 'connecting',
+          lastActivityTime: now,
+          reconnectAttempts: 0,
+          createdAt: now
         };
+
+        // Heartbeat 설정
+        transportInfo.heartbeatInterval = setInterval(() => {
+          sendHeartbeat(sessionId, 'streamable');
+        }, HEARTBEAT_INTERVAL);
+
+        transports.streamable[sessionId] = transportInfo;
         console.log('💾 새 세션에 사용자 토큰 저장:', Object.keys(userServiceTokens));
+        console.log(`🔗 세션 생성됨: ${sessionId} (heartbeat 활성화)`);
       },
     });
 
     // 연결 종료 시 정리 작업 설정
     transport.onclose = () => {
-      console.log(`Transport closed: ${transport.sessionId}`);
+      console.log(`🔌 Transport 연결 종료: ${transport.sessionId}`);
       if (transport.sessionId) {
-        delete transports[transport.sessionId];
-        deleteMcpServer(transport.sessionId);
-        console.log(`MCP connection closed: ${transport.sessionId}`);
+        cleanupTransport(transport.sessionId, 'streamable');
       }
     };
 
@@ -342,6 +540,12 @@ export const handleMcpPostRequest = async (req: Request, res: Response): Promise
     console.log(`🔗 사용자 토큰과 함께 MCP 서버 연결 시도...`);
     // MCP 서버와 연결 (사용자 토큰 전달)
     await getMcpServer(transport.sessionId, group, userServiceTokens).connect(transport);
+
+    // 연결 성공 시 상태 업데이트
+    if (transport.sessionId && transports.streamable[transport.sessionId]) {
+      transports.streamable[transport.sessionId].connectionStatus = 'connected';
+      console.log(`✅ 세션 연결 완료: ${transport.sessionId}`);
+    }
   } else {
     // 유효하지 않은 요청
     res.status(400).json({
@@ -356,6 +560,16 @@ export const handleMcpPostRequest = async (req: Request, res: Response): Promise
   }
 
   console.log(`Handling request using transport with type ${transport.constructor.name}`);
+
+  // 세션 활동 시간 업데이트
+  if (transport.sessionId && transports.streamable[transport.sessionId]) {
+    transports.streamable[transport.sessionId].lastActivityTime = Date.now();
+  }
+
+  // Keep-Alive 응답 헤더 설정
+  res.setHeader('Connection', 'keep-alive');
+  res.setHeader('Keep-Alive', 'timeout=60, max=1000');
+
   // 전송 계층을 통해 요청 처리
   await transport.handleRequest(req, res, req.body);
 };
@@ -369,5 +583,45 @@ export const handleMcpPostRequest = async (req: Request, res: Response): Promise
  * @returns {number} 활성 연결 수
  */
 export const getConnectionCount = (): number => {
-  return Object.keys(transports).length;
+  return Object.keys(transports.streamable).length + Object.keys(transports.sse).length;
+};
+
+/**
+ * 세션 상태 정보 조회
+ * 
+ * @returns {Array} 모든 활성 세션의 상태 정보
+ */
+export const getConnectionStatus = () => {
+  const allTransports = { ...transports.streamable, ...transports.sse };
+  return Object.entries(allTransports).map(([sessionId, transportInfo]) => ({
+    sessionId,
+    status: transportInfo.connectionStatus,
+    group: transportInfo.group,
+    lastActivity: new Date(transportInfo.lastActivityTime).toISOString(),
+    uptime: Date.now() - transportInfo.createdAt,
+    reconnectAttempts: transportInfo.reconnectAttempts,
+    hasUserTokens: transportInfo.userServiceTokens ? Object.keys(transportInfo.userServiceTokens).length > 0 : false
+  }));
+};
+
+/**
+ * 특정 세션의 상세 정보 조회
+ * 
+ * @param {string} sessionId - 세션 ID
+ * @returns {object|null} 세션 정보 또는 null
+ */
+export const getSessionInfo = (sessionId: string) => {
+  const transportInfo = transports.streamable[sessionId] || transports.sse[sessionId];
+  if (!transportInfo) return null;
+
+  return {
+    sessionId,
+    status: transportInfo.connectionStatus,
+    group: transportInfo.group,
+    lastActivity: new Date(transportInfo.lastActivityTime).toISOString(),
+    createdAt: new Date(transportInfo.createdAt).toISOString(),
+    uptime: Date.now() - transportInfo.createdAt,
+    reconnectAttempts: transportInfo.reconnectAttempts,
+    userTokens: transportInfo.userServiceTokens ? Object.keys(transportInfo.userServiceTokens) : []
+  };
 };

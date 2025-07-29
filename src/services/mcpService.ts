@@ -98,7 +98,7 @@ export const getMcpServer = (sessionId?: string, group?: string, userServiceToke
   }
 
   if (!servers[sessionId]) {
-    const serverGroup = group || getGroup(sessionId);
+    const serverGroup = group || getGroup(sessionId, 'streamable');
     const server = createMcpServer(config.mcpHubName, config.mcpHubVersion, serverGroup, userServiceTokens);
     servers[sessionId] = server;
   } else {
@@ -183,7 +183,7 @@ let serverInfos: ServerInfo[] = [];
  * @returns {any} 생성된 전송 계층 인스턴스
  * @throws {Error} 전송 계층 생성 실패 시
  */
-const createTransportFromConfig = (name: string, conf: ServerConfig): any => {
+const createTransportFromConfig = (name: string, conf: ServerConfig, userApiKeys?: Record<string, string>): any => {
   let transport;
 
   if (conf.type === 'streamable-http') {
@@ -195,24 +195,22 @@ const createTransportFromConfig = (name: string, conf: ServerConfig): any => {
       };
     }
     transport = new StreamableHTTPClientTransport(new URL(conf.url || ''), options);
-  } else if (conf.url) {
-    // SSE 전송 계층 생성
-    const options: any = {};
-    if (conf.headers && Object.keys(conf.headers).length > 0) {
-      options.eventSourceInit = {
-        headers: conf.headers,
-      };
-      options.requestInit = {
-        headers: conf.headers,
-      };
-    }
-    transport = new SSEClientTransport(new URL(conf.url), options);
-  } else if (conf.command && conf.args) {
+  } else if (conf.type === 'stdio' && conf.command && conf.args) {
     // 표준 입출력 전송 계층 생성 (프로세스 기반)
     const env: Record<string, string> = {
       ...(process.env as Record<string, string>),
       ...replaceEnvVars(conf.env || {}),
     };
+
+    // 사용자 토큰이 있으면 환경 변수에 추가
+    if (conf.env && userApiKeys) {
+      Object.entries(conf.env).forEach(([key, value]) => {
+        if (typeof value === 'string' && value.includes('${USER_')) {
+          const configWithKeys = applyUserApiKeysToConfig({ url: value }, userApiKeys);
+          env[key] = configWithKeys.url || value;
+        }
+      });
+    }
     env['PATH'] = expandEnvVars(process.env.PATH as string) || '';
 
     const settings = loadSettings();
@@ -247,8 +245,20 @@ const createTransportFromConfig = (name: string, conf: ServerConfig): any => {
     transport.stderr?.on('data', (data) => {
       console.log(`[${name}] [child] ${data}`);
     });
+  } else if (conf.type === 'sse' && conf.url) {
+    // SSE 전송 계층 생성
+    const options: any = {};
+    if (conf.headers && Object.keys(conf.headers).length > 0) {
+      options.eventSourceInit = {
+        headers: conf.headers,
+      };
+      options.requestInit = {
+        headers: conf.headers,
+      };
+    }
+    transport = new SSEClientTransport(new URL(conf.url), options);
   } else {
-    throw new Error(`Unable to create transport for server: ${name}`);
+    throw new Error(`Unable to create transport for server: ${name}. Type: ${conf.type}`);
   }
 
   return transport;
@@ -323,7 +333,11 @@ const callToolWithReconnect = async (
                 prompts: {},
                 resources: {},
                 tools: {},
-              },
+                logging: {},
+                roots: {
+                  listChanged: false
+                }
+              }
             },
           );
 
@@ -495,6 +509,12 @@ export const ensureServerConnected = async (
       return false;
     }
 
+    console.log(`📋 ${serverName} 서버 설정:`, {
+      type: serverConfig.type,
+      url: serverConfig.url?.replace(/Bearer .+/, 'Bearer ***'),
+      enabled: serverConfig.enabled
+    });
+
     // 이미 연결되어 있으면 true 반환
     const serverInfo = serverInfos.find(info => info.name === serverName);
     if (serverInfo?.status === 'connected') {
@@ -509,7 +529,7 @@ export const ensureServerConnected = async (
       const configWithKeys = applyUserApiKeysToConfig(serverConfig, userApiKeys);
 
       // Transport 생성
-      const transport = createTransportFromConfig(serverName, configWithKeys);
+      const transport = createTransportFromConfig(serverName, configWithKeys, userApiKeys);
 
       const client = new Client(
         {
@@ -521,6 +541,10 @@ export const ensureServerConnected = async (
             prompts: {},
             resources: {},
             tools: {},
+            logging: {},
+            roots: {
+              listChanged: false
+            }
           },
         },
       );
@@ -528,19 +552,36 @@ export const ensureServerConnected = async (
       // 타임아웃과 함께 연결 시도
       const connectPromise = client.connect(transport);
       const timeoutPromise = new Promise<never>((_, reject) =>
-        setTimeout(() => reject(new Error('Connection timeout')), 10000) // 10초 타임아웃
+        setTimeout(() => reject(new Error('Connection timeout')), 30000) // 30초 타임아웃 (Firecrawl은 느릴 수 있음)
       );
 
       try {
         await Promise.race([connectPromise, timeoutPromise]);
         console.log(`✅ ${serverName} 서버 연결 성공`);
-      } catch (error) {
-        console.error(`❌ ${serverName} 서버 연결 실패:`, error);
+      } catch (error: any) {
+        console.error(`❌ ${serverName} 서버 연결 실패:`, {
+          message: error.message,
+          stack: error.stack,
+          transport: transport.constructor.name,
+          url: serverConfig.url?.replace(/[A-Za-z0-9_-]{20,}/, '***')
+        });
         return false;
       }
 
-      // 도구 목록 가져오기
-      const tools = await client.listTools();
+      // 도구 목록 가져오기 (타임아웃 추가)
+      console.log(`📋 ${serverName} 도구 목록 가져오는 중...`);
+      const toolsPromise = client.listTools();
+      const toolsTimeoutPromise = new Promise<never>((_, reject) =>
+        setTimeout(() => reject(new Error('Tools listing timeout')), 30000) // 30초 타임아웃
+      );
+
+      let tools;
+      try {
+        tools = await Promise.race([toolsPromise, toolsTimeoutPromise]);
+      } catch (error) {
+        console.error(`❌ ${serverName} 도구 목록 가져오기 실패:`, error);
+        return false;
+      }
       const toolsList: ToolInfo[] = tools.tools?.map(tool => ({
         name: `${serverName}-${tool.name}`, // 서버 접두사 유지 (main 브랜치 방식)
         description: tool.description || '',
@@ -805,6 +846,10 @@ export const initializeClientsFromSettings = async (isInit: boolean): Promise<Se
           prompts: {},
           resources: {},
           tools: {},
+          logging: {},
+          roots: {
+            listChanged: false
+          }
         },
       },
     );
@@ -1112,7 +1157,7 @@ export const toggleServerStatus = async (
 
 export const handleListToolsRequest = async (_: any, extra: any, group?: string, userServiceTokens?: Record<string, string>) => {
   const sessionId = extra.sessionId || '';
-  const requestGroup = group || getGroup(sessionId);
+  const requestGroup = group || getGroup(sessionId, 'streamable');
   console.log(`Handling ListToolsRequest for group: ${requestGroup}`);
 
   // 사용자 토큰이 있다면 동적 서버 연결 시도
@@ -1679,7 +1724,23 @@ export const createMcpServer = (name: string, version: string, group?: string, u
   }
   // If no group, use default name (global routing)
 
-  const server = new Server({ name: serverName, version }, { capabilities: { tools: {} } });
+  const server = new Server(
+    {
+      name: serverName,
+      version
+    },
+    {
+      capabilities: {
+        tools: {},
+        prompts: {},
+        resources: {},
+        logging: {},
+        roots: {
+          listChanged: true
+        }
+      },
+    }
+  );
 
   // 사용자 토큰을 서버 인스턴스에 저장
   if (userServiceTokens) {
