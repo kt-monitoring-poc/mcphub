@@ -1738,7 +1738,7 @@ export const createMcpServer = (name: string, version: string, group?: string, u
         roots: {
           listChanged: true
         }
-      },
+      }
     }
   );
 

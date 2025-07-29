@@ -6,30 +6,19 @@
       "name": "Firecrawl MCP Server",
       "description": "웹 스크래핑 및 데이터 추출을 위한 Firecrawl 서비스",
       "group": "data",
-      "enabled": true,
-      "headers": {
-        "Content-Type": "application/json",
-        "Accept": "application/json"
-      }
+      "enabled": false
     },
     "github": {
-      "type": "stdio",
-      "command": "npx",
-      "args": [
-        "-y",
-        "@modelcontextprotocol/server-github"
-      ],
-      "env": {
-        "GITHUB_PERSONAL_ACCESS_TOKEN": "${USER_GITHUB_TOKEN}"
-      },
-      "name": "GitHub MCP Server",
-      "description": "GitHub 저장소, 이슈, PR 관리를 위한 공식 GitHub MCP 서버",
-      "group": "development",
-      "enabled": true
+      "type": "streamable-http",
+      "url": "https://api.githubcopilot.com/mcp/",
+      "enabled": false,
+      "headers": {
+        "Authorization": "Bearer ${USER_GITHUB_TOKEN}"
+      }
     },
     "test": {
       "type": "streamable-http",
-      "url": "http://localhost:8123/mcp",
+      "url": "https://streamable-http-mcp-server.livelybeach-90f399a8.koreacentral.azurecontainerapps.io/mcp",
       "name": "Test Streamable HTTP Server",
       "description": "로컬 테스트용 StreamableHTTP MCP 서버",
       "enabled": true,

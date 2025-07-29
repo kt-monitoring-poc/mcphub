@@ -27,11 +27,15 @@ async function boot() {
   try {
     // 서버 초기화 (데이터베이스 연결, MCP 서버 연결 등)
     await appServer.initialize();
-    
+
     // HTTP 서버 시작
     appServer.start();
   } catch (error) {
-    console.error('Failed to start application:', error);
+    console.error('Failed to start application:', {
+      message: error instanceof Error ? error.message : 'Unknown error',
+      stack: error instanceof Error ? error.stack : undefined,
+      error: error
+    });
     process.exit(1);
   }
 }

@@ -10,22 +10,23 @@
 
 import express from 'express';
 import session from 'express-session';
-import config from './config/index.js';
+import fs from 'fs';
+import http from 'http';
+import passport from 'passport';
 import path from 'path';
 import { fileURLToPath } from 'url';
-import fs from 'fs';
-import { initUpstreamServers } from './services/mcpService.js';
+import config from './config/index.js';
+import { configurePassport, validateGitHubOAuthConfig } from './config/passport.js';
 import { initMiddlewares } from './middlewares/index.js';
+import { initializeDefaultUser } from './models/User.js';
 import { initRoutes } from './routes/index.js';
+import { initUpstreamServers } from './services/mcpService.js';
 import {
+  handleMcpOtherRequest,
+  handleMcpPostRequest,
   handleSseConnection,
   handleSseMessage,
-  handleMcpPostRequest,
-  handleMcpOtherRequest,
 } from './services/sseService.js';
-import { initializeDefaultUser } from './models/User.js';
-import { configurePassport, validateGitHubOAuthConfig } from './config/passport.js';
-import passport from 'passport';
 
 // ESM 환경에서 __dirname 구하기
 const __filename = fileURLToPath(import.meta.url);
@@ -87,7 +88,7 @@ export class AppServer {
       // Passport.js 초기화
       this.app.use(passport.initialize());
       this.app.use(passport.session());
-      
+
       // Passport.js OAuth 전략 설정
       if (oauthConfig.isValid) {
         configurePassport();
@@ -95,7 +96,7 @@ export class AppServer {
 
       // Express 미들웨어 초기화 (CORS, 바디 파서 등)
       initMiddlewares(this.app);
-      
+
       // API 라우터 초기화
       initRoutes(this.app);
       console.log('Server initialized successfully');
@@ -104,13 +105,13 @@ export class AppServer {
       initUpstreamServers()
         .then(() => {
           console.log('MCP server initialized successfully');
-          
+
           // SSE 연결 엔드포인트 설정 (실시간 통신용)
           this.app.get(`${this.basePath}/sse/:group?`, (req, res) => handleSseConnection(req, res));
-          
+
           // SSE 메시지 처리 엔드포인트
           this.app.post(`${this.basePath}/messages`, handleSseMessage);
-          
+
           // MCP 요청 처리 엔드포인트들
           this.app.post(`${this.basePath}/mcp/:group?`, handleMcpPostRequest);
           this.app.get(`${this.basePath}/mcp/:group?`, handleMcpOtherRequest);
@@ -146,7 +147,7 @@ export class AppServer {
 
     if (this.frontendPath) {
       console.log(`Serving frontend from: ${this.frontendPath}`);
-      
+
       // 베이스 패스로 정적 파일 서빙
       this.app.use(this.basePath, express.static(this.frontendPath));
 
@@ -166,7 +167,7 @@ export class AppServer {
     } else {
       console.warn('Frontend dist directory not found. Server will run without frontend.');
       const rootPath = this.basePath || '/';
-      
+
       // 프론트엔드가 없는 경우 404 응답
       this.app.get(rootPath, (_req, res) => {
         res
@@ -180,10 +181,18 @@ export class AppServer {
    * HTTP 서버 시작
    * 
    * 설정된 포트에서 Express 서버를 시작하고 접속 정보를 출력합니다.
+   * HTTP/1.1을 사용하여 SSE 호환성을 보장합니다.
    */
   start(): void {
-    this.app.listen(this.port, () => {
-      console.log(`Server is running on port ${this.port}`);
+    // HTTP/1.1 서버 생성 (SSE 호환성을 위해)
+    const server = http.createServer(this.app);
+
+    // Keep-alive 설정
+    server.keepAliveTimeout = 65000; // 65초
+    server.headersTimeout = 66000;   // keepAliveTimeout보다 약간 크게
+
+    server.listen(this.port, () => {
+      console.log(`Server is running on port ${this.port} (HTTP/1.1)`);
       if (this.frontendPath) {
         console.log(`Open http://localhost:${this.port} in your browser to access MCPHub UI`);
       } else {
@@ -295,7 +304,7 @@ export class AppServer {
       if (fs.existsSync(packageJsonPath)) {
         try {
           const pkg = JSON.parse(fs.readFileSync(packageJsonPath, 'utf8'));
-          
+
           // MCPHub 패키지인지 확인
           if (pkg.name === 'mcphub' || pkg.name === '@samanhappy/mcphub') {
             if (debug) {
