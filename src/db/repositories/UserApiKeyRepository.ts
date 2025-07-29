@@ -1,10 +1,10 @@
 import crypto from 'crypto';
-import { Repository } from 'typeorm';
 import { UserApiKey } from '../entities/UserApiKey.js';
 import { BaseRepository } from './BaseRepository.js';
 
-const ENCRYPTION_KEY = process.env.API_KEY_ENCRYPTION_KEY || 'mcphub-default-encryption-key-32bit';
 const ALGORITHM = 'aes-256-cbc';
+const ENCRYPTION_KEY = process.env.ENCRYPTION_KEY || 'mcphub-default-key-change-this-32chars';
+const IV_LENGTH = 16; // For AES, this is always 16
 
 export interface CreateUserApiKeyData {
     userId: number;
@@ -18,13 +18,14 @@ export interface UpdateUserApiKeyData {
 }
 
 export class UserApiKeyRepository extends BaseRepository<UserApiKey> {
-    constructor(repository: Repository<UserApiKey>) {
-        super(repository);
+    constructor() {
+        super(UserApiKey);
     }
 
     private encrypt(text: string): string {
-        const iv = crypto.randomBytes(16);
-        const cipher = crypto.createCipher(ALGORITHM, ENCRYPTION_KEY);
+        const key = crypto.scryptSync(ENCRYPTION_KEY, 'salt', 32);
+        const iv = crypto.randomBytes(IV_LENGTH);
+        const cipher = crypto.createCipheriv(ALGORITHM, key, iv);
         let encrypted = cipher.update(text, 'utf8', 'hex');
         encrypted += cipher.final('hex');
         return iv.toString('hex') + ':' + encrypted;
@@ -34,7 +35,8 @@ export class UserApiKeyRepository extends BaseRepository<UserApiKey> {
         const textParts = text.split(':');
         const iv = Buffer.from(textParts.shift()!, 'hex');
         const encryptedText = textParts.join(':');
-        const decipher = crypto.createDecipher(ALGORITHM, ENCRYPTION_KEY);
+        const key = crypto.scryptSync(ENCRYPTION_KEY, 'salt', 32);
+        const decipher = crypto.createDecipheriv(ALGORITHM, key, iv);
         let decrypted = decipher.update(encryptedText, 'hex', 'utf8');
         decrypted += decipher.final('utf8');
         return decrypted;

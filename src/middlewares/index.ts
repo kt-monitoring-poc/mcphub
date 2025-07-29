@@ -1,7 +1,7 @@
-import express, { Request, Response, NextFunction } from 'express';
-import { auth } from './auth.js';
-import { initializeDefaultUser } from '../models/User.js';
+import express, { NextFunction, Request, Response } from 'express';
 import config from '../config/index.js';
+import { initializeDefaultUser } from '../models/User.js';
+import { auth } from './auth.js';
 
 export const errorHandler = (
   err: Error,
@@ -42,13 +42,16 @@ export const initMiddlewares = (app: express.Application): void => {
 
   // Protect API routes with authentication middleware, but exclude auth endpoints
   app.use(`${config.basePath}/api`, (req, res, next) => {
-    // Skip authentication for login, register, and OAuth endpoints
+    // Skip authentication for login, register, OAuth endpoints, health check, groups, and market
     if (
-      req.path === '/auth/login' || 
+      req.path === '/auth/login' ||
       req.path === '/auth/register' ||
       req.path === '/auth/github' ||
       req.path === '/auth/github/callback' ||
-      req.path.startsWith('/auth/logout')
+      req.path.startsWith('/auth/logout') ||
+      req.path === '/health' ||
+      req.path === '/groups' ||
+      req.path.startsWith('/market')
     ) {
       next();
     } else {

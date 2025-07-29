@@ -16,6 +16,7 @@ import SettingsPage from './pages/SettingsPage';
 import AdminDashboard from './pages/admin/AdminDashboard';
 import AdminSettingsPage from './pages/admin/AdminSettingsPage';
 import KeyStatusPage from './pages/admin/KeyStatusPage';
+import { McpServersPage } from './pages/admin/McpServersPage';
 import UsersPage from './pages/admin/UsersPage';
 import { getBasePath } from './utils/runtime';
 

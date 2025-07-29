@@ -105,3 +105,29 @@ export const auth = async (req: Request, res: Response, next: NextFunction): Pro
   // 모든 인증 방법 실패
   res.status(401).json({ success: false, message: 'No valid authentication found' });
 };
+
+// 기본 인증 필요 middleware (auth와 동일)
+export const requireAuth = auth;
+
+// 관리자 권한 필요 middleware
+export const requireAdmin = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+  // 먼저 인증 확인
+  await new Promise<void>((resolve, reject) => {
+    auth(req, res, (err) => {
+      if (err) reject(err);
+      else resolve();
+    });
+  }).catch(() => {
+    res.status(401).json({ success: false, message: 'Authentication required' });
+    return;
+  });
+
+  // 관리자 권한 확인
+  const user = (req as any).user;
+  if (!user || !user.isAdmin) {
+    res.status(403).json({ success: false, message: 'Admin access required' });
+    return;
+  }
+
+  next();
+};

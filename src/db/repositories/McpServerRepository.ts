@@ -1,5 +1,4 @@
-import { Repository } from 'typeorm';
-import { McpServer, McpServerType } from '../entities/McpServer.js';
+import { McpServer } from '../entities/McpServer.js';
 import { McpServerEnvVar } from '../entities/McpServerEnvVar.js';
 import { BaseRepository } from './BaseRepository.js';
 
@@ -7,16 +6,16 @@ export interface CreateMcpServerData {
     name: string;
     displayName: string;
     description?: string;
-    type: McpServerType;
+    type: 'stdio' | 'streamable-http' | 'sse';
     command?: string;
     args?: string[];
     url?: string;
     headers?: Record<string, string>;
-    enabled?: boolean;
     groupName?: string;
     sortOrder?: number;
     isBuiltIn?: boolean;
-    environmentVariables?: {
+    enabled?: boolean;
+    environmentVariables?: Array<{
         varName: string;
         displayName: string;
         description?: string;
@@ -25,13 +24,13 @@ export interface CreateMcpServerData {
         defaultValue?: string;
         validationRegex?: string;
         sortOrder?: number;
-    }[];
+    }>;
 }
 
 export interface UpdateMcpServerData {
     displayName?: string;
     description?: string;
-    type?: McpServerType;
+    type?: 'stdio' | 'streamable-http' | 'sse';
     command?: string;
     args?: string[];
     url?: string;
@@ -42,8 +41,8 @@ export interface UpdateMcpServerData {
 }
 
 export class McpServerRepository extends BaseRepository<McpServer> {
-    constructor(repository: Repository<McpServer>) {
-        super(repository);
+    constructor() {
+        super(McpServer);
     }
 
     async findByName(name: string): Promise<McpServer | null> {
