@@ -18,7 +18,7 @@
     },
     "test": {
       "type": "streamable-http",
-      "url": "https://streamable-http-mcp-server.livelybeach-90f399a8.koreacentral.azurecontainerapps.io/mcp",
+      "url": "https://streamable-http-test-mcp.livelybeach-90f399a8.koreacentral.azurecontainerapps.io/mcp",
       "name": "Test Streamable HTTP Server",
       "description": "로컬 테스트용 StreamableHTTP MCP 서버",
       "enabled": true,
