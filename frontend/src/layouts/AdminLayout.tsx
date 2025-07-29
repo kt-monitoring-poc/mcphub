@@ -6,6 +6,7 @@ import {
   LayoutDashboard,
   LogOut,
   Menu,
+  Server,
   Settings,
   Users,
   X
@@ -46,6 +47,11 @@ const AdminLayout: React.FC<AdminLayoutProps> = () => {
       path: '/admin/keys',
       label: 'MCPHub Keys 관리',
       icon: <Key className="h-5 w-5" />
+    },
+    {
+      path: '/admin/mcp-servers',
+      label: 'MCP 서버 관리',
+      icon: <Server className="h-5 w-5" />
     },
     {
       path: '/admin/logs',
@@ -118,8 +124,8 @@ const AdminLayout: React.FC<AdminLayoutProps> = () => {
                 key={item.path}
                 onClick={() => navigate(item.path)}
                 className={`w-full flex items-center space-x-3 px-3 py-2 rounded-lg transition-colors ${location.pathname === item.path
-                    ? 'bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-300'
-                    : 'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'
+                  ? 'bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-300'
+                  : 'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'
                   }`}
               >
                 {item.icon}
