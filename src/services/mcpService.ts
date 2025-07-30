@@ -186,6 +186,11 @@ let serverInfos: ServerInfo[] = [];
 const createTransportFromConfig = (name: string, conf: ServerConfig, userApiKeys?: Record<string, string>): any => {
   let transport;
 
+  // type 필드가 없는 경우 예외 처리
+  if (!conf.type) {
+    throw new Error(`Server '${name}' is missing required 'type' field. Supported types: 'stdio', 'sse', 'streamable-http', 'openapi'`);
+  }
+
   if (conf.type === 'streamable-http') {
     // HTTP 스트리밍 전송 계층 생성
     const options: any = {};
@@ -258,7 +263,18 @@ const createTransportFromConfig = (name: string, conf: ServerConfig, userApiKeys
     }
     transport = new SSEClientTransport(new URL(conf.url), options);
   } else {
-    throw new Error(`Unable to create transport for server: ${name}. Type: ${conf.type}`);
+    // 지원되지 않는 타입이나 필수 필드가 누락된 경우
+    let errorMessage = `Unable to create transport for server: ${name}. Type: ${conf.type}`;
+
+    if (conf.type === 'stdio' && (!conf.command || !conf.args)) {
+      errorMessage += '. stdio type requires both "command" and "args" fields.';
+    } else if (conf.type === 'sse' && !conf.url) {
+      errorMessage += '. sse type requires "url" field.';
+    } else if (conf.type && !['stdio', 'sse', 'streamable-http', 'openapi'].includes(conf.type as string)) {
+      errorMessage += `. Unsupported type. Supported types: 'stdio', 'sse', 'streamable-http', 'openapi'`;
+    }
+
+    throw new Error(errorMessage);
   }
 
   return transport;
@@ -833,7 +849,22 @@ export const initializeClientsFromSettings = async (isInit: boolean): Promise<Se
         continue;
       }
     } else {
-      transport = createTransportFromConfig(name, conf);
+      try {
+        transport = createTransportFromConfig(name, conf);
+      } catch (error) {
+        console.error(`Error initializing MCP server: ${error}`);
+
+        // 서버 정보를 disconnected 상태로 추가하고 계속 진행
+        serverInfos.push({
+          name,
+          status: 'disconnected',
+          error: `Transport creation failed: ${error}`,
+          tools: [],
+          createTime: Date.now(),
+          enabled: conf.enabled === undefined ? true : conf.enabled,
+        });
+        continue;
+      }
     }
 
     const client = new Client(

@@ -20,61 +20,75 @@ export const initiateGithubLogin = (req: Request, res: Response) => {
 };
 
 /**
- * GitHub OAuth 콜백 처리
+ * GitHub OAuth 콜백 처리 (성공/실패 모두 처리)
  */
-export const handleGithubCallback = async (req: Request, res: Response) => {
-  console.log('🔍 OAuth 콜백 성공 - 사용자 처리 시작');
+export const handleGithubCallback = (req: Request, res: Response) => {
+  console.log('🔍 OAuth 콜백 처리 시작');
 
-  const user = req.user as User;
+  passport.authenticate('github', {
+    failureRedirect: '/login?error=oauth_failed',
+    failureFlash: true
+  }, async (err: any, user: any, info: any) => {
+    console.log('🔍 Passport.js 콜백 결과:', { err, user, info });
 
-  if (!user) {
-    console.log('⚠️ OAuth 성공했지만 사용자 정보 없음');
-    return res.redirect('/login?error=no_user');
-  }
+    if (err) {
+      console.error('❌ Passport.js 인증 오류:', err);
+      const basePath = process.env.BASE_PATH || '';
+      return res.redirect(`${basePath}/login?error=auth_error`);
+    }
 
-  try {
-    console.log(`✅ GitHub OAuth 로그인 성공: ${user.githubUsername}`);
-    console.log(`🔍 사용자 정보 상세:`, {
-      id: user.id,
-      githubUsername: user.githubUsername,
-      isAdmin: user.isAdmin,
-      isAdminType: typeof user.isAdmin,
-      githubId: user.githubId,
-      email: user.email
-    });
+    if (!user) {
+      console.log('⚠️ Passport.js에서 사용자 정보 없음');
+      const basePath = process.env.BASE_PATH || '';
+      return res.redirect(`${basePath}/login?error=no_user`);
+    }
 
-    // JWT 토큰 생성
-    const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key-change-this';
-
-    const payload = {
-      user: {
+    try {
+      console.log(`✅ GitHub OAuth 로그인 성공: ${user.githubUsername}`);
+      console.log(`🔍 사용자 정보 상세:`, {
         id: user.id,
-        username: user.githubUsername,
-        isAdmin: user.isAdmin || false,
+        githubUsername: user.githubUsername,
+        isAdmin: user.isAdmin,
+        isAdminType: typeof user.isAdmin,
         githubId: user.githubId,
         email: user.email
-      }
-    };
+      });
 
-    console.log(`🔍 JWT Payload:`, payload);
+      // JWT 토큰 생성
+      const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key-change-this';
 
-    const token = jwt.sign(payload, JWT_SECRET, { expiresIn: '24h' });
-    console.log(`🔑 JWT 토큰 생성 완료 (${user.githubUsername}): ${token.substring(0, 50)}...`);
+      const payload = {
+        user: {
+          id: user.id,
+          username: user.githubUsername,
+          isAdmin: user.isAdmin || false,
+          githubId: user.githubId,
+          email: user.email
+        }
+      };
 
-    // 세션 제거 - JWT만 사용
-    req.logout((err) => {
-      if (err) console.log('세션 로그아웃 오류:', err);
-    });
+      console.log(`🔍 JWT Payload:`, payload);
 
-    // 단순한 302 리다이렉트 사용
-    const redirectUrl = `/?welcome=true&token=${encodeURIComponent(token)}`;
-    console.log(`🔄 302 리다이렉트: ${redirectUrl.substring(0, 100)}...`);
+      const token = jwt.sign(payload, JWT_SECRET, { expiresIn: '24h' });
+      console.log(`🔑 JWT 토큰 생성 완료 (${user.githubUsername}): ${token.substring(0, 50)}...`);
 
-    return res.redirect(302, redirectUrl);
-  } catch (error) {
-    console.error('❌ JWT 토큰 생성 오류:', error);
-    return res.redirect('/login?error=token_error');
-  }
+      // 세션 제거 - JWT만 사용
+      req.logout((logoutErr) => {
+        if (logoutErr) console.log('세션 로그아웃 오류:', logoutErr);
+      });
+
+      // 단순한 302 리다이렉트 사용
+      const basePath = process.env.BASE_PATH || '';
+      const redirectUrl = `${basePath}/?welcome=true&token=${encodeURIComponent(token)}`;
+      console.log(`🔄 302 리다이렉트: ${redirectUrl.substring(0, 100)}...`);
+
+      return res.redirect(302, redirectUrl);
+    } catch (error) {
+      console.error('❌ JWT 토큰 생성 오류:', error);
+      const basePath = process.env.BASE_PATH || '';
+      return res.redirect(`${basePath}/login?error=token_error`);
+    }
+  })(req, res);
 };
 
 /**
@@ -101,7 +115,8 @@ export const logout = (req: Request, res: Response) => {
       }
 
       res.clearCookie('connect.sid');
-      res.redirect('/login?logout=success');
+      const basePath = process.env.BASE_PATH || '';
+      res.redirect(`${basePath}/login?logout=success`);
     });
   });
 };

@@ -1,6 +1,4 @@
-import { Column, CreateDateColumn, Entity, OneToMany, PrimaryGeneratedColumn, UpdateDateColumn } from 'typeorm';
-import { McpServerEnvVar } from './McpServerEnvVar.js';
-import { UserApiKey } from './UserApiKey.js';
+import { Column, Entity, OneToMany, PrimaryGeneratedColumn } from 'typeorm';
 
 export type McpServerType = 'stdio' | 'streamable-http' | 'sse';
 
@@ -48,15 +46,6 @@ export class McpServer {
     @Column({ type: 'boolean', default: false })
     isBuiltIn!: boolean;
 
-    @OneToMany(() => McpServerEnvVar, envVar => envVar.server, { cascade: true })
-    environmentVariables!: McpServerEnvVar[];
-
-    @OneToMany(() => UserApiKey, userApiKey => userApiKey.server)
-    userApiKeys!: UserApiKey[];
-
-    @CreateDateColumn()
-    createdAt!: Date;
-
-    @UpdateDateColumn()
-    updatedAt!: Date;
+    @OneToMany('McpServerEnvVar', 'server')
+    environmentVariables!: any[]; // Type will be resolved at runtime
 } 

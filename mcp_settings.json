@@ -52,6 +52,19 @@
         "Content-Type": "application/json",
         "Accept": "application/json"
       }
+    },
+    "jira-emoket": {
+      "type": "stdio",
+      "command": "npx",
+      "args": [
+        "jira-mcp-server-kt"
+      ],
+      "enabled": false,
+      "env": {
+        "USER_JIRA_BASE_URL": "https://your-domain.atlassian.net",
+        "USER_JIRA_EMAIL": "your-email@company.com",
+        "USER_JIRA_API_TOKEN": "your_api_token"
+      }
     }
   },
   "users": [

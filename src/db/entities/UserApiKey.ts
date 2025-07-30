@@ -1,5 +1,4 @@
 import { Column, CreateDateColumn, Entity, Index, JoinColumn, ManyToOne, PrimaryGeneratedColumn, UpdateDateColumn } from 'typeorm';
-import { McpServer } from './McpServer.js';
 
 @Entity('user_api_keys')
 @Index(['userId', 'serverId', 'varName'], { unique: true })
@@ -19,9 +18,9 @@ export class UserApiKey {
     @Column({ type: 'text' })
     encryptedValue!: string;
 
-    @ManyToOne(() => McpServer, server => server.userApiKeys, { onDelete: 'CASCADE' })
+    @ManyToOne('McpServer', 'userApiKeys', { onDelete: 'CASCADE' })
     @JoinColumn({ name: 'serverId' })
-    server!: McpServer;
+    server!: any; // Type will be resolved at runtime
 
     @CreateDateColumn()
     createdAt!: Date;

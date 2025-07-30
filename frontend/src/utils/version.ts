@@ -67,9 +67,12 @@ export const checkLatestVersion = async (): Promise<string | null> => {
  * ```
  */
 export const compareVersions = (current: string, latest: string): number => {
+  // undefined 체크 추가
+  if (!current || !latest) return 0;
+
   // 개발 버전은 항상 오래된 것으로 처리
   if (current === 'dev') return -1;
-  
+
   const currentParts = current.split('.').map(Number);
   const latestParts = latest.split('.').map(Number);
 

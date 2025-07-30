@@ -1,5 +1,4 @@
 import { Column, CreateDateColumn, Entity, JoinColumn, ManyToOne, PrimaryGeneratedColumn, UpdateDateColumn } from 'typeorm';
-import { McpServer } from './McpServer.js';
 
 @Entity('mcp_server_env_vars')
 export class McpServerEnvVar {
@@ -33,9 +32,9 @@ export class McpServerEnvVar {
     @Column({ type: 'int', default: 0 })
     sortOrder!: number;
 
-    @ManyToOne(() => McpServer, server => server.environmentVariables, { onDelete: 'CASCADE' })
+    @ManyToOne('McpServer', 'environmentVariables', { onDelete: 'CASCADE' })
     @JoinColumn({ name: 'serverId' })
-    server!: McpServer;
+    server!: any; // Type will be resolved at runtime
 
     @CreateDateColumn()
     createdAt!: Date;

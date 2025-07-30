@@ -60,16 +60,16 @@ export const getGroups = (_: Request, res: Response): void => {
  */
 export const getGroup = (req: Request, res: Response): void => {
   try {
-    const { id } = req.params;
-    if (!id) {
+    const { name } = req.params;
+    if (!name) {
       res.status(400).json({
         success: false,
-        message: 'Group ID is required',
+        message: 'Group name is required',
       });
       return;
     }
 
-    const group = getGroupByIdOrName(id);
+    const group = getGroupByIdOrName(name);
     if (!group) {
       res.status(404).json({
         success: false,

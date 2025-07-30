@@ -1,15 +1,14 @@
-import React, { useState, useEffect } from 'react';
-import { useTranslation } from 'react-i18next';
-import { 
-  Users, 
-  Plus, 
-  Edit, 
-  Trash2, 
-  Shield, 
-  User,
+import {
+  Edit,
+  Plus,
   Search,
-  Filter
+  Shield,
+  Trash2,
+  User,
+  Users
 } from 'lucide-react';
+import React, { useEffect, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 
 interface User {
   id: string;
@@ -29,55 +28,44 @@ const UsersPage: React.FC = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [filterRole, setFilterRole] = useState<'all' | 'admin' | 'user'>('all');
 
-  // 임시 데이터 (실제로는 API에서 가져와야 함)
+  // 사용자 데이터 로드
   useEffect(() => {
-    const mockUsers: User[] = [
-      {
-        id: '1',
-        githubUsername: 'jungchihoon',
-        email: 'jungchihoon@example.com',
-        displayName: '정치훈',
-        isAdmin: true,
-        isActive: true,
-        lastLoginAt: '2025-07-23T08:05:46.978Z',
-        createdAt: '2025-01-01T00:00:00Z'
-      },
-      {
-        id: '2',
-        githubUsername: 'admin',
-        email: 'admin@example.com',
-        displayName: '관리자',
-        isAdmin: true,
-        isActive: true,
-        lastLoginAt: '2025-07-22T10:30:00Z',
-        createdAt: '2024-12-01T00:00:00Z'
-      },
-      {
-        id: '3',
-        githubUsername: 'user1',
-        email: 'user1@example.com',
-        displayName: '일반사용자1',
-        isAdmin: false,
-        isActive: true,
-        lastLoginAt: '2025-07-21T15:20:00Z',
-        createdAt: '2025-02-15T00:00:00Z'
-      }
-    ];
+    const fetchUsers = async () => {
+      try {
+        setLoading(true);
+        const token = localStorage.getItem('mcphub_token');
+        const response = await fetch('/api/admin/users', {
+          headers: {
+            'x-auth-token': token || '',
+          },
+        });
 
-    setTimeout(() => {
-      setUsers(mockUsers);
-      setLoading(false);
-    }, 1000);
+        if (response.ok) {
+          const data = await response.json();
+          setUsers(data.data || []);
+        } else {
+          console.error('사용자 데이터 로드 실패:', response.status);
+          setUsers([]);
+        }
+      } catch (error) {
+        console.error('사용자 데이터 로드 실패:', error);
+        setUsers([]);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchUsers();
   }, []);
 
   const filteredUsers = users.filter(user => {
     const matchesSearch = user.githubUsername.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         user.displayName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         user.email?.toLowerCase().includes(searchTerm.toLowerCase());
-    
-    const matchesRole = filterRole === 'all' || 
-                       (filterRole === 'admin' && user.isAdmin) ||
-                       (filterRole === 'user' && !user.isAdmin);
+      user.displayName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      user.email?.toLowerCase().includes(searchTerm.toLowerCase());
+
+    const matchesRole = filterRole === 'all' ||
+      (filterRole === 'admin' && user.isAdmin) ||
+      (filterRole === 'user' && !user.isAdmin);
 
     return matchesSearch && matchesRole;
   });
@@ -87,13 +75,13 @@ const UsersPage: React.FC = () => {
   };
 
   const handleToggleAdmin = (userId: string) => {
-    setUsers(prev => prev.map(user => 
+    setUsers(prev => prev.map(user =>
       user.id === userId ? { ...user, isAdmin: !user.isAdmin } : user
     ));
   };
 
   const handleToggleActive = (userId: string) => {
-    setUsers(prev => prev.map(user => 
+    setUsers(prev => prev.map(user =>
       user.id === userId ? { ...user, isActive: !user.isActive } : user
     ));
   };
@@ -213,11 +201,10 @@ const UsersPage: React.FC = () => {
                   <td className="px-6 py-4 whitespace-nowrap">
                     <button
                       onClick={() => handleToggleAdmin(user.id)}
-                      className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                        user.isAdmin
-                          ? 'bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200'
-                          : 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-200'
-                      }`}
+                      className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${user.isAdmin
+                        ? 'bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200'
+                        : 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-200'
+                        }`}
                     >
                       {user.isAdmin ? (
                         <>
@@ -235,11 +222,10 @@ const UsersPage: React.FC = () => {
                   <td className="px-6 py-4 whitespace-nowrap">
                     <button
                       onClick={() => handleToggleActive(user.id)}
-                      className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                        user.isActive
-                          ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200'
-                          : 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200'
-                      }`}
+                      className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${user.isActive
+                        ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200'
+                        : 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200'
+                        }`}
                     >
                       {user.isActive ? '활성' : '비활성'}
                     </button>
@@ -255,7 +241,7 @@ const UsersPage: React.FC = () => {
                       <button className="text-blue-600 hover:text-blue-900 dark:text-blue-400 dark:hover:text-blue-300">
                         <Edit className="h-4 w-4" />
                       </button>
-                      <button 
+                      <button
                         onClick={() => handleDeleteUser(user.id)}
                         className="text-red-600 hover:text-red-900 dark:text-red-400 dark:hover:text-red-300"
                       >

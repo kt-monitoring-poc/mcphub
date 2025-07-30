@@ -12,11 +12,12 @@
  * - 버전 정보 표시
  */
 
-import { UserProfileMenu } from '@/components/ui/UserProfileMenu';
+import UserProfileMenu from '@/components/ui/UserProfileMenu';
 import { useAuth } from '@/contexts/AuthContext';
+import { useToast } from '@/contexts/ToastContext';
 import React from 'react';
 import { useTranslation } from 'react-i18next';
-import { NavLink } from 'react-router-dom';
+import { NavLink, useNavigate } from 'react-router-dom';
 
 /**
  * Sidebar 컴포넌트의 Props 인터페이스

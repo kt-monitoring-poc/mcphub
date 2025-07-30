@@ -69,16 +69,20 @@ export const EditMcpServerForm: React.FC<EditMcpServerFormProps> = ({
 
     useEffect(() => {
         // 기존 환경변수 데이터 로드 (id 제외)
-        setEnvVars(server.environmentVariables.map(env => ({
-            varName: env.varName,
-            displayName: env.displayName,
-            description: env.description || '',
-            required: env.required,
-            isSecret: env.isSecret,
-            defaultValue: env.defaultValue || '',
-            validationRegex: env.validationRegex || '',
-            sortOrder: env.sortOrder
-        })));
+        if (server.environmentVariables && Array.isArray(server.environmentVariables)) {
+            setEnvVars(server.environmentVariables.map(env => ({
+                varName: env.varName,
+                displayName: env.displayName,
+                description: env.description || '',
+                required: env.required,
+                isSecret: env.isSecret,
+                defaultValue: env.defaultValue || '',
+                validationRegex: env.validationRegex || '',
+                sortOrder: env.sortOrder
+            })));
+        } else {
+            setEnvVars([]);
+        }
     }, [server]);
 
     const addEnvVar = () => {

@@ -1,3 +1,4 @@
+import ThemeSwitch from '@/components/ui/ThemeSwitch';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/contexts/ToastContext';
 import {
@@ -71,11 +72,6 @@ const AdminLayout: React.FC<AdminLayoutProps> = () => {
     showToast('로그아웃되었습니다.', 'success');
   };
 
-  const handleNavigateToUser = () => {
-    navigate('/');
-    showToast('일반 사용자 모드로 전환되었습니다.', 'info');
-  };
-
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
       {/* 헤더 */}
@@ -88,21 +84,12 @@ const AdminLayout: React.FC<AdminLayoutProps> = () => {
             >
               {sidebarOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
             </button>
-            <h1 className="text-xl font-bold text-gray-900 dark:text-white">
+            <h1 className="text-lg font-semibold text-gray-900 dark:text-white">
               MCPHub 관리자
             </h1>
           </div>
-
-          <div className="flex items-center space-x-4">
-            <span className="text-sm text-gray-600 dark:text-gray-300">
-              관리자: {user?.githubUsername || user?.username}
-            </span>
-            <button
-              onClick={handleNavigateToUser}
-              className="px-3 py-1.5 text-sm bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors"
-            >
-              일반 모드
-            </button>
+          <div className="flex items-center space-x-3">
+            <ThemeSwitch />
             <button
               onClick={handleLogout}
               className="flex items-center space-x-1 px-3 py-1.5 text-sm text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white"

@@ -97,13 +97,16 @@ export class AppServer {
       // Express 미들웨어 초기화 (CORS, 바디 파서 등)
       initMiddlewares(this.app);
 
-      // Routes 초기화
+      // MCP 서버 관리 라우트 추가 (initRoutes 이전에 등록)
+      // TODO: DB 시스템 오류 해결 후 활성화
+      // const mcpServerRoutes = await import('./routes/mcpServerRoutes.js');
+      // this.app.use(`${config.basePath}/api/mcp`, mcpServerRoutes.default);
+
+      // Routes 초기화 (API 라우트를 먼저 등록)
       initRoutes(this.app);
 
-      // MCP 서버 관리 라우트 추가
-      const mcpServerRoutes = await import('./routes/mcpServerRoutes.js');
-      this.app.use(`${config.basePath}/api/mcp`, mcpServerRoutes.default);
-      console.log('Server initialized successfully');
+      // 프론트엔드 정적 파일 서빙 설정 (API 라우트 이후에 설정)
+      this.findAndServeFrontend();
 
       // MCP 서버들 초기화 및 연결
       initUpstreamServers()
@@ -124,10 +127,6 @@ export class AppServer {
         .catch((error) => {
           console.error('Error initializing MCP server:', error);
           throw error;
-        })
-        .finally(() => {
-          // 프론트엔드 정적 파일 서빙 설정
-          this.findAndServeFrontend();
         });
     } catch (error) {
       console.error('Error initializing server:', error);
@@ -157,7 +156,14 @@ export class AppServer {
 
       // SPA를 위한 와일드카드 라우트 설정 (모든 경로를 index.html로 리다이렉트)
       if (fs.existsSync(path.join(this.frontendPath, 'index.html'))) {
-        this.app.get(`${this.basePath}/*`, (_req, res) => {
+        this.app.get(`${this.basePath}/*`, (req, res) => {
+          // API 경로는 제외
+          if (req.path.startsWith('/api/')) {
+            return res.status(404).json({
+              success: false,
+              message: 'API endpoint not found'
+            });
+          }
           res.sendFile(path.join(this.frontendPath!, 'index.html'));
         });
 

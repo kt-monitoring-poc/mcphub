@@ -1,10 +1,10 @@
-import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { useTranslation } from 'react-i18next';
-import { useAuth } from '../contexts/AuthContext';
 import ThemeSwitch from '@/components/ui/ThemeSwitch';
+import { useAuth } from '@/contexts/AuthContext';
+import React, { useState } from 'react';
+import { useTranslation } from 'react-i18next';
+import { useNavigate } from 'react-router-dom';
 import { GitHubIcon } from '../components/icons/GitHubIcon';
-import authService from '../services/authService'; // Added import for authService
+import * as authService from '../services/authService';
 
 const LoginPage: React.FC = () => {
   const { t } = useTranslation();
@@ -66,7 +66,7 @@ const LoginPage: React.FC = () => {
             계정 정보를 입력하거나 GitHub로 로그인하세요
           </p>
         </div>
-        
+
         <form className="mt-8 space-y-6" onSubmit={handleSubmit}>
           <div className="rounded-md -space-y-px">
             <div>
@@ -141,7 +141,7 @@ const LoginPage: React.FC = () => {
             </button>
           </div>
         </form>
-        
+
         <div className="text-center">
           <p className="text-xs text-gray-500 dark:text-gray-400">
             로그인하면 MCPHub의 이용약관 및 개인정보처리방침에 동의하는 것으로 간주됩니다.

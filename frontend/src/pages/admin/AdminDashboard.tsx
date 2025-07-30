@@ -1,18 +1,14 @@
-import React, { useState, useEffect } from 'react';
-import { useTranslation } from 'react-i18next';
-import { 
-  Users, 
-  Server, 
-  Key, 
-  FileText, 
+import {
   Activity,
-  TrendingUp,
   AlertTriangle,
   CheckCircle,
-  XCircle,
-  Clock,
-  RefreshCw
+  FileText,
+  Server,
+  Users,
+  XCircle
 } from 'lucide-react';
+import React, { useEffect, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useToast } from '../../contexts/ToastContext';
 import { getToken } from '../../services/authService';
 
@@ -55,31 +51,42 @@ const AdminDashboard: React.FC = () => {
   // 시스템 통계 로드
   const loadSystemStats = async () => {
     try {
-      const token = getToken();
+      // 실제 API 호출 시도
+      const token = localStorage.getItem('mcphub_token');
       const response = await fetch('/api/admin/stats', {
         headers: {
-          'Authorization': `Bearer ${token}`,
-          'x-auth-token': token || ''
-        }
+          'x-auth-token': token || '',
+        },
       });
 
       if (response.ok) {
-        const result = await response.json();
-        setStats(result.data || {});
+        const data = await response.json();
+        setStats(data.data);
       } else {
-        throw new Error('시스템 통계 로드 실패');
+        console.error('시스템 통계 로드 실패:', response.status);
+        // 기본값 설정
+        setStats({
+          totalUsers: 0,
+          activeUsers: 0,
+          totalServers: 0,
+          activeServers: 0,
+          totalKeys: 0,
+          activeKeys: 0,
+          todayLogs: 0,
+          systemStatus: 'healthy'
+        });
       }
     } catch (error) {
-      console.error('시스템 통계 로드 오류:', error);
-      // 임시 데이터 사용
+      console.error('시스템 통계 로드 실패:', error);
+      // 에러 시에도 기본값 제공
       setStats({
-        totalUsers: 3,
-        activeUsers: 2,
-        totalServers: 4,
-        activeServers: 3,
-        totalKeys: 2,
-        activeKeys: 2,
-        todayLogs: 1247,
+        totalUsers: 0,
+        activeUsers: 0,
+        totalServers: 0,
+        activeServers: 0,
+        totalKeys: 0,
+        activeKeys: 0,
+        todayLogs: 0,
         systemStatus: 'healthy'
       });
     }
@@ -158,7 +165,7 @@ const AdminDashboard: React.FC = () => {
       case 'server':
         return <Server className="h-4 w-4 text-green-600" />;
       case 'key':
-        return <Key className="h-4 w-4 text-purple-600" />;
+        return <XCircle className="h-4 w-4 text-purple-600" />;
       case 'warning':
         return <AlertTriangle className="h-4 w-4 text-red-600" />;
       case 'info':
@@ -194,17 +201,10 @@ const AdminDashboard: React.FC = () => {
     }
   };
 
-  const handleRefresh = () => {
-    setLoading(true);
-    loadSystemStats();
-    loadRecentActivities();
-    showToast('데이터를 새로고침했습니다.', 'success');
-  };
-
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
-        <RefreshCw className="w-8 h-8 animate-spin text-blue-600" />
+        <Activity className="w-8 h-8 animate-spin text-blue-600" />
         <span className="ml-2 text-gray-600">데이터를 불러오는 중...</span>
       </div>
     );
@@ -229,13 +229,6 @@ const AdminDashboard: React.FC = () => {
               {getSystemStatusText(stats.systemStatus)}
             </span>
           </div>
-          <button
-            onClick={handleRefresh}
-            className="flex items-center px-3 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
-          >
-            <RefreshCw className="w-4 h-4 mr-2" />
-            새로고침
-          </button>
         </div>
       </div>
 
@@ -288,7 +281,7 @@ const AdminDashboard: React.FC = () => {
                 활성: {stats.activeKeys}
               </p>
             </div>
-            <Key className="h-8 w-8 text-purple-600" />
+            <XCircle className="h-8 w-8 text-purple-600" />
           </div>
         </div>
 
@@ -350,7 +343,7 @@ const AdminDashboard: React.FC = () => {
               사용자 관리
             </button>
             <button className="w-full flex items-center justify-center px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors">
-              <Key className="w-4 h-4 mr-2" />
+              <XCircle className="w-4 h-4 mr-2" />
               키 현황 확인
             </button>
             <button className="w-full flex items-center justify-center px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors">
@@ -390,7 +383,7 @@ const AdminDashboard: React.FC = () => {
           </h3>
           <div className="space-y-3">
             <div className="flex items-center space-x-2">
-              <Clock className="w-4 h-4 text-blue-600" />
+              <Activity className="w-4 h-4 text-blue-600" />
               <span className="text-sm text-gray-600 dark:text-gray-400">
                 정기 백업 예정: 2시간 후
               </span>

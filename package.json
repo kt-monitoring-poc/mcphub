@@ -34,7 +34,11 @@
     "frontend:preview": "cd frontend && vite preview",
     "dev": "concurrently \"pnpm backend:dev\" \"pnpm frontend:dev\"",
     "debug": "concurrently \"pnpm backend:debug\" \"pnpm frontend:dev\"",
-    "prepublishOnly": "npm run build && node scripts/verify-dist.js"
+    "prepublishOnly": "npm run build && node scripts/verify-dist.js",
+    "db:validate": "node scripts/validate-schema.js",
+    "db:export": "pg_dump postgresql://localhost:5432/mcphub > database-backup.sql",
+    "db:import": "psql postgresql://localhost:5432/mcphub < database-backup.sql",
+    "api:test": "echo 'API 테스트 스크립트가 삭제되었습니다. TODO-PHASE3-CLEANUP.md를 참조하세요.'"
   },
   "keywords": [
     "typescript",
