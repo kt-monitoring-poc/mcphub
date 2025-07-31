@@ -60,10 +60,10 @@ const LoginPage: React.FC = () => {
       <div className="max-w-md w-full space-y-8 login-card p-8">
         <div>
           <h2 className="mt-6 text-center text-3xl font-extrabold text-gray-900 dark:text-white">
-            MCPHub에 로그인
+            관리자 로그인
           </h2>
           <p className="mt-2 text-center text-sm text-gray-600 dark:text-gray-400">
-            계정 정보를 입력하거나 GitHub로 로그인하세요
+            시스템 관리자만 접근 가능합니다
           </p>
         </div>
 
@@ -124,7 +124,7 @@ const LoginPage: React.FC = () => {
             </div>
             <div className="relative flex justify-center text-sm">
               <span className="px-2 bg-gray-50 dark:bg-gray-900 text-gray-500 dark:text-gray-400">
-                또는
+                일반 사용자
               </span>
             </div>
           </div>
@@ -137,8 +137,12 @@ const LoginPage: React.FC = () => {
               className="group relative w-full flex justify-center py-2 px-4 border border-gray-300 dark:border-gray-600 text-sm font-medium rounded-md text-gray-700 dark:text-gray-200 bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500 transition-all duration-200"
             >
               <GitHubIcon className="w-5 h-5 mr-2" />
-              GitHub로 로그인
+              GitHub OAuth로 로그인하기
             </button>
+
+            <p className="mt-3 text-sm text-center text-gray-500 dark:text-gray-400">
+              일반 사용자는 GitHub OAuth로만 로그인 가능합니다
+            </p>
           </div>
         </form>
 

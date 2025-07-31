@@ -2,17 +2,15 @@
  * 사이드바 컴포넌트
  * 
  * 애플리케이션의 주요 네비게이션을 담당하는 사이드바 컴포넌트입니다.
- * 접을 수 있는 네비게이션 메뉴와 사용자 프로필 메뉴를 제공합니다.
+ * 접을 수 있는 네비게이션 메뉴를 제공합니다.
  * 
  * 주요 기능:
  * - 접을 수 있는 네비게이션 메뉴
  * - 대시보드, 서버, 그룹, 마켓, 로그 페이지 링크
  * - 활성 페이지 하이라이트
- * - 사용자 프로필 메뉴
- * - 버전 정보 표시
  */
 
-import UserProfileMenu from '@/components/ui/UserProfileMenu';
+
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/contexts/ToastContext';
 import React from 'react';
@@ -53,12 +51,12 @@ interface MenuItem {
  */
 const Sidebar: React.FC<SidebarProps> = ({ collapsed }) => {
   const { t } = useTranslation();
-  const { user } = useAuth();
+  const { auth } = useAuth();
   const navigate = useNavigate();
   const { showToast } = useToast();
 
   // 메뉴 아이템 구성 (관리자/일반 사용자 구분)
-  const allMenuItems: MenuItem[] = user?.isAdmin ? [
+  const allMenuItems: MenuItem[] = auth.user?.isAdmin ? [
     // 관리자 전용 통합 메뉴
     {
       path: '/admin/dashboard',
@@ -195,10 +193,7 @@ const Sidebar: React.FC<SidebarProps> = ({ collapsed }) => {
         </nav>
       </div>
 
-      {/* 사용자 프로필 메뉴 (하단 고정) */}
-      <div className="p-3 border-t border-gray-200 dark:border-gray-700">
-        <UserProfileMenu collapsed={collapsed} />
-      </div>
+
     </aside>
   );
 };

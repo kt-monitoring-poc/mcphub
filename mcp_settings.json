@@ -1,77 +1,43 @@
 {
   "mcpServers": {
-    "firecrawl-mcp": {
-      "type": "sse",
-      "url": "https://mcp.firecrawl.dev/${USER_FIRECRAWL_TOKEN}/sse",
-      "name": "Firecrawl MCP Server",
-      "description": "웹 스크래핑 및 데이터 추출을 위한 Firecrawl 서비스",
-      "group": "data",
-      "enabled": false
-    },
-    "github": {
-      "type": "streamable-http",
-      "url": "https://api.githubcopilot.com/mcp/",
-      "enabled": false,
-      "headers": {
-        "Authorization": "Bearer ${USER_GITHUB_TOKEN}"
-      }
-    },
     "test": {
       "type": "streamable-http",
       "url": "https://streamable-http-test-mcp.livelybeach-90f399a8.koreacentral.azurecontainerapps.io/mcp",
       "name": "Test Streamable HTTP Server",
       "description": "로컬 테스트용 StreamableHTTP MCP 서버",
+      "enabled": false,
+      "headers": {
+        "Content-Type": "application/json",
+        "Accept": "application/json"
+      }
+    },
+    "mcp-atlassian": {
+      "type": "streamable-http",
+      "url": "https://mcp-atlassian.livelybeach-90f399a8.koreacentral.azurecontainerapps.io/mcp/",
       "enabled": true,
       "headers": {
-        "Content-Type": "application/json",
-        "Accept": "application/json"
+        "Authorization": "Bearer USER_ATLASSIAN_TOKEN",
+        "X-User-Email": "giglepeople@gmail.com",
+        "X-Atlassian-Cloud-Id": "kautotest"
       }
     },
-    "confluence": {
+    "jira-azure": {
       "type": "streamable-http",
-      "url": "https://api.atlassian.com/mcp/confluence",
-      "name": "Confluence MCP Server",
-      "description": "Atlassian Confluence 문서 및 페이지 관리",
-      "group": "collaboration",
-      "enabled": false,
+      "url": "https://streamable-jira-mcp-server-kt.greentree-fe6d930a.koreacentral.azurecontainerapps.io/mcp",
+      "enabled": true,
       "headers": {
-        "Authorization": "Bearer ${USER_CONFLUENCE_TOKEN}",
-        "Content-Type": "application/json",
-        "Accept": "application/json"
+        "X-Jira-Base-Url": "https://emoket.atlassian.net",
+        "X-Jira-Email": "insight.emoket@gmail.com",
+        "X-Jira-Api-Token": "USER_JIRA_API_TOKEN"
       }
     },
-    "jira": {
+    "GitHub PR MCP (ACA)": {
       "type": "streamable-http",
-      "url": "https://api.atlassian.com/mcp/jira",
-      "name": "Jira MCP Server",
-      "description": "Atlassian Jira 이슈 및 프로젝트 관리",
-      "group": "collaboration",
-      "enabled": false,
+      "url": "https://github-pr-mcp-server.livelybeach-90f399a8.koreacentral.azurecontainerapps.io/mcp/",
+      "enabled": true,
       "headers": {
-        "Authorization": "Bearer ${USER_JIRA_TOKEN}",
-        "Content-Type": "application/json",
-        "Accept": "application/json"
-      }
-    },
-    "jira-emoket": {
-      "type": "stdio",
-      "command": "npx",
-      "args": [
-        "jira-mcp-server-kt"
-      ],
-      "enabled": false,
-      "env": {
-        "USER_JIRA_BASE_URL": "https://your-domain.atlassian.net",
-        "USER_JIRA_EMAIL": "your-email@company.com",
-        "USER_JIRA_API_TOKEN": "your_api_token"
+        "Authorization": "Bearer USER_GITHUB_TOKEN"
       }
     }
-  },
-  "users": [
-    {
-      "username": "admin",
-      "password": "$2b$10$7CV9ufVLDeaOK7CDgwzm4.12b0I.ueBKVMmjJuiEnn4m2jABRrYra",
-      "isAdmin": true
-    }
-  ]
+  }
 }

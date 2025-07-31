@@ -17,10 +17,11 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import config from './config/index.js';
 import { configurePassport, validateGitHubOAuthConfig } from './config/passport.js';
+import { initializeDatabase } from './db/connection.js';
 import { initMiddlewares } from './middlewares/index.js';
 import { initializeDefaultUser } from './models/User.js';
 import { initRoutes } from './routes/index.js';
-import { initUpstreamServers } from './services/mcpService.js';
+import { getServersInfo, initUpstreamServers } from './services/mcpService.js';
 import {
   handleMcpOtherRequest,
   handleMcpPostRequest,
@@ -63,6 +64,10 @@ export class AppServer {
    */
   async initialize(): Promise<void> {
     try {
+      // 데이터베이스 초기화
+      await initializeDatabase();
+      console.log('✅ 데이터베이스 초기화 완료');
+
       // 사용자가 없는 경우 기본 관리자 사용자 생성
       await initializeDefaultUser();
 
@@ -111,7 +116,7 @@ export class AppServer {
       // MCP 서버들 초기화 및 연결
       initUpstreamServers()
         .then(() => {
-          console.log('MCP server initialized successfully');
+          console.log('✅ MCP 서버 초기화 프로세스 완료');
 
           // SSE 연결 엔드포인트 설정 (실시간 통신용)
           this.app.get(`${this.basePath}/sse/:group?`, (req, res) => handleSseConnection(req, res));
@@ -202,14 +207,45 @@ export class AppServer {
     server.headersTimeout = 66000;   // keepAliveTimeout보다 약간 크게
 
     server.listen(this.port, () => {
-      console.log(`Server is running on port ${this.port} (HTTP/1.1)`);
-      if (this.frontendPath) {
-        console.log(`Open http://localhost:${this.port} in your browser to access MCPHub UI`);
-      } else {
-        console.log(
-          `MCPHub API is running on http://localhost:${this.port}, but the UI is not available`,
-        );
-      }
+      console.log(`\n🚀 MCPHub Server is running on port ${this.port} (HTTP/1.1)`);
+
+      // MCP 서버 상태 요약
+      setTimeout(() => {
+        const serverInfos = getServersInfo();
+        const connectedServers = serverInfos.filter((s: any) => s.status === 'connected');
+        const disconnectedServers = serverInfos.filter((s: any) => s.status === 'disconnected');
+        const disabledServers = serverInfos.filter((s: any) => s.enabled === false);
+
+        console.log(`\n📊 MCP Server Status Summary:`);
+        console.log(`   ✅ Connected: ${connectedServers.length} servers`);
+        if (connectedServers.length > 0) {
+          connectedServers.forEach((s: any) => {
+            console.log(`      - ${s.name} (${s.tools.length} tools)`);
+          });
+        }
+
+        if (disconnectedServers.length > 0) {
+          console.log(`   ⚠️  Disconnected: ${disconnectedServers.length} servers`);
+          disconnectedServers.forEach((s: any) => {
+            console.log(`      - ${s.name}`);
+          });
+        }
+
+        if (disabledServers.length > 0) {
+          console.log(`   🔴 Disabled: ${disabledServers.length} servers`);
+          disabledServers.forEach((s: any) => {
+            console.log(`      - ${s.name}`);
+          });
+        }
+
+        console.log(`\n💡 MCPHub is ready!`);
+        if (this.frontendPath) {
+          console.log(`   Open http://localhost:${this.port} in your browser to access MCPHub UI`);
+        } else {
+          console.log(`   API is available at http://localhost:${this.port}`);
+        }
+        console.log('');
+      }, 1000); // 1초 후에 상태 출력 (서버들이 연결될 시간 확보)
     });
   }
 

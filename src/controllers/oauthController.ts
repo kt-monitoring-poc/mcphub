@@ -307,6 +307,14 @@ export const createUserKey = async (req: Request, res: Response) => {
       });
     }
 
+    // 사용자 활성화 상태 체크
+    if (!user.isActive) {
+      return res.status(403).json({
+        success: false,
+        message: '비활성화된 사용자는 MCPHub Key를 발급받을 수 없습니다.'
+      });
+    }
+
     // 키 이름을 고정으로 설정
     const keyName = 'MCPHub Key';
     const description = 'Cursor IDE에서 사용할 MCPHub Key입니다.';

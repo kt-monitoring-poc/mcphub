@@ -22,12 +22,12 @@ const AdminLayout: React.FC<AdminLayoutProps> = () => {
   const { t } = useTranslation();
   const navigate = useNavigate();
   const location = useLocation();
-  const { user, logout } = useAuth();
+  const { auth, logout } = useAuth();
   const { showToast } = useToast();
   const [sidebarOpen, setSidebarOpen] = useState(true);
 
   // 관리자 권한 확인
-  if (!user?.isAdmin) {
+  if (!auth.user?.isAdmin) {
     showToast('관리자 권한이 필요합니다.', 'error');
     navigate('/');
     return null;

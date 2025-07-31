@@ -7,7 +7,6 @@
     "loading": "로딩 중...",
     "logout": "로그아웃",
     "profile": "프로필",
-    "changePassword": "비밀번호 변경",
     "toggleSidebar": "사이드바 토글",
     "welcomeUser": "환영합니다, {{username}}님",
     "name": "MCP Hub"
@@ -17,7 +16,6 @@
     "servers": "서버",
     "groups": "그룹",
     "settings": "설정",
-    "changePassword": "비밀번호 변경",
     "market": "마켓",
     "logs": "로그",
     "apiKeys": "MCPHub Keys"
@@ -68,16 +66,7 @@
     "loggingIn": "로그인 중...",
     "emptyFields": "사용자명과 비밀번호는 비워둘 수 없습니다",
     "loginFailed": "로그인 실패, 사용자명과 비밀번호를 확인해주세요",
-    "loginError": "로그인 중 오류가 발생했습니다",
-    "currentPassword": "현재 비밀번호",
-    "newPassword": "새 비밀번호",
-    "confirmPassword": "비밀번호 확인",
-    "passwordsNotMatch": "새 비밀번호와 확인이 일치하지 않습니다",
-    "changePasswordSuccess": "비밀번호가 성공적으로 변경되었습니다",
-    "changePasswordError": "비밀번호 변경에 실패했습니다",
-    "changePassword": "비밀번호 변경",
-    "passwordChanged": "비밀번호가 성공적으로 변경되었습니다",
-    "passwordChangeError": "비밀번호 변경에 실패했습니다"
+    "loginError": "로그인 중 오류가 발생했습니다"
   },
   "admin": {
     "title": "MCPHub 관리자",

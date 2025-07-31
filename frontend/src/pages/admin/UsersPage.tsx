@@ -1,67 +1,127 @@
-import {
-  Edit,
-  Plus,
-  Search,
-  Shield,
-  Trash2,
-  User,
-  Users
-} from 'lucide-react';
+import { useToast } from '@/contexts/ToastContext';
+import { deleteUser, getAllUsers, toggleUserActive, toggleUserAdmin } from '@/services/authService';
+import { Search, Shield, Trash2, User, Users } from 'lucide-react';
 import React, { useEffect, useState } from 'react';
-import { useTranslation } from 'react-i18next';
 
 interface User {
   id: string;
-  githubUsername: string;
+  githubId?: string;
+  githubUsername?: string;
+  username?: string;
   email?: string;
+  avatarUrl?: string;
   displayName?: string;
+  githubProfileUrl?: string;
   isAdmin: boolean;
   isActive: boolean;
   lastLoginAt?: string;
   createdAt: string;
+  updatedAt: string;
+  keyCount?: number;
 }
 
 const UsersPage: React.FC = () => {
-  const { t } = useTranslation();
   const [users, setUsers] = useState<User[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [filterRole, setFilterRole] = useState<'all' | 'admin' | 'user'>('all');
+  const { showToast } = useToast();
 
-  // 사용자 데이터 로드
-  useEffect(() => {
-    const fetchUsers = async () => {
-      try {
-        setLoading(true);
-        const token = localStorage.getItem('mcphub_token');
-        const response = await fetch('/api/admin/users', {
-          headers: {
-            'x-auth-token': token || '',
-          },
-        });
+  const formatDate = (dateString: string) => {
+    return new Date(dateString).toLocaleDateString('ko-KR', {
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit'
+    });
+  };
 
-        if (response.ok) {
-          const data = await response.json();
-          setUsers(data.data || []);
-        } else {
-          console.error('사용자 데이터 로드 실패:', response.status);
-          setUsers([]);
-        }
-      } catch (error) {
-        console.error('사용자 데이터 로드 실패:', error);
-        setUsers([]);
-      } finally {
-        setLoading(false);
+  const fetchUsers = async () => {
+    try {
+      setLoading(true);
+      const response = await getAllUsers();
+      if (response.success) {
+        setUsers(response.data);
+      } else {
+        showToast('사용자 목록 조회에 실패했습니다.', 'error');
       }
-    };
+    } catch (error) {
+      console.error('Error fetching users:', error);
+      showToast('사용자 목록 조회 중 오류가 발생했습니다.', 'error');
+    } finally {
+      setLoading(false);
+    }
+  };
 
+  useEffect(() => {
     fetchUsers();
   }, []);
 
+  const handleToggleAdmin = async (userId: string) => {
+    const user = users.find(u => u.id === userId);
+    if (!user) return;
+
+    try {
+      const response = await toggleUserAdmin(userId, !user.isAdmin);
+      if (response.success) {
+        setUsers(prev => prev.map(u =>
+          u.id === userId ? { ...u, isAdmin: !u.isAdmin } : u
+        ));
+        showToast(response.message, 'success');
+      } else {
+        showToast(response.message, 'error');
+      }
+    } catch (error: any) {
+      console.error('Error toggling admin role:', error);
+      showToast(error.message || '권한 변경에 실패했습니다.', 'error');
+    }
+  };
+
+  const handleToggleActive = async (userId: string) => {
+    const user = users.find(u => u.id === userId);
+    if (!user) return;
+
+    try {
+      const response = await toggleUserActive(userId, !user.isActive);
+      if (response.success) {
+        setUsers(prev => prev.map(u =>
+          u.id === userId ? { ...u, isActive: !u.isActive } : u
+        ));
+        showToast(response.message, 'success');
+      } else {
+        showToast(response.message, 'error');
+      }
+    } catch (error: any) {
+      console.error('Error toggling active status:', error);
+      showToast(error.message || '활성화 상태 변경에 실패했습니다.', 'error');
+    }
+  };
+
+  const handleDeleteUser = async (userId: string) => {
+    if (!window.confirm('정말로 이 사용자를 삭제하시겠습니까? 이 작업은 되돌릴 수 없습니다.')) {
+      return;
+    }
+
+    try {
+      const response = await deleteUser(userId);
+      if (response.success) {
+        setUsers(prev => prev.filter(user => user.id !== userId));
+        showToast(response.message, 'success');
+      } else {
+        showToast(response.message, 'error');
+      }
+    } catch (error: any) {
+      console.error('Error deleting user:', error);
+      showToast(error.message || '사용자 삭제에 실패했습니다.', 'error');
+    }
+  };
+
   const filteredUsers = users.filter(user => {
-    const matchesSearch = user.githubUsername.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      user.displayName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      user.email?.toLowerCase().includes(searchTerm.toLowerCase());
+    const matchesSearch = (user.githubUsername?.toLowerCase().includes(searchTerm.toLowerCase()) ?? false) ||
+      (user.username?.toLowerCase().includes(searchTerm.toLowerCase()) ?? false) ||
+      (user.displayName?.toLowerCase().includes(searchTerm.toLowerCase()) ?? false) ||
+      (user.email?.toLowerCase().includes(searchTerm.toLowerCase()) ?? false);
 
     const matchesRole = filterRole === 'all' ||
       (filterRole === 'admin' && user.isAdmin) ||
@@ -69,28 +129,6 @@ const UsersPage: React.FC = () => {
 
     return matchesSearch && matchesRole;
   });
-
-  const formatDate = (dateString: string) => {
-    return new Date(dateString).toLocaleString('ko-KR');
-  };
-
-  const handleToggleAdmin = (userId: string) => {
-    setUsers(prev => prev.map(user =>
-      user.id === userId ? { ...user, isAdmin: !user.isAdmin } : user
-    ));
-  };
-
-  const handleToggleActive = (userId: string) => {
-    setUsers(prev => prev.map(user =>
-      user.id === userId ? { ...user, isActive: !user.isActive } : user
-    ));
-  };
-
-  const handleDeleteUser = (userId: string) => {
-    if (window.confirm('정말로 이 사용자를 삭제하시겠습니까?')) {
-      setUsers(prev => prev.filter(user => user.id !== userId));
-    }
-  };
 
   if (loading) {
     return (
@@ -112,10 +150,6 @@ const UsersPage: React.FC = () => {
             MCPHub 사용자 계정을 관리하세요
           </p>
         </div>
-        <button className="flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors">
-          <Plus className="h-4 w-4 mr-2" />
-          새 사용자 초대
-        </button>
       </div>
 
       {/* 필터 및 검색 */}
@@ -147,7 +181,7 @@ const UsersPage: React.FC = () => {
         </div>
       </div>
 
-      {/* 사용자 목록 */}
+      {/* 사용자 테이블 */}
       <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm overflow-hidden">
         <div className="overflow-x-auto">
           <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
@@ -157,7 +191,7 @@ const UsersPage: React.FC = () => {
                   사용자
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
-                  역할
+                  권한
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
                   상태
@@ -179,22 +213,25 @@ const UsersPage: React.FC = () => {
                   <td className="px-6 py-4 whitespace-nowrap">
                     <div className="flex items-center">
                       <div className="flex-shrink-0 h-10 w-10">
-                        <div className="h-10 w-10 rounded-full bg-gray-300 dark:bg-gray-600 flex items-center justify-center">
-                          <User className="h-5 w-5 text-gray-600 dark:text-gray-400" />
-                        </div>
+                        {user.avatarUrl ? (
+                          <img
+                            className="h-10 w-10 rounded-full"
+                            src={user.avatarUrl}
+                            alt=""
+                          />
+                        ) : (
+                          <div className="h-10 w-10 rounded-full bg-gray-300 dark:bg-gray-600 flex items-center justify-center">
+                            <User className="h-5 w-5 text-gray-600 dark:text-gray-300" />
+                          </div>
+                        )}
                       </div>
                       <div className="ml-4">
                         <div className="text-sm font-medium text-gray-900 dark:text-white">
-                          {user.displayName || user.githubUsername}
+                          {user.displayName || user.githubUsername || user.username}
                         </div>
                         <div className="text-sm text-gray-500 dark:text-gray-400">
-                          @{user.githubUsername}
+                          {user.email}
                         </div>
-                        {user.email && (
-                          <div className="text-sm text-gray-500 dark:text-gray-400">
-                            {user.email}
-                          </div>
-                        )}
                       </div>
                     </div>
                   </td>
@@ -238,12 +275,10 @@ const UsersPage: React.FC = () => {
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                     <div className="flex items-center justify-end space-x-2">
-                      <button className="text-blue-600 hover:text-blue-900 dark:text-blue-400 dark:hover:text-blue-300">
-                        <Edit className="h-4 w-4" />
-                      </button>
                       <button
                         onClick={() => handleDeleteUser(user.id)}
                         className="text-red-600 hover:text-red-900 dark:text-red-400 dark:hover:text-red-300"
+                        title="사용자 삭제"
                       >
                         <Trash2 className="h-4 w-4" />
                       </button>

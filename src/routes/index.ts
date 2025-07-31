@@ -1,9 +1,16 @@
 import express from 'express';
-import fs from 'fs';
 import jwt from 'jsonwebtoken';
-import path from 'path';
 import { Pool } from 'pg';
 import config, { loadSettings, saveSettings } from '../config/index.js';
+import {
+  deleteUser,
+  getAllUsers,
+  getRecentActivities,
+  getSystemStats,
+  getUserKeyStatus,
+  toggleUserActive,
+  toggleUserAdmin
+} from '../controllers/adminController.js';
 import {
   getGroup
 } from '../controllers/groupController.js';
@@ -60,10 +67,18 @@ export const initRoutes = (app: express.Application): void => {
         });
       }
 
-      // 사용자 찾기
-      const user = findUserByUsername(username);
+      // 사용자 찾기 (비동기)
+      const user = await findUserByUsername(username);
 
       if (!user) {
+        return res.status(401).json({
+          success: false,
+          message: 'Invalid credentials'
+        });
+      }
+
+      // 로컬 계정 여부 확인 (비밀번호가 있는 경우)
+      if (!user.password) {
         return res.status(401).json({
           success: false,
           message: 'Invalid credentials'
@@ -288,150 +303,23 @@ export const initRoutes = (app: express.Application): void => {
     });
   });
 
-  // 관리자 API들 - 실제 데이터 구조에 맞게 수정
-  router.get('/admin/stats', async (req, res) => {
-    try {
-      const pool = new Pool({
-        connectionString: process.env.DATABASE_URL || 'postgresql://localhost:5432/mcphub'
-      });
+  // 기존 관리자 라우트들 뒤에 새로운 사용자 관리 라우트들 추가
+  // 모든 사용자 조회 (새로운 API)
+  router.get('/admin/users/list', requireAuth, requireAdmin, getAllUsers);
 
-      // 사용자 통계
-      const userStats = await pool.query(`
-        SELECT 
-          COUNT(*) as total_users,
-          COUNT(CASE WHEN "isActive" = true THEN 1 END) as active_users
-        FROM users
-      `);
+  // 사용자 활성화/비활성화
+  router.put('/admin/users/:userId/active', requireAuth, requireAdmin, toggleUserActive);
 
-      // MCPHub 키 통계
-      const keyStats = await pool.query(`
-        SELECT COUNT(*) as total_keys
-        FROM mcphub_keys
-      `);
+  // 사용자 관리자 권한 설정
+  router.put('/admin/users/:userId/admin', requireAuth, requireAdmin, toggleUserAdmin);
 
-      // MCP 서버 통계 (mcp_settings.json에서 가져오기)
-      const settingsPath = path.join(process.cwd(), 'mcp_settings.json');
-      const settings = JSON.parse(fs.readFileSync(settingsPath, 'utf8'));
+  // 사용자 삭제
+  router.delete('/admin/users/:userId', requireAuth, requireAdmin, deleteUser);
 
-      const totalServers = Object.keys(settings.servers || {}).length;
-      const activeServers = Object.values(settings.servers || {}).filter((server: any) => server.enabled).length;
-
-      await pool.end();
-
-      const stats = {
-        totalUsers: parseInt(userStats.rows[0].total_users),
-        activeUsers: parseInt(userStats.rows[0].active_users),
-        totalServers: totalServers,
-        activeServers: activeServers,
-        totalKeys: parseInt(keyStats.rows[0].total_keys),
-        activeKeys: parseInt(keyStats.rows[0].total_keys), // 모든 키가 활성 상태로 가정
-        todayLogs: 15, // 임시 값 (로그 테이블이 없음)
-        systemStatus: 'healthy' as const
-      };
-
-      res.json({
-        success: true,
-        data: stats
-      });
-    } catch (error) {
-      console.error('시스템 통계 조회 실패:', error);
-      res.status(500).json({
-        success: false,
-        message: '시스템 통계 조회에 실패했습니다.'
-      });
-    }
-  });
-
-  router.get('/admin/activities', (req, res) => {
-    res.json({
-      success: true,
-      data: []
-    });
-  });
-
-  router.get('/admin/user-keys', async (req, res) => {
-    try {
-      const pool = new Pool({
-        connectionString: process.env.DATABASE_URL || 'postgresql://localhost:5432/mcphub'
-      });
-
-      // 모든 사용자와 그들의 키 정보를 조회
-      const result = await pool.query(`
-        SELECT 
-          u.id as "userId",
-          u."githubUsername",
-          u."displayName",
-          u."isActive",
-          u."createdAt" as "userCreatedAt",
-          mk.id as "keyId",
-          mk.name as "keyName",
-          mk.description as "keyDescription",
-          mk."isActive" as "keyIsActive",
-          mk."expiresAt",
-          mk."lastUsedAt",
-          mk."usageCount",
-          mk."createdAt" as "keyCreatedAt"
-        FROM users u
-        LEFT JOIN mcphub_keys mk ON u.id = mk."userId"
-        ORDER BY u."createdAt" DESC, mk."createdAt" DESC
-      `);
-
-      await pool.end();
-
-      // 사용자별로 그룹화하여 키 상태 정보 구성
-      const userKeyStatusMap = new Map();
-
-      result.rows.forEach((row: any) => {
-        const userId = row.userId;
-
-        if (!userKeyStatusMap.has(userId)) {
-          userKeyStatusMap.set(userId, {
-            userId: userId,
-            username: row.githubUsername,
-            githubUsername: row.githubUsername,
-            displayName: row.displayName || row.githubUsername,
-            isActive: row.isActive,
-            hasKey: false,
-            keyInfo: null
-          });
-        }
-
-        const userStatus = userKeyStatusMap.get(userId);
-
-        // 키 정보가 있는 경우
-        if (row.keyId) {
-          const now = new Date();
-          const expiresAt = new Date(row.expiresAt);
-          const daysUntilExpiry = Math.ceil((expiresAt.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
-
-          userStatus.hasKey = true;
-          userStatus.keyInfo = {
-            id: row.keyId,
-            name: row.keyName,
-            isActive: row.keyIsActive,
-            expiresAt: row.expiresAt.toISOString(),
-            lastUsedAt: row.lastUsedAt ? row.lastUsedAt.toISOString() : null,
-            usageCount: row.usageCount || 0,
-            createdAt: row.keyCreatedAt.toISOString(),
-            daysUntilExpiry: daysUntilExpiry
-          };
-        }
-      });
-
-      const userKeyStatus = Array.from(userKeyStatusMap.values());
-
-      res.json({
-        success: true,
-        data: userKeyStatus
-      });
-    } catch (error) {
-      console.error('사용자 키 상태 데이터 조회 실패:', error);
-      res.status(500).json({
-        success: false,
-        message: '사용자 키 상태 데이터 조회에 실패했습니다.'
-      });
-    }
-  });
+  // 기존 관리자 라우트들을 새로운 컨트롤러로 교체
+  router.get('/admin/stats', requireAuth, requireAdmin, getSystemStats);
+  router.get('/admin/activities', requireAuth, requireAdmin, getRecentActivities);
+  router.get('/admin/user-keys', requireAuth, requireAdmin, getUserKeyStatus);
 
   // 사용자 관리 API 추가
   router.get('/admin/users', async (req, res) => {

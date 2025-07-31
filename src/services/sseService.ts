@@ -221,7 +221,7 @@ export const handleSseConnection = async (req: Request, res: Response): Promise<
 
 /**
  * 레거시 SSE 클라이언트를 위한 호환성 엔드포인트
- * Protocol version 2024-11-05 지원
+ * Protocol version 2025-06-18 지원
  * 
  * @param {Request} req - Express 요청 객체
  * @param {Response} res - Express 응답 객체  
@@ -261,7 +261,7 @@ export const handleLegacySseEndpoint = async (
     console.log(`🔌 레거시 SSE 연결 종료: ${transport.sessionId}`);
   });
 
-  console.log(`🔗 레거시 SSE 세션 생성됨: ${transport.sessionId} (protocol 2024-11-05)`);
+  console.log(`🔗 레거시 SSE 세션 생성됨: ${transport.sessionId} (protocol 2025-06-18)`);
 
   // MCP 서버와 연결
   await getMcpServer(transport.sessionId, group, userServiceTokens).connect(transport);
@@ -357,7 +357,15 @@ export const handleSseMessage = async (req: Request, res: Response): Promise<voi
  * @returns {Promise<void>}
  */
 export const handleMcpOtherRequest = async (req: Request, res: Response): Promise<void> => {
-  const sessionId = req.headers['mcp-session-id'] as string | undefined;
+  // 세션 ID 헤더 가져오기 (대소문자 무관)
+  let sessionId: string | undefined;
+  const headerKeys = Object.keys(req.headers);
+  for (const key of headerKeys) {
+    if (key.toLowerCase() === 'mcp-session-id') {
+      sessionId = req.headers[key] as string;
+      break;
+    }
+  }
   const group = req.params.group;
 
   console.log(`Handling MCP other request`);
@@ -435,7 +443,16 @@ const authenticateWithMcpHubKey = async (token: string, suppressLogs = false): P
  * @returns {Promise<void>}
  */
 export const handleMcpPostRequest = async (req: Request, res: Response): Promise<void> => {
-  const sessionId = req.headers['mcp-session-id'] as string | undefined;
+  // 세션 ID 헤더 가져오기 (대소문자 무관)
+  let sessionId: string | undefined;
+  const headerKeys = Object.keys(req.headers);
+  for (const key of headerKeys) {
+    if (key.toLowerCase() === 'mcp-session-id') {
+      sessionId = req.headers[key] as string;
+      break;
+    }
+  }
+
   const group = req.params.group;
   const body = req.body;
 
@@ -498,10 +515,14 @@ export const handleMcpPostRequest = async (req: Request, res: Response): Promise
     if (Object.keys(userServiceTokens).length > 0) {
       transports.streamable[sessionId].userServiceTokens = userServiceTokens;
     } else if (transports.streamable[sessionId].userServiceTokens) {
-      userServiceTokens = transports.streamable[sessionId].userServiceTokens;
+      userServiceTokens = transports.streamable[sessionId].userServiceTokens || {};
     }
 
   } else if (!sessionId && isInitializeRequest(req.body)) {
+    // 프로토콜 버전 확인
+    const protocolVersion = req.body?.params?.protocolVersion;
+    console.log(`🔧 MCP 초기화 요청 - 프로토콜 버전: ${protocolVersion || 'unknown'}`);
+
     // 새로운 StreamableHTTP 전송 계층 생성
     transport = new StreamableHTTPServerTransport({
       sessionIdGenerator: () => randomUUID(),

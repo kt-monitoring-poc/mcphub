@@ -8,17 +8,22 @@ MCPHub는 PostgreSQL 데이터베이스를 사용하여 사용자, MCP 서버, A
 
 ### 1. users (사용자 테이블)
 
-GitHub OAuth를 통해 로그인한 사용자 정보를 저장합니다.
+**GitHub OAuth 사용자**와 **로컬 관리자 계정**을 모두 지원하는 통합 사용자 테이블입니다.
 
 ```sql
 CREATE TABLE users (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-  githubId VARCHAR(50) NOT NULL UNIQUE,
-  githubUsername VARCHAR(100) NOT NULL UNIQUE,
+  -- GitHub OAuth 사용자용 필드 (nullable)
+  githubId VARCHAR(50) UNIQUE,
+  githubUsername VARCHAR(100) UNIQUE,
   email VARCHAR(255),
   avatarUrl VARCHAR(500),
   displayName VARCHAR(200),
   githubProfileUrl VARCHAR(500),
+  -- 로컬 계정용 필드 (nullable)
+  username VARCHAR(100) UNIQUE,
+  password VARCHAR(255),
+  -- 공통 필드
   isAdmin BOOLEAN NOT NULL DEFAULT false,
   isActive BOOLEAN NOT NULL DEFAULT true,
   lastLoginAt TIMESTAMP,
@@ -30,6 +35,11 @@ CREATE TABLE users (
 **인덱스:**
 - `IDX_42148de213279d66bf94b363bf` on `githubId`
 - `IDX_fa82b0f0ebcb91e126f0e7bdd2` on `githubUsername`
+- `IDX_fe0bb3f6520ee0469504521e71` on `username`
+
+**사용자 유형:**
+- **GitHub OAuth 사용자**: `githubId`, `githubUsername` 필드 사용
+- **로컬 관리자**: `username`, `password` 필드 사용 (bcrypt 해시)
 
 ### 2. mcphub_keys (MCPHub 키 테이블)
 
@@ -68,7 +78,26 @@ CREATE TABLE mcphub_keys (
 }
 ```
 
-### 3. user_tokens (사용자 토큰 테이블)
+### 3. user_api_keys (사용자 API 키 테이블)
+
+사용자별 MCP 서버 환경변수 값을 암호화하여 저장합니다.
+
+```sql
+CREATE TABLE user_api_keys (
+  id SERIAL PRIMARY KEY,
+  userId INTEGER NOT NULL,
+  serverId INTEGER NOT NULL REFERENCES mcp_servers(id) ON DELETE CASCADE,
+  varName VARCHAR(100) NOT NULL,
+  encryptedValue TEXT NOT NULL,
+  createdAt TIMESTAMP NOT NULL DEFAULT now(),
+  updatedAt TIMESTAMP NOT NULL DEFAULT now()
+);
+```
+
+**인덱스:**
+- `IDX_54f853f7986ab4a1f0bea1cdc3` UNIQUE on `(userId, serverId, varName)`
+
+### 4. user_tokens (사용자 토큰 테이블)
 
 사용자별 인증 토큰을 저장합니다.
 
@@ -89,7 +118,7 @@ CREATE TABLE user_tokens (
 **인덱스:**
 - `IDX_ebd5531dd9bea146fb1dfafc13` UNIQUE on `(userId, tokenType)`
 
-### 4. mcp_servers (MCP 서버 테이블)
+### 5. mcp_servers (MCP 서버 테이블)
 
 MCP 서버 정보를 저장합니다.
 
@@ -114,7 +143,7 @@ CREATE TABLE mcp_servers (
 );
 ```
 
-### 5. mcp_server_env_vars (MCP 서버 환경변수 테이블)
+### 6. mcp_server_env_vars (MCP 서버 환경변수 테이블)
 
 MCP 서버별 환경변수 정의를 저장합니다.
 
@@ -138,7 +167,7 @@ CREATE TABLE mcp_server_env_vars (
 **인덱스:**
 - `IDX_mcp_server_env_vars_server_var` UNIQUE on `(serverId, varName)`
 
-### 6. vector_embeddings (벡터 임베딩 테이블)
+### 7. vector_embeddings (벡터 임베딩 테이블)
 
 도구 검색을 위한 벡터 임베딩을 저장합니다.
 
@@ -165,11 +194,15 @@ CREATE TABLE vector_embeddings (
 erDiagram
     users ||--o{ mcphub_keys : "has"
     users ||--o{ user_tokens : "has"
+    users ||--o{ user_api_keys : "has"
     mcp_servers ||--o{ mcp_server_env_vars : "has"
+    mcp_servers ||--o{ user_api_keys : "stores_values_for"
     users {
         uuid id PK
-        varchar githubId UK
-        varchar githubUsername UK
+        varchar githubId UK "nullable"
+        varchar githubUsername UK "nullable"
+        varchar username UK "nullable"
+        varchar password "nullable, bcrypt"
         varchar email
         varchar avatarUrl
         varchar displayName
@@ -191,6 +224,15 @@ erDiagram
         timestamp lastUsedAt
         integer usageCount
         jsonb serviceTokens
+        timestamp createdAt
+        timestamp updatedAt
+    }
+    user_api_keys {
+        integer id PK
+        integer userId FK
+        integer serverId FK
+        varchar varName
+        text encryptedValue
         timestamp createdAt
         timestamp updatedAt
     }
@@ -251,22 +293,37 @@ erDiagram
 
 ## 주요 특징
 
-1. **API 키 암호화**: `user_tokens.encryptedToken`은 AES-256-CBC로 암호화됩니다.
+1. **통합 사용자 시스템**: 
+   - **GitHub OAuth 사용자**: `githubId`, `githubUsername` 사용
+   - **로컬 관리자**: `username`, `password` 사용 (bcrypt 해시)
+   - 동일한 테이블에서 두 유형의 사용자 모두 관리
 
-2. **서비스 토큰 관리**: `mcphub_keys.serviceTokens` JSON 필드에 모든 서비스 토큰이 저장됩니다.
+2. **API 키 암호화**: 
+   - `user_tokens.encryptedToken`: 인증 토큰 암호화 (AES-256-CBC)
+   - `user_api_keys.encryptedValue`: MCP 서버 환경변수 암호화 저장
 
-3. **벡터 검색**: `vector_embeddings` 테이블에서 도구 검색을 위한 벡터 유사도 검색을 지원합니다.
+3. **서비스 토큰 관리**: `mcphub_keys.serviceTokens` JSON 필드에 모든 서비스 토큰이 저장됩니다.
 
-4. **GitHub OAuth 통합**: `users` 테이블이 GitHub OAuth와 완전히 통합되어 있습니다.
+4. **벡터 검색**: `vector_embeddings` 테이블에서 도구 검색을 위한 벡터 유사도 검색을 지원합니다.
+
+5. **환경변수 자동화**: 
+   - `mcp_server_env_vars`: 서버별 환경변수 정의
+   - `user_api_keys`: 사용자별 실제 값 저장
+   - 완전 자동화된 UI 필드 생성
 
 ## 마이그레이션 히스토리
 
-### 2025-07-30
-- `user_api_keys` 테이블 제거 (mcphub_keys.serviceTokens로 통합)
-- TypeORM 엔티티 정리
+### 2025-07-30 (v2.0)
+- **User 테이블 확장**: 로컬 관리자 계정 지원 추가
+  - `username`, `password` 필드 추가 (nullable)
+  - `githubId`, `githubUsername` 필드를 nullable로 변경
+  - GitHub OAuth + 로컬 계정 통합 지원
+- **사용자 시스템 통합**: mcp_settings.json 사용자 배열 제거, DB 기반으로 완전 통합
+- TypeORM 엔티티 정리 및 UserApiKey 엔티티 추가
 - 벡터 임베딩 인덱스 최적화
 
-### 2025-07-28
+### 2025-07-28 (v1.0)
 - `mcp_servers`, `mcp_server_env_vars`, `vector_embeddings` 테이블 추가
 - GitHub OAuth 통합 완료
-- MCPHub 키 시스템 구현 
+- MCPHub 키 시스템 구현
+- 환경변수 자동 감지 시스템 구현 

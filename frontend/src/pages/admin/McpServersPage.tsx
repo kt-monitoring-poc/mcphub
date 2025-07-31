@@ -1,6 +1,5 @@
 import { Edit3, FileText, Server, ToggleLeft, ToggleRight, Trash2 } from 'lucide-react';
 import React, { useEffect, useState } from 'react';
-import { EditMcpServerForm } from '../../components/EditMcpServerForm';
 import { SettingsFileEditor } from '../../components/SettingsFileEditor';
 import { Button } from '../../components/ui/Button';
 import ConfirmDialog from '../../components/ui/ConfirmDialog';
@@ -26,7 +25,6 @@ export const McpServersPage: React.FC = () => {
     const [servers, setServers] = useState<ServerInfo[]>([]);
     const [loading, setLoading] = useState(true);
     const [showSettingsEditor, setShowSettingsEditor] = useState(false);
-    const [editingServer, setEditingServer] = useState<ServerInfo | null>(null);
     const [deletingServer, setDeletingServer] = useState<ServerInfo | null>(null);
     const [toggleConfirm, setToggleConfirm] = useState<ServerInfo | null>(null);
     const { showToast } = useToast();
@@ -38,6 +36,7 @@ export const McpServersPage: React.FC = () => {
             const response = await fetch('/api/servers', {
                 headers: {
                     'x-auth-token': token || '',
+                    'Content-Type': 'application/json',
                 },
             });
             if (response.ok) {
@@ -65,6 +64,7 @@ export const McpServersPage: React.FC = () => {
                 method: 'POST',
                 headers: {
                     'x-auth-token': localStorage.getItem('mcphub_token') || '',
+                    'Content-Type': 'application/json',
                 }
             });
 
@@ -90,6 +90,7 @@ export const McpServersPage: React.FC = () => {
                 method: 'DELETE',
                 headers: {
                     'x-auth-token': localStorage.getItem('mcphub_token') || '',
+                    'Content-Type': 'application/json',
                 }
             });
 
@@ -205,7 +206,7 @@ export const McpServersPage: React.FC = () => {
                                         )}
                                     </Button>
                                     <Button
-                                        onClick={() => setEditingServer(server)}
+                                        onClick={() => setShowSettingsEditor(true)}
                                         variant="secondary"
                                         size="sm"
                                         className="flex items-center space-x-1"
@@ -271,17 +272,7 @@ export const McpServersPage: React.FC = () => {
             {/* 서버 추가 폼 */}
             {/* Removed AddMcpServerForm */}
 
-            {/* 서버 편집 폼 */}
-            {editingServer && (
-                <EditMcpServerForm
-                    server={editingServer}
-                    onClose={() => setEditingServer(null)}
-                    onSuccess={() => {
-                        setEditingServer(null);
-                        fetchServers();
-                    }}
-                />
-            )}
+
 
             {/* 토글 확인 다이얼로그 */}
             {toggleConfirm && (

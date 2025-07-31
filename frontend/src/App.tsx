@@ -3,7 +3,6 @@ import ProtectedRoute from './components/ProtectedRoute';
 import { AuthProvider } from './contexts/AuthContext';
 import { ThemeProvider } from './contexts/ThemeContext';
 import { ToastProvider } from './contexts/ToastContext';
-import AdminLayout from './layouts/AdminLayout';
 import MainLayout from './layouts/MainLayout';
 import DashboardPage from './pages/Dashboard';
 import GroupsPage from './pages/GroupsPage';
@@ -32,16 +31,18 @@ function App() {
 
               {/* 보호된 라우트 */}
               <Route element={<ProtectedRoute />}>
-                {/* 일반 사용자 라우팅 */}
+                {/* 일반 사용자 라우트 */}
                 <Route element={<MainLayout />}>
                   <Route path="/" element={<DashboardPage />} />
                   <Route path="/groups" element={<GroupsPage />} />
                   <Route path="/api-keys" element={<KeyManagementPage />} />
                   <Route path="/settings" element={<SettingsPage />} />
                 </Route>
+              </Route>
 
-                {/* 관리자 전용 라우팅 */}
-                <Route element={<AdminLayout />}>
+              {/* 관리자 전용 보호된 라우트 */}
+              <Route element={<ProtectedRoute requireAdmin={true} />}>
+                <Route element={<MainLayout />}>
                   <Route path="/admin/dashboard" element={<AdminDashboard />} />
                   <Route path="/admin/servers" element={<ServersPage />} />
                   <Route path="/admin/mcp-servers" element={<McpServersPage />} />

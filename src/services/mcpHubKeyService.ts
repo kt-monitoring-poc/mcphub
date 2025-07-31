@@ -292,7 +292,7 @@ export class MCPHubKeyService {
     const topUsedKeys = topUsedKeysData.map(key => ({
       keyId: key.id,
       name: key.name,
-      username: key.user.githubUsername,
+      username: key.user.githubUsername || key.user.username || 'Unknown',
       usageCount: key.usageCount
     }));
 

@@ -1,7 +1,8 @@
 import { Request, Response } from 'express';
 import { getAppDataSource } from '../db/connection.js';
-import { User } from '../db/entities/User.js';
 import { MCPHubKey } from '../db/entities/MCPHubKey.js';
+import { User } from '../db/entities/User.js';
+import { UserRepository } from '../db/repositories/UserRepository.js';
 
 // 시스템 통계 조회
 export const getSystemStats = async (req: Request, res: Response) => {
@@ -64,7 +65,7 @@ export const getRecentActivities = async (req: Request, res: Response) => {
     recentUsers.forEach(user => {
       const timeDiff = Date.now() - new Date(user.createdAt).getTime();
       const minutesAgo = Math.floor(timeDiff / (1000 * 60));
-      
+
       activities.push({
         id: `user-${user.id}`,
         type: 'user',
@@ -84,7 +85,7 @@ export const getRecentActivities = async (req: Request, res: Response) => {
     recentKeys.forEach(key => {
       const timeDiff = Date.now() - new Date(key.createdAt).getTime();
       const minutesAgo = Math.floor(timeDiff / (1000 * 60));
-      
+
       activities.push({
         id: `key-${key.id}`,
         type: 'key',
@@ -106,7 +107,7 @@ export const getRecentActivities = async (req: Request, res: Response) => {
       if (user.lastLoginAt) {
         const timeDiff = Date.now() - new Date(user.lastLoginAt).getTime();
         const minutesAgo = Math.floor(timeDiff / (1000 * 60));
-        
+
         activities.push({
           id: `login-${user.id}`,
           type: 'info',
@@ -174,5 +175,136 @@ export const getUserKeyStatus = async (req: Request, res: Response) => {
   } catch (error) {
     console.error('사용자 키 현황 조회 오류:', error);
     res.status(500).json({ success: false, message: '사용자 키 현황 조회에 실패했습니다.' });
+  }
+};
+
+// 모든 사용자 조회 (관리자용)
+export const getAllUsers = async (req: Request, res: Response) => {
+  try {
+    const dataSource = getAppDataSource();
+    const userRepo = dataSource.getRepository(User);
+
+    const users = await userRepo.find({
+      order: { createdAt: 'DESC' },
+      relations: ['mcpHubKeys']
+    });
+
+    // 사용자 정보 정리 (비밀번호 제거)
+    const sanitizedUsers = users.map(user => ({
+      id: user.id,
+      githubId: user.githubId,
+      githubUsername: user.githubUsername,
+      username: user.username,
+      email: user.email,
+      avatarUrl: user.avatarUrl,
+      displayName: user.displayName,
+      githubProfileUrl: user.githubProfileUrl,
+      isAdmin: user.isAdmin,
+      isActive: user.isActive,
+      lastLoginAt: user.lastLoginAt,
+      createdAt: user.createdAt,
+      updatedAt: user.updatedAt,
+      keyCount: user.mcpHubKeys?.length || 0
+    }));
+
+    res.json({ success: true, data: sanitizedUsers });
+  } catch (error) {
+    console.error('사용자 목록 조회 오류:', error);
+    res.status(500).json({ success: false, message: '사용자 목록 조회에 실패했습니다.' });
+  }
+};
+
+// 사용자 활성화/비활성화
+export const toggleUserActive = async (req: Request, res: Response) => {
+  try {
+    const { userId } = req.params;
+    const { isActive } = req.body;
+
+    const userRepository = new UserRepository();
+    const updatedUser = await userRepository.setUserActive(userId, isActive);
+
+    if (!updatedUser) {
+      return res.status(404).json({ success: false, message: '사용자를 찾을 수 없습니다.' });
+    }
+
+    res.json({
+      success: true,
+      message: `사용자가 ${isActive ? '활성화' : '비활성화'}되었습니다.`,
+      data: {
+        id: updatedUser.id,
+        isActive: updatedUser.isActive
+      }
+    });
+  } catch (error) {
+    console.error('사용자 활성화 상태 변경 오류:', error);
+
+    if (error instanceof Error) {
+      return res.status(400).json({ success: false, message: error.message });
+    }
+
+    res.status(500).json({ success: false, message: '사용자 활성화 상태 변경에 실패했습니다.' });
+  }
+};
+
+// 사용자 관리자 권한 설정
+export const toggleUserAdmin = async (req: Request, res: Response) => {
+  try {
+    const { userId } = req.params;
+    const { isAdmin } = req.body;
+
+    const userRepository = new UserRepository();
+    const updatedUser = await userRepository.setAdminRole(userId, isAdmin);
+
+    if (!updatedUser) {
+      return res.status(404).json({ success: false, message: '사용자를 찾을 수 없습니다.' });
+    }
+
+    res.json({
+      success: true,
+      message: `사용자 권한이 ${isAdmin ? '관리자로' : '일반 사용자로'} 변경되었습니다.`,
+      data: {
+        id: updatedUser.id,
+        isAdmin: updatedUser.isAdmin
+      }
+    });
+  } catch (error) {
+    console.error('사용자 권한 변경 오류:', error);
+
+    if (error instanceof Error) {
+      return res.status(400).json({ success: false, message: error.message });
+    }
+
+    res.status(500).json({ success: false, message: '사용자 권한 변경에 실패했습니다.' });
+  }
+};
+
+// 사용자 삭제 (소프트 삭제)
+export const deleteUser = async (req: Request, res: Response) => {
+  try {
+    const { userId } = req.params;
+
+    const userRepository = new UserRepository();
+    const deletedUser = await userRepository.softDeleteUser(userId);
+
+    if (!deletedUser) {
+      return res.status(404).json({ success: false, message: '사용자를 찾을 수 없습니다.' });
+    }
+
+    res.json({
+      success: true,
+      message: '사용자가 삭제되었습니다.',
+      data: {
+        id: deletedUser.id,
+        isActive: deletedUser.isActive
+      }
+    });
+  } catch (error) {
+    console.error('사용자 삭제 오류:', error);
+
+    if (error instanceof Error) {
+      return res.status(400).json({ success: false, message: error.message });
+    }
+
+    res.status(500).json({ success: false, message: '사용자 삭제에 실패했습니다.' });
   }
 }; 

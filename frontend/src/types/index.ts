@@ -228,10 +228,7 @@ export interface RegisterCredentials extends LoginCredentials {
   isAdmin?: boolean;
 }
 
-export interface ChangePasswordCredentials {
-  currentPassword: string;
-  newPassword: string;
-}
+
 
 export interface AuthResponse {
   success: boolean;

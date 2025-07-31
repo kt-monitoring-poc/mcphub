@@ -936,19 +936,21 @@ export const initializeClientsFromSettings = async (isInit: boolean): Promise<Se
             saveToolsAsVectorEmbeddings(name, serverInfo.tools);
           })
           .catch((error) => {
-            console.error(
-              `Failed to list tools for server ${name} by error: ${error} with stack: ${error.stack}`,
+            console.warn(
+              `⚠️  Failed to list tools for MCP server '${name}'. Server connected but tools unavailable.`,
+              `\n   Error: ${error.message || error}`,
             );
             serverInfo.status = 'disconnected';
-            serverInfo.error = `Failed to list tools: ${error.stack} `;
+            serverInfo.error = `Failed to list tools: ${error.message || error}`;
           });
       })
       .catch((error) => {
-        console.error(
-          `Failed to connect client for server ${name} by error: ${error} with stack: ${error.stack}`,
+        console.warn(
+          `⚠️  Failed to connect to MCP server '${name}'. Server will remain in disconnected state.`,
+          `\n   Error: ${error.message || error}`,
         );
         serverInfo.status = 'disconnected';
-        serverInfo.error = `Failed to connect: ${error.stack} `;
+        serverInfo.error = `Failed to connect: ${error.message || error}`;
       });
     console.log(`Initialized client for server: ${name}`);
   }
