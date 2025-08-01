@@ -1,12 +1,11 @@
-import { UserGroupRepository } from '../db/repositories';
-import { UserGroup } from '../db/entities/UserGroup';
-import { getRepository } from 'typeorm';
+import { UserGroup } from '../db/entities/UserGroup.js';
+import { UserGroupRepository } from '../db/repositories/index.js';
 
 export class UserGroupService {
   private userGroupRepository: UserGroupRepository;
 
   constructor() {
-    this.userGroupRepository = new UserGroupRepository(getRepository(UserGroup));
+    this.userGroupRepository = new UserGroupRepository();
   }
 
   async getUserGroups(userId: string): Promise<UserGroup[]> {
@@ -58,6 +57,6 @@ export class UserGroupService {
       return [...acc, ...group.servers];
     }, [] as string[]);
 
-    return [...new Set(servers)];
+    return [...new Set(servers)] as string[];
   }
 }

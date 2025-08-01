@@ -5,13 +5,13 @@ import { ThemeProvider } from './contexts/ThemeContext';
 import { ToastProvider } from './contexts/ToastContext';
 import MainLayout from './layouts/MainLayout';
 import DashboardPage from './pages/Dashboard';
-import GroupsPage from './pages/GroupsPage';
+
 import KeyManagementPage from './pages/KeyManagementPage';
-import UserGroupsPage from './pages/UserGroupsPage';
 import LoginPage from './pages/LoginPage';
 import LogsPage from './pages/LogsPage';
 import ServersPage from './pages/ServersPage';
 import SettingsPage from './pages/SettingsPage';
+import UserGroupsPage from './pages/UserGroupsPage';
 import AdminDashboard from './pages/admin/AdminDashboard';
 import AdminSettingsPage from './pages/admin/AdminSettingsPage';
 import KeyStatusPage from './pages/admin/KeyStatusPage';
@@ -35,7 +35,7 @@ function App() {
                 {/* 일반 사용자 라우트 */}
                 <Route element={<MainLayout />}>
                   <Route path="/" element={<DashboardPage />} />
-                  <Route path="/groups" element={<GroupsPage />} />
+
                   <Route path="/user-groups" element={<UserGroupsPage />} />
                   <Route path="/api-keys" element={<KeyManagementPage />} />
                   <Route path="/settings" element={<SettingsPage />} />

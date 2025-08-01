@@ -367,6 +367,7 @@ export const handleMcpOtherRequest = async (req: Request, res: Response): Promis
     }
   }
   const group = req.params.group;
+  const userKey = req.params.userKey; // URL 기반 사용자 키
 
   console.log(`Handling MCP other request - Method: ${req.method}, SessionID: ${sessionId}`);
   console.log('🔍 GET /mcp 요청 상세:', {
@@ -377,15 +378,32 @@ export const handleMcpOtherRequest = async (req: Request, res: Response): Promis
     body: req.body
   });
 
-  // MCPHub Key 인증 수행 (GET 요청도 동일하게 인증)
+  // MCPHub Key 인증 수행 (URL 기반 또는 헤더 기반)
   let userServiceTokens: Record<string, string> = {};
   const authHeader = req.headers.authorization;
 
-  if (authHeader && authHeader.startsWith('Bearer ')) {
+  // URL 기반 인증 (MCP 표준 준수)
+  if (userKey) {
+    console.log(`🔐 URL 기반 인증 시도: ${userKey}`);
+    const authenticatedTokens = await authenticateWithMcpHubKey(userKey, true);
+    if (authenticatedTokens) {
+      userServiceTokens = authenticatedTokens;
+      console.log(`✅ URL 기반 인증 성공: ${userKey}`);
+    } else {
+      console.log(`❌ URL 기반 인증 실패: ${userKey}`);
+      res.status(401).send('Invalid user key in URL');
+      return;
+    }
+  }
+  // 헤더 기반 인증 (기존 방식 - 하위 호환성)
+  else if (authHeader && authHeader.startsWith('Bearer ')) {
     const token = authHeader.substring(7);
+    console.log(`🔐 헤더 기반 인증 시도: ${token.substring(0, 10)}...`);
+
     const authenticatedTokens = await authenticateWithMcpHubKey(token, true);
     if (authenticatedTokens) {
       userServiceTokens = authenticatedTokens;
+      console.log(`✅ 헤더 기반 인증 성공`);
     } else {
       // 일반 Bearer 인증 확인
       const settings = loadSettings();
@@ -396,7 +414,7 @@ export const handleMcpOtherRequest = async (req: Request, res: Response): Promis
       }
     }
   } else {
-    res.status(401).send('Authorization header required');
+    res.status(401).send('Authentication required: either user key in URL or Authorization header');
     return;
   }
 
@@ -555,6 +573,7 @@ export const handleMcpPostRequest = async (req: Request, res: Response): Promise
   }
 
   const group = req.params.group;
+  const userKey = req.params.userKey; // URL 기반 사용자 키
   const body = req.body;
 
   // 기본 요청 정보 로깅
@@ -586,17 +605,33 @@ export const handleMcpPostRequest = async (req: Request, res: Response): Promise
     return;
   }
 
-  // MCPHub Key 인증 수행
+  // MCPHub Key 인증 수행 (URL 기반 또는 헤더 기반)
   let userServiceTokens: Record<string, string> = {};
   const authHeader = req.headers.authorization;
   const isNewSession = !sessionId || !transports.streamable[sessionId];
 
-  if (authHeader && authHeader.startsWith('Bearer ')) {
+  // URL 기반 인증 (MCP 표준 준수)
+  if (userKey) {
+    console.log(`🔐 URL 기반 인증 시도: ${userKey}`);
+    const authenticatedTokens = await authenticateWithMcpHubKey(userKey, !isNewSession);
+    if (authenticatedTokens) {
+      userServiceTokens = authenticatedTokens;
+      console.log(`✅ URL 기반 인증 성공: ${userKey}`);
+    } else {
+      console.log(`❌ URL 기반 인증 실패: ${userKey}`);
+      res.status(401).send('Invalid user key in URL');
+      return;
+    }
+  }
+  // 헤더 기반 인증 (기존 방식 - 하위 호환성)
+  else if (authHeader && authHeader.startsWith('Bearer ')) {
     const token = authHeader.substring(7);
+    console.log(`🔐 헤더 기반 인증 시도: ${token.substring(0, 10)}...`);
 
     const authenticatedTokens = await authenticateWithMcpHubKey(token, !isNewSession);
     if (authenticatedTokens) {
       userServiceTokens = authenticatedTokens;
+      console.log(`✅ 헤더 기반 인증 성공`);
     } else {
       // 일반 Bearer 인증 확인
       const settings = loadSettings();
@@ -607,7 +642,7 @@ export const handleMcpPostRequest = async (req: Request, res: Response): Promise
       }
     }
   } else {
-    res.status(401).send('Authorization header required');
+    res.status(401).send('Authentication required: either user key in URL or Authorization header');
     return;
   }
 
@@ -677,8 +712,19 @@ export const handleMcpPostRequest = async (req: Request, res: Response): Promise
       }
     };
 
-    // MCP 서버와 연결 (사용자 토큰 전달)
-    await getMcpServer(transport.sessionId, group, userServiceTokens).connect(transport);
+    // MCP 서버와 연결 (사용자 토큰 및 MCPHub Key 전달)
+    const mcpServer = getMcpServer(transport.sessionId, group, userServiceTokens);
+
+    // MCPHub Key를 서버 인스턴스에 저장
+    if (authHeader && authHeader.startsWith('Bearer ')) {
+      const token = authHeader.substring(7);
+      if (token.startsWith('mcphub_')) {
+        (mcpServer as any).mcpHubKey = token;
+        console.log('MCPHub Key stored in server instance');
+      }
+    }
+
+    await mcpServer.connect(transport);
 
     // 연결 성공 시 상태 업데이트
     if (transport.sessionId && transports.streamable[transport.sessionId]) {

@@ -274,6 +274,52 @@ frontend/src/
 
 ### 🆕 **최근 완료된 작업들 (2025-08-01)**
 
+#### **사용자 그룹 관리 시스템 구현** ✨ **신규 완성**
+- **개념**: 사용자별 MCP 서버 그룹 관리로 Cursor IDE에서 표시할 도구 제어
+- **핵심 기능**:
+  - 사용자가 직접 MCP 서버들을 그룹으로 묶어서 관리
+  - 활성화된 그룹의 서버 도구만 Cursor IDE에 표시
+  - 그룹이 없는 사용자는 모든 서버 도구 표시 (기본 동작)
+  - 그룹이 있지만 모두 비활성화된 경우 아무 도구도 표시하지 않음
+
+- **데이터베이스 스키마**:
+  ```sql
+  CREATE TABLE user_groups (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    name VARCHAR(100) NOT NULL,
+    description TEXT,
+    servers TEXT[] NOT NULL,
+    isActive BOOLEAN NOT NULL DEFAULT true,
+    userId UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    createdAt TIMESTAMP NOT NULL DEFAULT now(),
+    updatedAt TIMESTAMP NOT NULL DEFAULT now()
+  );
+  ```
+
+- **API 엔드포인트**:
+  - `GET /api/user/groups` - 사용자 그룹 목록 조회
+  - `POST /api/user/groups` - 그룹 생성
+  - `PUT /api/user/groups/:groupId` - 그룹 수정
+  - `DELETE /api/user/groups/:groupId` - 그룹 삭제
+  - `PATCH /api/user/groups/:groupId/active` - 그룹 활성화/비활성화
+
+- **프론트엔드 UI**:
+  - `/user-groups` 페이지에서 그룹 관리
+  - 그룹별 서버 선택 및 활성화/비활성화
+  - 직관적인 설명과 사용 예시 제공
+  - 그룹이 없을 때 안내 메시지 표시
+
+- **MCP 서비스 통합**:
+  - `handleListToolsRequest`에서 사용자 그룹 필터링 적용
+  - MCPHub Key 인증 후 사용자 그룹 확인
+  - 활성 그룹의 서버만 도구 목록에 포함
+  - 상세한 디버깅 로그로 필터링 과정 추적
+
+- **테스트 결과**:
+  - jungchihoon 사용자가 "test" 그룹 생성 후 비활성화
+  - Cursor IDE에서 `listOfferings: Found 0 tools` 확인
+  - 그룹 필터링 로직 완벽 작동 검증
+
 #### **프론트엔드 서빙 시스템 수정**
 - **문제**: `Frontend not found` 에러 발생
 - **원인**: `findPackageRoot()` 함수에서 `@hades/mcphub` 패키지명 미인식
@@ -323,6 +369,8 @@ frontend/src/
 7. **프론트엔드 서빙 문제**: 패키지명 인식 로직 수정 (`@hades/mcphub` 추가)
 8. **로그 스팸 문제**: 디버깅 로그 정리, 프로덕션 최적화
 9. **토큰 정보 노출**: 민감한 정보 로그에서 제거
+10. **사용자 그룹 필터링 문제**: MCPHub Key 전달 경로 수정, 그룹 필터링 로직 완성
+11. **그룹 활성화/비활성화 버그**: 백엔드 응답 형식 통일, 프론트엔드 에러 처리 개선
 
 ### 📋 **현재 상태 요약**
 
@@ -334,6 +382,7 @@ frontend/src/
 - **서버 추상화 시스템 (100% 완성)** ✨ 신규
 - **프론트엔드 서빙 시스템 (100% 완성)** ✨ 신규
 - **로그 시스템 최적화 (100% 완성)** ✨ 신규
+- **사용자 그룹 관리 시스템 (100% 완성)** ✨ **신규**
 - MCP 서버 관리 UI (100% 완성)
 - 데이터베이스 스키마 (100% 완성)
 - 관리자/사용자 권한 분리 (100% 완성)
@@ -355,4 +404,4 @@ frontend/src/
 
 **최종 업데이트**: 2025-08-01  
 **작성자**: MCPHub 개발팀  
-**문서 버전**: 2.2.0 (프론트엔드 서빙 + 로그 최적화 완료) 
+**문서 버전**: 2.3.0 (사용자 그룹 관리 시스템 완성) 

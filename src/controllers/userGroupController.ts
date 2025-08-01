@@ -1,5 +1,5 @@
 import { Request, Response } from 'express';
-import { UserGroupService } from '../services/userGroupService';
+import { UserGroupService } from '../services/userGroupService.js';
 
 export class UserGroupController {
   private userGroupService: UserGroupService;
@@ -10,13 +10,13 @@ export class UserGroupController {
 
   async getUserGroups(req: Request, res: Response) {
     try {
-      const userId = req.user?.id;
+      const userId = (req.user as any)?.id;
       if (!userId) {
         return res.status(401).json({ error: '인증이 필요합니다.' });
       }
 
       const groups = await this.userGroupService.getUserGroups(userId);
-      res.json(groups);
+      res.json({ success: true, data: groups });
     } catch (error) {
       console.error('그룹 목록 조회 실패:', error);
       res.status(500).json({ error: '그룹 목록을 가져오는데 실패했습니다.' });
@@ -25,7 +25,7 @@ export class UserGroupController {
 
   async createGroup(req: Request, res: Response) {
     try {
-      const userId = req.user?.id;
+      const userId = (req.user as any)?.id;
       if (!userId) {
         return res.status(401).json({ error: '인증이 필요합니다.' });
       }
@@ -41,7 +41,7 @@ export class UserGroupController {
         servers
       });
 
-      res.status(201).json(group);
+      res.status(201).json({ success: true, data: group });
     } catch (error) {
       console.error('그룹 생성 실패:', error);
       res.status(500).json({ error: '그룹 생성에 실패했습니다.' });
@@ -50,7 +50,7 @@ export class UserGroupController {
 
   async updateGroup(req: Request, res: Response) {
     try {
-      const userId = req.user?.id;
+      const userId = (req.user as any)?.id;
       if (!userId) {
         return res.status(401).json({ error: '인증이 필요합니다.' });
       }
@@ -65,10 +65,10 @@ export class UserGroupController {
       });
 
       if (!group) {
-        return res.status(404).json({ error: '그룹을 찾을 수 없습니다.' });
+        return res.status(404).json({ success: false, error: '그룹을 찾을 수 없습니다.' });
       }
 
-      res.json(group);
+      res.json({ success: true, data: group });
     } catch (error) {
       console.error('그룹 수정 실패:', error);
       res.status(500).json({ error: '그룹 수정에 실패했습니다.' });
@@ -77,7 +77,7 @@ export class UserGroupController {
 
   async deleteGroup(req: Request, res: Response) {
     try {
-      const userId = req.user?.id;
+      const userId = (req.user as any)?.id;
       if (!userId) {
         return res.status(401).json({ error: '인증이 필요합니다.' });
       }
@@ -98,7 +98,7 @@ export class UserGroupController {
 
   async setGroupActive(req: Request, res: Response) {
     try {
-      const userId = req.user?.id;
+      const userId = (req.user as any)?.id;
       if (!userId) {
         return res.status(401).json({ error: '인증이 필요합니다.' });
       }
@@ -113,10 +113,10 @@ export class UserGroupController {
       const group = await this.userGroupService.setGroupActive(groupId, userId, isActive);
 
       if (!group) {
-        return res.status(404).json({ error: '그룹을 찾을 수 없습니다.' });
+        return res.status(404).json({ success: false, error: '그룹을 찾을 수 없습니다.' });
       }
 
-      res.json(group);
+      res.json({ success: true, data: group });
     } catch (error) {
       console.error('그룹 활성화 상태 변경 실패:', error);
       res.status(500).json({ error: '그룹 활성화 상태 변경에 실패했습니다.' });

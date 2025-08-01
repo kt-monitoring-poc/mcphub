@@ -1,6 +1,6 @@
 import { Router } from 'express';
-import { UserGroupController } from '../controllers/userGroupController';
-import { authMiddleware } from '../middlewares';
+import { UserGroupController } from '../controllers/userGroupController.js';
+import { auth as authMiddleware } from '../middlewares/auth.js';
 
 const router = Router();
 const userGroupController = new UserGroupController();

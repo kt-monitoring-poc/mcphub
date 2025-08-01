@@ -1,10 +1,9 @@
-import { Repository } from 'typeorm';
-import { BaseRepository } from './BaseRepository';
-import { UserGroup } from '../entities/UserGroup';
+import { UserGroup } from '../entities/UserGroup.js';
+import { BaseRepository } from './BaseRepository.js';
 
 export class UserGroupRepository extends BaseRepository<UserGroup> {
-  constructor(repository: Repository<UserGroup>) {
-    super(repository);
+  constructor() {
+    super(UserGroup);
   }
 
   async findByUserId(userId: string): Promise<UserGroup[]> {

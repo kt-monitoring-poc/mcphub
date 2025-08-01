@@ -2,7 +2,6 @@ import express from 'express';
 import jwt from 'jsonwebtoken';
 import { Pool } from 'pg';
 import config, { loadSettings, saveSettings } from '../config/index.js';
-import userGroupRoutes from './userGroupRoutes.js';
 import {
   deleteUser,
   getAllUsers,
@@ -12,9 +11,8 @@ import {
   toggleUserActive,
   toggleUserAdmin
 } from '../controllers/adminController.js';
-import {
-  getGroup
-} from '../controllers/groupController.js';
+import userGroupRoutes from './userGroupRoutes.js';
+
 import {
   getAllMarketCategories,
   getAllMarketServers,
@@ -247,7 +245,7 @@ export const initRoutes = (app: express.Application): void => {
   router.put('/system-config', updateSystemConfig);
 
   // Groups - core functionality
-  router.get('/groups/:name', getGroup);
+
 
   // Market API - 완전 구현
   router.get('/market', getAllMarketServers);
@@ -607,7 +605,7 @@ export const initRoutes = (app: express.Application): void => {
   // Add API routes to express app
   const basePath = config.basePath;
   app.use(`${basePath}/api`, router);
-  
+
   // 사용자 그룹 관리 라우트
   app.use(`${basePath}/api/user/groups`, userGroupRoutes);
 

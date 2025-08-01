@@ -167,7 +167,27 @@ CREATE TABLE mcp_server_env_vars (
 **인덱스:**
 - `IDX_mcp_server_env_vars_server_var` UNIQUE on `(serverId, varName)`
 
-### 7. vector_embeddings (벡터 임베딩 테이블)
+### 7. user_groups (사용자 그룹 테이블)
+
+사용자별 MCP 서버 그룹을 저장합니다.
+
+```sql
+CREATE TABLE user_groups (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  name VARCHAR(100) NOT NULL,
+  description TEXT,
+  servers TEXT[] NOT NULL,
+  isActive BOOLEAN NOT NULL DEFAULT true,
+  userId UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  createdAt TIMESTAMP NOT NULL DEFAULT now(),
+  updatedAt TIMESTAMP NOT NULL DEFAULT now()
+);
+```
+
+**인덱스:**
+- `IDX_user_groups_user_active` on `(userId, isActive)`
+
+### 8. vector_embeddings (벡터 임베딩 테이블)
 
 도구 검색을 위한 벡터 임베딩을 저장합니다.
 
@@ -195,6 +215,7 @@ erDiagram
     users ||--o{ mcphub_keys : "has"
     users ||--o{ user_tokens : "has"
     users ||--o{ user_api_keys : "has"
+    users ||--o{ user_groups : "has"
     mcp_servers ||--o{ mcp_server_env_vars : "has"
     mcp_servers ||--o{ user_api_keys : "stores_values_for"
     users {
@@ -334,6 +355,21 @@ erDiagram
 - 실시간 사용자 상태 반영
 
 ## 마이그레이션 히스토리
+
+### 2025-08-01 (v2.0.1)
+- **사용자 그룹 시스템 구현**:
+  - `user_groups` 테이블 추가
+  - 사용자별 MCP 서버 그룹 관리
+  - 그룹 활성화/비활성화 기능
+  - 그룹별 서버 필터링
+- **API 엔드포인트 추가**:
+  - `GET /api/user/groups` - 그룹 목록 조회
+  - `POST /api/user/groups` - 그룹 생성
+  - `PUT /api/user/groups/:groupId` - 그룹 수정
+  - `DELETE /api/user/groups/:groupId` - 그룹 삭제
+  - `PATCH /api/user/groups/:groupId/active` - 그룹 활성화/비활성화
+- **MCP 서비스 확장**: 그룹 기반 서버 필터링 로직 추가
+- **프론트엔드 개선**: 사용자 그룹 관리 UI 구현
 
 ### 2025-07-31 (v2.0 완료)
 - **사용자 관리 시스템 완전 구현**:

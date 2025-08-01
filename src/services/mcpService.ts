@@ -21,7 +21,7 @@ import config, { expandEnvVars, loadSettings, replaceEnvVars, saveSettings } fro
 import { MCPHubKeyService } from '../services/mcpHubKeyService.js';
 import { ServerConfig, ServerInfo, ToolInfo } from '../types/index.js';
 import { extractUserEnvVars } from '../utils/variableDetection.js';
-import { getServersInGroup } from './groupService.js';
+
 import { getGroup } from './sseService.js';
 import { UserGroupService } from './userGroupService.js';
 import { saveToolsAsVectorEmbeddings, searchToolsByVector } from './vectorSearchService.js';
@@ -1320,16 +1320,30 @@ Available servers: ${serversList}`;
 
   // 사용자 그룹 필터링 로직
   let filteredServers: string[] = [];
-  
+  let hasUserGroups = false;
+
   if (extra && extra.mcpHubKey) {
     try {
       const mcpHubKeyService = new MCPHubKeyService();
       const authResult = await mcpHubKeyService.authenticateKey(extra.mcpHubKey);
       if (authResult) {
         const userGroupService = new UserGroupService();
-        const activeServers = await userGroupService.getActiveServers(authResult.user.id);
-        if (activeServers.length > 0) {
+
+        // 사용자가 그룹을 가지고 있는지 확인
+        const allUserGroups = await userGroupService.getUserGroups(authResult.user.id);
+        hasUserGroups = allUserGroups.length > 0;
+
+        console.log(`[그룹 필터링] 사용자 ${authResult.user.githubUsername || authResult.user.username}:`);
+        console.log(`  - 총 그룹 수: ${allUserGroups.length}`);
+        console.log(`  - 그룹 목록:`, allUserGroups.map(g => `${g.name}(${g.isActive ? '활성' : '비활성'})`));
+
+        if (hasUserGroups) {
+          // 그룹이 있으면 활성 그룹의 서버만 필터링
+          const activeServers = await userGroupService.getActiveServers(authResult.user.id);
           filteredServers = activeServers;
+          console.log(`  - 활성 서버: ${activeServers.join(', ') || '없음'}`);
+        } else {
+          console.log(`  - 사용자 그룹 없음: 모든 서버 표시`);
         }
       }
     } catch (error) {
@@ -1341,17 +1355,22 @@ Available servers: ${serversList}`;
     // 기본 필터링: 비활성화된 서버 제외
     if (serverInfo.enabled === false) return false;
 
-    // 사용자 그룹 필터링: 활성 그룹이 있는 경우 해당 서버만 포함
-    if (filteredServers.length > 0) {
-      return filteredServers.includes(serverInfo.name);
+    // 사용자 그룹 필터링 로직
+    if (hasUserGroups) {
+      // 사용자가 그룹을 가지고 있으면 활성 그룹의 서버만 표시
+      const isIncluded = filteredServers.includes(serverInfo.name);
+      console.log(`  - 서버 ${serverInfo.name}: ${isIncluded ? '포함' : '제외'}`);
+      return isIncluded;
     }
 
-    // 기존 그룹 필터링 로직
+    // 그룹이 없는 경우: 기존 그룹 필터링 로직
     if (!requestGroup) return true;
-    const serversInGroup = getServersInGroup(requestGroup);
+    const serversInGroup: string[] = [];
     if (!serversInGroup || serversInGroup.length === 0) return serverInfo.name === requestGroup;
     return serversInGroup.includes(serverInfo.name);
   });
+
+  console.log(`[그룹 필터링] 최종 결과: ${allServerInfos.length}개 서버 표시`);
 
   const allTools = [];
 
@@ -1792,7 +1811,7 @@ export const createMcpServer = (name: string, version: string, group?: string, u
 
   if (group) {
     // Check if it's a group or a single server
-    const serversInGroup = getServersInGroup(group);
+    const serversInGroup: string[] = [];
     if (!serversInGroup || serversInGroup.length === 0) {
       // Single server routing
       serverName = `${name}_${group}`;
@@ -1831,8 +1850,30 @@ export const createMcpServer = (name: string, version: string, group?: string, u
     console.log('Storing user tokens for server');
   }
 
-  server.setRequestHandler(ListToolsRequestSchema, (request, extra) => handleListToolsRequest(request, extra, group, userServiceTokens));
-  server.setRequestHandler(CallToolRequestSchema, (request, extra) => handleCallToolRequest(request, extra, group, userServiceTokens));
+  // MCPHub Key를 서버 인스턴스에 저장 (Authorization 헤더에서 추출)
+  const mcpHubKey = Object.keys(userServiceTokens || {}).find(key => key.startsWith('mcphub_'));
+  if (mcpHubKey) {
+    (server as any).mcpHubKey = userServiceTokens![mcpHubKey];
+    console.log('Storing MCPHub Key for server');
+  }
+
+  server.setRequestHandler(ListToolsRequestSchema, (request, extra) => {
+    // MCPHub Key를 extra에 추가 (서버 인스턴스에서 가져오기)
+    const enhancedExtra = {
+      ...extra,
+      mcpHubKey: (server as any).mcpHubKey
+    };
+    return handleListToolsRequest(request, enhancedExtra, group, userServiceTokens);
+  });
+
+  server.setRequestHandler(CallToolRequestSchema, (request, extra) => {
+    // MCPHub Key를 extra에 추가 (서버 인스턴스에서 가져오기)
+    const enhancedExtra = {
+      ...extra,
+      mcpHubKey: (server as any).mcpHubKey
+    };
+    return handleCallToolRequest(request, enhancedExtra, group, userServiceTokens);
+  });
 
   // 모든 요청을 로깅하기 위한 글로벌 핸들러
   const originalConnect = server.connect.bind(server);

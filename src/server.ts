@@ -119,7 +119,17 @@ export class AppServer {
       // Routes 초기화 (API 라우트를 먼저 등록)
       initRoutes(this.app);
 
-      // 프론트엔드 정적 파일 서빙 설정 (API 라우트 이후에 설정)
+      // MCP 요청 처리 엔드포인트들 (사용자 키 기반 - MCP 표준 준수) - 더 구체적인 라우트를 먼저
+      this.app.post(`${this.basePath}/mcp/user/:userKey`, handleMcpPostRequest);
+      this.app.get(`${this.basePath}/mcp/user/:userKey`, handleMcpOtherRequest);
+      this.app.delete(`${this.basePath}/mcp/user/:userKey`, handleMcpOtherRequest);
+
+      // MCP 요청 처리 엔드포인트들 (기존 그룹 기반) - 더 일반적인 라우트를 나중에
+      this.app.post(`${this.basePath}/mcp/:group?`, handleMcpPostRequest);
+      this.app.get(`${this.basePath}/mcp/:group?`, handleMcpOtherRequest);
+      this.app.delete(`${this.basePath}/mcp/:group?`, handleMcpOtherRequest);
+
+      // 프론트엔드 정적 파일 서빙 설정 (MCP 라우트 이후에 설정)
       this.findAndServeFrontend();
 
       // MCP 서버들 초기화 및 연결
@@ -132,11 +142,6 @@ export class AppServer {
 
           // SSE 메시지 처리 엔드포인트
           this.app.post(`${this.basePath}/messages`, handleSseMessage);
-
-          // MCP 요청 처리 엔드포인트들
-          this.app.post(`${this.basePath}/mcp/:group?`, handleMcpPostRequest);
-          this.app.get(`${this.basePath}/mcp/:group?`, handleMcpOtherRequest);
-          this.app.delete(`${this.basePath}/mcp/:group?`, handleMcpOtherRequest);
         })
         .catch((error) => {
           console.error('Error initializing MCP server:', error);
@@ -165,109 +170,122 @@ export class AppServer {
     if (this.frontendPath) {
       console.log(`Serving frontend from: ${this.frontendPath}`);
 
-      // 베이스 패스로 정적 파일 서빙
-      this.app.use(this.basePath, express.static(this.frontendPath));
+      // 정적 파일 서빙은 나중에 등록 (MCP 라우트 우선)
+      // this.app.use(`${this.basePath}/assets`, express.static(path.join(this.frontendPath, 'assets')));
+      // this.app.use(`${this.basePath}/favicon.ico`, express.static(path.join(this.frontendPath, 'favicon.ico')));
 
       // SPA를 위한 와일드카드 라우트 설정 (모든 경로를 index.html로 리다이렉트)
       if (fs.existsSync(path.join(this.frontendPath, 'index.html'))) {
-        this.app.get(`${this.basePath}/*`, (req, res) => {
-          // API 경로는 제외
-          if (req.path.startsWith('/api/')) {
-            return res.status(404).json({
-              success: false,
-              message: 'API endpoint not found'
-            });
-          }
+        // 루트 경로만 index.html로 서빙
+        this.app.get(this.basePath, (req, res) => {
           res.sendFile(path.join(this.frontendPath!, 'index.html'));
         });
 
-        // 베이스 패스가 설정된 경우 루트 경로에서 베이스 패스로 리다이렉트
-        if (this.basePath) {
-          this.app.get('/', (_req, res) => {
-            res.redirect(this.basePath);
-          });
-        }
+        // 프론트엔드 라우트들 (MCP/API 제외)
+        this.app.get(`${this.basePath}/dashboard`, (req, res) => {
+          res.sendFile(path.join(this.frontendPath!, 'index.html'));
+        });
+        this.app.get(`${this.basePath}/servers`, (req, res) => {
+          res.sendFile(path.join(this.frontendPath!, 'index.html'));
+        });
+        this.app.get(`${this.basePath}/user-groups`, (req, res) => {
+          res.sendFile(path.join(this.frontendPath!, 'index.html'));
+        });
+        this.app.get(`${this.basePath}/key-management`, (req, res) => {
+          res.sendFile(path.join(this.frontendPath!, 'index.html'));
+        });
+        this.app.get(`${this.basePath}/admin/*`, (req, res) => {
+          res.sendFile(path.join(this.frontendPath!, 'index.html'));
+        });
       }
-    } else {
-      console.warn('Frontend dist directory not found. Server will run without frontend.');
-      const rootPath = this.basePath || '/';
 
-      // 프론트엔드가 없는 경우 404 응답
-      this.app.get(rootPath, (_req, res) => {
-        res
-          .status(404)
-          .send('Frontend not found. MCPHub API is running, but the UI is not available.');
-      });
+      // 베이스 패스가 설정된 경우 루트 경로에서 베이스 패스로 리다이렉트
+      if (this.basePath) {
+        this.app.get('/', (_req, res) => {
+          res.redirect(this.basePath);
+        });
+      }
     }
+  } else {
+  console.warn('Frontend dist directory not found. Server will run without frontend.');
+  const rootPath = this.basePath || '/';
+
+  // 프론트엔드가 없는 경우 404 응답
+  this.app.get(rootPath, (_req, res) => {
+    res
+      .status(404)
+      .send('Frontend not found. MCPHub API is running, but the UI is not available.');
+  });
+}
   }
 
-  /**
-   * HTTP 서버 시작
-   * 
-   * 설정된 포트에서 Express 서버를 시작하고 접속 정보를 출력합니다.
-   * HTTP/1.1을 사용하여 SSE 호환성을 보장합니다.
-   */
-  start(): void {
-    // HTTP/1.1 서버 생성 (SSE 호환성을 위해)
-    const server = http.createServer(this.app);
+/**
+ * HTTP 서버 시작
+ * 
+ * 설정된 포트에서 Express 서버를 시작하고 접속 정보를 출력합니다.
+ * HTTP/1.1을 사용하여 SSE 호환성을 보장합니다.
+ */
+start(): void {
+  // HTTP/1.1 서버 생성 (SSE 호환성을 위해)
+  const server = http.createServer(this.app);
 
-    // Keep-alive 설정
-    server.keepAliveTimeout = 65000; // 65초
-    server.headersTimeout = 66000;   // keepAliveTimeout보다 약간 크게
+  // Keep-alive 설정
+  server.keepAliveTimeout = 65000; // 65초
+  server.headersTimeout = 66000;   // keepAliveTimeout보다 약간 크게
 
-    server.listen(this.port, () => {
-      console.log(`\n🚀 MCPHub Server is running on port ${this.port} (HTTP/1.1)`);
+  server.listen(this.port, () => {
+    console.log(`\n🚀 MCPHub Server is running on port ${this.port} (HTTP/1.1)`);
 
-      // MCP 서버 상태 요약
-      setTimeout(() => {
-        const serverInfos = getServersInfo();
-        const connectedServers = serverInfos.filter((s: any) => s.status === 'connected');
-        const disconnectedServers = serverInfos.filter((s: any) => s.status === 'disconnected');
-        const disabledServers = serverInfos.filter((s: any) => s.enabled === false);
+    // MCP 서버 상태 요약
+    setTimeout(() => {
+      const serverInfos = getServersInfo();
+      const connectedServers = serverInfos.filter((s: any) => s.status === 'connected');
+      const disconnectedServers = serverInfos.filter((s: any) => s.status === 'disconnected');
+      const disabledServers = serverInfos.filter((s: any) => s.enabled === false);
 
-        console.log(`\n📊 MCP Server Status Summary:`);
-        console.log(`   ✅ Connected: ${connectedServers.length} servers`);
-        if (connectedServers.length > 0) {
-          connectedServers.forEach((s: any) => {
-            console.log(`      - ${s.name} (${s.tools.length} tools)`);
-          });
-        }
+      console.log(`\n📊 MCP Server Status Summary:`);
+      console.log(`   ✅ Connected: ${connectedServers.length} servers`);
+      if (connectedServers.length > 0) {
+        connectedServers.forEach((s: any) => {
+          console.log(`      - ${s.name} (${s.tools.length} tools)`);
+        });
+      }
 
-        if (disconnectedServers.length > 0) {
-          console.log(`   ⚠️  Disconnected: ${disconnectedServers.length} servers`);
-          disconnectedServers.forEach((s: any) => {
-            console.log(`      - ${s.name}`);
-          });
-        }
+      if (disconnectedServers.length > 0) {
+        console.log(`   ⚠️  Disconnected: ${disconnectedServers.length} servers`);
+        disconnectedServers.forEach((s: any) => {
+          console.log(`      - ${s.name}`);
+        });
+      }
 
-        if (disabledServers.length > 0) {
-          console.log(`   🔴 Disabled: ${disabledServers.length} servers`);
-          disabledServers.forEach((s: any) => {
-            console.log(`      - ${s.name}`);
-          });
-        }
+      if (disabledServers.length > 0) {
+        console.log(`   🔴 Disabled: ${disabledServers.length} servers`);
+        disabledServers.forEach((s: any) => {
+          console.log(`      - ${s.name}`);
+        });
+      }
 
-        console.log(`\n💡 MCPHub is ready!`);
-        if (this.frontendPath) {
-          console.log(`   Open http://localhost:${this.port} in your browser to access MCPHub UI`);
-        } else {
-          console.log(`   API is available at http://localhost:${this.port}`);
-        }
-        console.log('');
-      }, 1000); // 1초 후에 상태 출력 (서버들이 연결될 시간 확보)
-    });
-  }
+      console.log(`\n💡 MCPHub is ready!`);
+      if (this.frontendPath) {
+        console.log(`   Open http://localhost:${this.port} in your browser to access MCPHub UI`);
+      } else {
+        console.log(`   API is available at http://localhost:${this.port}`);
+      }
+      console.log('');
+    }, 1000); // 1초 후에 상태 출력 (서버들이 연결될 시간 확보)
+  });
+}
 
-  /**
-   * Express 앱 인스턴스 반환
-   * 
-   * 테스트나 다른 모듈에서 Express 앱에 접근할 수 있도록 합니다.
-   * 
-   * @returns {express.Application} Express 애플리케이션 인스턴스
-   */
-  getApp(): express.Application {
-    return this.app;
-  }
+/**
+ * Express 앱 인스턴스 반환
+ * 
+ * 테스트나 다른 모듈에서 Express 앱에 접근할 수 있도록 합니다.
+ * 
+ * @returns {express.Application} Express 애플리케이션 인스턴스
+ */
+getApp(): express.Application {
+  return this.app;
+}
 
   /**
    * 프론트엔드 dist 경로 탐색
@@ -281,43 +299,43 @@ export class AppServer {
    * @returns {string | null} 프론트엔드 dist 경로 또는 null (찾지 못한 경우)
    */
   private findFrontendDistPath(): string | null {
-    // 디버그 플래그 확인
-    const debug = process.env.DEBUG === 'true';
+  // 디버그 플래그 확인
+  const debug = process.env.DEBUG === 'true';
 
-    if (debug) {
-      console.log('DEBUG: Current directory:', process.cwd());
-      console.log('DEBUG: Script directory:', __dirname);
-    }
+  if (debug) {
+    console.log('DEBUG: Current directory:', process.cwd());
+    console.log('DEBUG: Script directory:', __dirname);
+  }
 
-    // 패키지 루트 디렉토리 찾기
-    const packageRoot = this.findPackageRoot();
+  // 패키지 루트 디렉토리 찾기
+  const packageRoot = this.findPackageRoot();
 
-    if (debug) {
-      console.log('DEBUG: Using package root:', packageRoot);
-    }
+  if (debug) {
+    console.log('DEBUG: Using package root:', packageRoot);
+  }
 
-    if (!packageRoot) {
-      console.warn('Could not determine package root directory');
-      return null;
-    }
-
-    // 표준 위치에서 프론트엔드 dist 확인
-    const frontendDistPath = path.join(packageRoot, 'frontend', 'dist');
-
-    if (debug) {
-      console.log(`DEBUG: Checking frontend at: ${frontendDistPath}`);
-    }
-
-    if (
-      fs.existsSync(frontendDistPath) &&
-      fs.existsSync(path.join(frontendDistPath, 'index.html'))
-    ) {
-      return frontendDistPath;
-    }
-
-    console.warn('Frontend distribution not found at', frontendDistPath);
+  if (!packageRoot) {
+    console.warn('Could not determine package root directory');
     return null;
   }
+
+  // 표준 위치에서 프론트엔드 dist 확인
+  const frontendDistPath = path.join(packageRoot, 'frontend', 'dist');
+
+  if (debug) {
+    console.log(`DEBUG: Checking frontend at: ${frontendDistPath}`);
+  }
+
+  if (
+    fs.existsSync(frontendDistPath) &&
+    fs.existsSync(path.join(frontendDistPath, 'index.html'))
+  ) {
+    return frontendDistPath;
+  }
+
+  console.warn('Frontend distribution not found at', frontendDistPath);
+  return null;
+}
 
   /**
    * 패키지 루트 디렉토리 탐색
@@ -329,55 +347,55 @@ export class AppServer {
    * @returns {string | null} 패키지 루트 경로 또는 null (찾지 못한 경우)
    */
   private findPackageRoot(): string | null {
-    const debug = process.env.DEBUG === 'true';
+  const debug = process.env.DEBUG === 'true';
 
-    // package.json이 있을 수 있는 위치들
-    const possibleRoots = [
-      // 표준 npm 패키지 위치
-      path.resolve(__dirname, '..', '..'),
-      // 현재 작업 디렉토리
-      process.cwd(),
-      // dist 디렉토리에서 실행하는 경우
-      path.resolve(__dirname, '..'),
-      // npx로 설치된 경우
-      path.resolve(__dirname, '..', '..', '..'),
-    ];
+  // package.json이 있을 수 있는 위치들
+  const possibleRoots = [
+    // 표준 npm 패키지 위치
+    path.resolve(__dirname, '..', '..'),
+    // 현재 작업 디렉토리
+    process.cwd(),
+    // dist 디렉토리에서 실행하는 경우
+    path.resolve(__dirname, '..'),
+    // npx로 설치된 경우
+    path.resolve(__dirname, '..', '..', '..'),
+  ];
 
-    // npx 실행 환경 특별 처리
-    if (process.argv[1] && process.argv[1].includes('_npx')) {
-      const npxDir = path.dirname(process.argv[1]);
-      possibleRoots.unshift(path.resolve(npxDir, '..'));
-    }
+  // npx 실행 환경 특별 처리
+  if (process.argv[1] && process.argv[1].includes('_npx')) {
+    const npxDir = path.dirname(process.argv[1]);
+    possibleRoots.unshift(path.resolve(npxDir, '..'));
+  }
 
-    if (debug) {
-      console.log('DEBUG: Checking for package.json in:', possibleRoots);
-    }
+  if (debug) {
+    console.log('DEBUG: Checking for package.json in:', possibleRoots);
+  }
 
-    // 각 위치에서 package.json 확인
-    for (const root of possibleRoots) {
-      const packageJsonPath = path.join(root, 'package.json');
-      if (fs.existsSync(packageJsonPath)) {
-        try {
-          const pkg = JSON.parse(fs.readFileSync(packageJsonPath, 'utf8'));
+  // 각 위치에서 package.json 확인
+  for (const root of possibleRoots) {
+    const packageJsonPath = path.join(root, 'package.json');
+    if (fs.existsSync(packageJsonPath)) {
+      try {
+        const pkg = JSON.parse(fs.readFileSync(packageJsonPath, 'utf8'));
 
-          // MCPHub 패키지인지 확인
-          if (pkg.name === 'mcphub' || pkg.name === '@samanhappy/mcphub' || pkg.name === '@hades/mcphub') {
-            if (debug) {
-              console.log(`DEBUG: Found package.json at ${packageJsonPath}`);
-            }
-            return root;
-          }
-        } catch (e) {
+        // MCPHub 패키지인지 확인
+        if (pkg.name === 'mcphub' || pkg.name === '@samanhappy/mcphub' || pkg.name === '@hades/mcphub') {
           if (debug) {
-            console.error(`DEBUG: Failed to parse package.json at ${packageJsonPath}:`, e);
+            console.log(`DEBUG: Found package.json at ${packageJsonPath}`);
           }
-          // 다음 위치로 계속 진행
+          return root;
         }
+      } catch (e) {
+        if (debug) {
+          console.error(`DEBUG: Failed to parse package.json at ${packageJsonPath}:`, e);
+        }
+        // 다음 위치로 계속 진행
       }
     }
-
-    return null;
   }
+
+  return null;
+}
 }
 
 export default AppServer;

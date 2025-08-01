@@ -607,20 +607,13 @@ GET /api/market/:name
 
 ---
 
-## 8. 그룹 관리 (Group Management)
+## 8. 사용자 그룹 관리 (User Group Management)
 
-### 8.1 그룹 정보 조회
-**파일**: `src/controllers/groupController.ts` (라인 1-50)
-
-```http
-GET /api/groups/:name
-```
-
-### 8.2 그룹 목록 조회
-**파일**: `src/routes/index.ts` (라인 437-450)
+### 8.1 사용자 그룹 목록 조회
+**파일**: `src/controllers/userGroupController.ts`
 
 ```http
-GET /api/groups
+GET /api/user/groups
 ```
 
 **응답**:
@@ -629,12 +622,68 @@ GET /api/groups
   "success": true,
   "data": [
     {
+      "id": "uuid",
       "name": "string",
-      "displayName": "string",
-      "enabled": boolean,
-      "servers": []
+      "description": "string",
+      "servers": ["string"],
+      "isActive": boolean,
+      "createdAt": "ISO_DATE",
+      "updatedAt": "ISO_DATE"
     }
   ]
+}
+```
+
+### 8.2 사용자 그룹 생성
+**파일**: `src/controllers/userGroupController.ts`
+
+```http
+POST /api/user/groups
+```
+
+**요청 본문**:
+```json
+{
+  "name": "string",
+  "description": "string",
+  "servers": ["string"]
+}
+```
+
+### 8.3 사용자 그룹 수정
+**파일**: `src/controllers/userGroupController.ts`
+
+```http
+PUT /api/user/groups/:groupId
+```
+
+**요청 본문**:
+```json
+{
+  "name": "string",
+  "description": "string",
+  "servers": ["string"]
+}
+```
+
+### 8.4 사용자 그룹 삭제
+**파일**: `src/controllers/userGroupController.ts`
+
+```http
+DELETE /api/user/groups/:groupId
+```
+
+### 8.5 사용자 그룹 활성화/비활성화
+**파일**: `src/controllers/userGroupController.ts`
+
+```http
+PATCH /api/user/groups/:groupId/active
+```
+
+**요청 본문**:
+```json
+{
+  "isActive": boolean
 }
 ```
 
