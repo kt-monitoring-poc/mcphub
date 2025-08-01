@@ -327,10 +327,10 @@ const KeyManagementPage: React.FC = () => {
                   </div>
                 </div>
 
-                <div className="bg-white dark:bg-gray-800 rounded-lg p-4 border border-blue-200 dark:border-blue-700">
+                                <div className="bg-white dark:bg-gray-800 rounded-lg p-4 border border-blue-200 dark:border-blue-700">
                   <h4 className="font-medium text-gray-900 dark:text-white mb-2">2단계: 설정 파일 내용 (권장 방식)</h4>
                   <p className="text-sm text-gray-600 dark:text-gray-300 mb-3">
-                    <strong className="text-green-600 dark:text-green-400">새로운 URL 기반 인증 방식</strong>을 사용하세요. 이 방식이 MCP 프로토콜 표준에 더 부합합니다:
+                    <strong className="text-green-600 dark:text-green-400">쿼리 파라미터 인증 방식</strong>을 사용하세요. 이 방식이 MCP 프로토콜 표준에 가장 부합합니다:
                   </p>
                   <div className="relative">
                     <pre className="bg-gray-900 text-green-400 p-4 rounded-lg text-sm overflow-x-auto">
@@ -338,7 +338,7 @@ const KeyManagementPage: React.FC = () => {
   "mcpServers": {
     "mcp-hub": {
       "type": "streamable-http",
-      "url": "http://localhost:3000/mcp/user/MCPHub Key를 여기에 복사 붙여넣기",
+      "url": "http://localhost:3000/mcp?key=MCPHub Key를 여기에 복사 붙여넣기",
       "headers": {
         "Connection": "keep-alive",
         "Content-Type": "application/json"
@@ -353,7 +353,7 @@ const KeyManagementPage: React.FC = () => {
   "mcpServers": {
     "mcp-hub": {
       "type": "streamable-http",
-      "url": "http://localhost:3000/mcp/user/${keys[0]?.keyValue || 'YOUR_KEY_HERE'}",
+      "url": "http://localhost:3000/mcp?key=${keys[0]?.keyValue || 'YOUR_KEY_HERE'}",
       "headers": {
         "Connection": "keep-alive",
         "Content-Type": "application/json"
@@ -370,16 +370,21 @@ const KeyManagementPage: React.FC = () => {
                       <Copy className="w-4 h-4" />
                     </button>
                   </div>
-
-                  <div className="mt-4 p-3 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg">
+                  
+                  <div className="mt-4 p-3 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg">
                     <div className="flex items-start">
-                      <AlertTriangle className="w-5 h-5 text-yellow-600 dark:text-yellow-400 mt-0.5 mr-2 flex-shrink-0" />
-                      <div className="text-sm">
-                        <p className="text-yellow-800 dark:text-yellow-200 font-medium mb-1">기존 헤더 방식의 문제점:</p>
-                        <ul className="text-yellow-700 dark:text-yellow-300 space-y-1">
-                          <li>• Cursor IDE에서 "No tools or prompts" 오류 발생</li>
-                          <li>• MCP 프로토콜 표준에서 벗어남</li>
-                          <li>• 연결 불안정 및 재연결 시 오류</li>
+                      <div className="flex-shrink-0">
+                        <div className="w-5 h-5 bg-green-500 rounded-full flex items-center justify-center">
+                          <div className="w-2 h-2 bg-white rounded-full"></div>
+                        </div>
+                      </div>
+                      <div className="ml-3 text-sm">
+                        <p className="text-green-800 dark:text-green-200 font-medium mb-1">새로운 표준 방식의 장점:</p>
+                        <ul className="text-green-700 dark:text-green-300 space-y-1">
+                          <li>• MCP 프로토콜 표준 완전 준수</li>
+                          <li>• Cursor IDE와 완벽 호환</li>
+                          <li>• 안정적인 연결 및 도구 인식</li>
+                          <li>• 표준 /mcp endpoint 사용</li>
                         </ul>
                       </div>
                     </div>

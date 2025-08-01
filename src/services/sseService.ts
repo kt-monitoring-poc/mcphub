@@ -367,7 +367,7 @@ export const handleMcpOtherRequest = async (req: Request, res: Response): Promis
     }
   }
   const group = req.params.group;
-  const userKey = req.params.userKey; // URL 기반 사용자 키
+  const userKey = req.query.key as string; // 쿼리 파라미터 기반 사용자 키
 
   console.log(`Handling MCP other request - Method: ${req.method}, SessionID: ${sessionId}`);
   console.log('🔍 GET /mcp 요청 상세:', {
@@ -378,20 +378,20 @@ export const handleMcpOtherRequest = async (req: Request, res: Response): Promis
     body: req.body
   });
 
-  // MCPHub Key 인증 수행 (URL 기반 또는 헤더 기반)
+    // MCPHub Key 인증 수행 (쿼리 파라미터 또는 헤더 기반)
   let userServiceTokens: Record<string, string> = {};
   const authHeader = req.headers.authorization;
 
-  // URL 기반 인증 (MCP 표준 준수)
+  // 쿼리 파라미터 기반 인증 (MCP 표준 준수)
   if (userKey) {
-    console.log(`🔐 URL 기반 인증 시도: ${userKey}`);
+    console.log(`🔐 쿼리 파라미터 인증 시도: ${userKey.substring(0, 10)}...`);
     const authenticatedTokens = await authenticateWithMcpHubKey(userKey, true);
     if (authenticatedTokens) {
       userServiceTokens = authenticatedTokens;
-      console.log(`✅ URL 기반 인증 성공: ${userKey}`);
+      console.log(`✅ 쿼리 파라미터 인증 성공`);
     } else {
-      console.log(`❌ URL 기반 인증 실패: ${userKey}`);
-      res.status(401).send('Invalid user key in URL');
+      console.log(`❌ 쿼리 파라미터 인증 실패`);
+      res.status(401).send('Invalid user key in query parameter');
       return;
     }
   }
@@ -399,7 +399,7 @@ export const handleMcpOtherRequest = async (req: Request, res: Response): Promis
   else if (authHeader && authHeader.startsWith('Bearer ')) {
     const token = authHeader.substring(7);
     console.log(`🔐 헤더 기반 인증 시도: ${token.substring(0, 10)}...`);
-
+    
     const authenticatedTokens = await authenticateWithMcpHubKey(token, true);
     if (authenticatedTokens) {
       userServiceTokens = authenticatedTokens;
@@ -414,7 +414,7 @@ export const handleMcpOtherRequest = async (req: Request, res: Response): Promis
       }
     }
   } else {
-    res.status(401).send('Authentication required: either user key in URL or Authorization header');
+    res.status(401).send('Authentication required: either ?key=... or Authorization header');
     return;
   }
 
@@ -573,7 +573,7 @@ export const handleMcpPostRequest = async (req: Request, res: Response): Promise
   }
 
   const group = req.params.group;
-  const userKey = req.params.userKey; // URL 기반 사용자 키
+  const userKey = req.query.key as string; // 쿼리 파라미터 기반 사용자 키
   const body = req.body;
 
   // 기본 요청 정보 로깅
@@ -605,21 +605,21 @@ export const handleMcpPostRequest = async (req: Request, res: Response): Promise
     return;
   }
 
-  // MCPHub Key 인증 수행 (URL 기반 또는 헤더 기반)
+  // MCPHub Key 인증 수행 (쿼리 파라미터 또는 헤더 기반)
   let userServiceTokens: Record<string, string> = {};
   const authHeader = req.headers.authorization;
   const isNewSession = !sessionId || !transports.streamable[sessionId];
 
-  // URL 기반 인증 (MCP 표준 준수)
+  // 쿼리 파라미터 기반 인증 (MCP 표준 준수)
   if (userKey) {
-    console.log(`🔐 URL 기반 인증 시도: ${userKey}`);
+    console.log(`🔐 쿼리 파라미터 인증 시도: ${userKey.substring(0, 10)}...`);
     const authenticatedTokens = await authenticateWithMcpHubKey(userKey, !isNewSession);
     if (authenticatedTokens) {
       userServiceTokens = authenticatedTokens;
-      console.log(`✅ URL 기반 인증 성공: ${userKey}`);
+      console.log(`✅ 쿼리 파라미터 인증 성공`);
     } else {
-      console.log(`❌ URL 기반 인증 실패: ${userKey}`);
-      res.status(401).send('Invalid user key in URL');
+      console.log(`❌ 쿼리 파라미터 인증 실패`);
+      res.status(401).send('Invalid user key in query parameter');
       return;
     }
   }
@@ -642,7 +642,7 @@ export const handleMcpPostRequest = async (req: Request, res: Response): Promise
       }
     }
   } else {
-    res.status(401).send('Authentication required: either user key in URL or Authorization header');
+    res.status(401).send('Authentication required: either ?key=... or Authorization header');
     return;
   }
 

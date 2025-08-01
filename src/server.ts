@@ -119,15 +119,10 @@ export class AppServer {
       // Routes 초기화 (API 라우트를 먼저 등록)
       initRoutes(this.app);
 
-      // MCP 요청 처리 엔드포인트들 (사용자 키 기반 - MCP 표준 준수) - 더 구체적인 라우트를 먼저
-      this.app.post(`${this.basePath}/mcp/user/:userKey`, handleMcpPostRequest);
-      this.app.get(`${this.basePath}/mcp/user/:userKey`, handleMcpOtherRequest);
-      this.app.delete(`${this.basePath}/mcp/user/:userKey`, handleMcpOtherRequest);
-
-      // MCP 요청 처리 엔드포인트들 (기존 그룹 기반) - 더 일반적인 라우트를 나중에
-      this.app.post(`${this.basePath}/mcp/:group?`, handleMcpPostRequest);
-      this.app.get(`${this.basePath}/mcp/:group?`, handleMcpOtherRequest);
-      this.app.delete(`${this.basePath}/mcp/:group?`, handleMcpOtherRequest);
+            // MCP 요청 처리 엔드포인트 (MCP 표준 준수 - /mcp만 사용)
+      this.app.post(`${this.basePath}/mcp`, handleMcpPostRequest);
+      this.app.get(`${this.basePath}/mcp`, handleMcpOtherRequest);
+      this.app.delete(`${this.basePath}/mcp`, handleMcpOtherRequest);
 
       // 프론트엔드 정적 파일 서빙 설정 (MCP 라우트 이후에 설정)
       this.findAndServeFrontend();
