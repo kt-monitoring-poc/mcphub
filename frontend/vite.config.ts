@@ -30,6 +30,7 @@ export default defineConfig({
     sourcemap: true, // Enable source maps for production build
   },
   server: {
+    port: 5173, // 프론트엔드 개발 서버 포트 명시
     proxy: {
       [`${basePath}/api`]: {
         target: 'http://localhost:3000',
@@ -44,6 +45,10 @@ export default defineConfig({
         changeOrigin: true,
       },
       [`${basePath}/public-config`]: {
+        target: 'http://localhost:3000',
+        changeOrigin: true,
+      },
+      [`${basePath}/mcp`]: {
         target: 'http://localhost:3000',
         changeOrigin: true,
       },
