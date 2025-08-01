@@ -1,7 +1,7 @@
 {
-  "name": "@samanhappy/mcphub",
-  "version": "dev",
-  "description": "A hub server for mcp servers",
+  "name": "@hades/mcphub",
+  "version": "2.0.0",
+  "description": "A modern hub server for MCP servers with protocol 2025-06-18 support and complete user management",
   "main": "dist/index.js",
   "type": "module",
   "bin": {

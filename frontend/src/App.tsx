@@ -7,6 +7,7 @@ import MainLayout from './layouts/MainLayout';
 import DashboardPage from './pages/Dashboard';
 import GroupsPage from './pages/GroupsPage';
 import KeyManagementPage from './pages/KeyManagementPage';
+import UserGroupsPage from './pages/UserGroupsPage';
 import LoginPage from './pages/LoginPage';
 import LogsPage from './pages/LogsPage';
 import ServersPage from './pages/ServersPage';
@@ -35,6 +36,7 @@ function App() {
                 <Route element={<MainLayout />}>
                   <Route path="/" element={<DashboardPage />} />
                   <Route path="/groups" element={<GroupsPage />} />
+                  <Route path="/user-groups" element={<UserGroupsPage />} />
                   <Route path="/api-keys" element={<KeyManagementPage />} />
                   <Route path="/settings" element={<SettingsPage />} />
                 </Route>

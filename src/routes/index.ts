@@ -2,6 +2,7 @@ import express from 'express';
 import jwt from 'jsonwebtoken';
 import { Pool } from 'pg';
 import config, { loadSettings, saveSettings } from '../config/index.js';
+import userGroupRoutes from './userGroupRoutes.js';
 import {
   deleteUser,
   getAllUsers,
@@ -606,6 +607,12 @@ export const initRoutes = (app: express.Application): void => {
   // Add API routes to express app
   const basePath = config.basePath;
   app.use(`${basePath}/api`, router);
+  
+  // 사용자 그룹 관리 라우트
+  app.use(`${basePath}/api/user/groups`, userGroupRoutes);
+
+  // REST API 엔드포인트는 Cursor IDE에서 사용하지 않으므로 제거
+  // Cursor IDE는 MCP 프로토콜을 통해 /mcp 엔드포인트로 통신함
 };
 
 export default router;

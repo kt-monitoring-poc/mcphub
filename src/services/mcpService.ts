@@ -20,8 +20,10 @@ import { OpenAPIClient } from '../clients/openapi.js';
 import config, { expandEnvVars, loadSettings, replaceEnvVars, saveSettings } from '../config/index.js';
 import { MCPHubKeyService } from '../services/mcpHubKeyService.js';
 import { ServerConfig, ServerInfo, ToolInfo } from '../types/index.js';
+import { extractUserEnvVars } from '../utils/variableDetection.js';
 import { getServersInGroup } from './groupService.js';
 import { getGroup } from './sseService.js';
+import { UserGroupService } from './userGroupService.js';
 import { saveToolsAsVectorEmbeddings, searchToolsByVector } from './vectorSearchService.js';
 
 /**
@@ -1191,41 +1193,62 @@ export const toggleServerStatus = async (
 export const handleListToolsRequest = async (_: any, extra: any, group?: string, userServiceTokens?: Record<string, string>) => {
   const sessionId = extra.sessionId || '';
   const requestGroup = group || getGroup(sessionId, 'streamable');
-  console.log(`Handling ListToolsRequest for group: ${requestGroup}`);
+  console.log(`Handling ListToolsRequest for group: ${requestGroup || 'global'}`);
 
   // 사용자 토큰이 있다면 동적 서버 연결 시도
   if (userServiceTokens && Object.keys(userServiceTokens).length > 0) {
-    console.log('🔑 사용자 토큰으로 동적 서버 연결 시도...');
-    console.log('🔑 사용자 토큰 목록:', Object.keys(userServiceTokens));
-    console.log('🔑 사용자 토큰 값:', userServiceTokens);
+    console.log('Connecting to servers with user tokens...');
 
-    // GitHub 토큰이 있으면 github 서버 연결 시도
-    if (userServiceTokens.GITHUB_TOKEN) {
-      console.log('🔗 GitHub 토큰 발견:', userServiceTokens.GITHUB_TOKEN ? `${userServiceTokens.GITHUB_TOKEN.substring(0, 10)}...` : 'null');
-      console.log('🔗 GitHub 서버 연결 시도...');
-      try {
-        await ensureServerConnected('github', userServiceTokens);
-      } catch (error) {
-        console.warn('⚠️ GitHub 서버 연결 실패:', error);
-      }
-    } else {
-      console.log('🔗 GitHub 토큰이 없음');
-    }
+    // 동적으로 사용자 토큰에 맞는 서버 연결 시도
+    const settings = loadSettings();
+    const enabledServers = Object.entries(settings.mcpServers).filter(([_, config]) => config.enabled !== false);
 
-    // Firecrawl 토큰이 있으면 firecrawl-mcp 서버 연결 시도
-    if (userServiceTokens.FIRECRAWL_TOKEN) {
-      console.log('🔗 Firecrawl 토큰 발견:', userServiceTokens.FIRECRAWL_TOKEN ? `${userServiceTokens.FIRECRAWL_TOKEN.substring(0, 10)}...` : 'null');
-      console.log('🔗 Firecrawl 서버 연결 시도...');
-      try {
-        await ensureServerConnected('firecrawl-mcp', userServiceTokens);
-      } catch (error) {
-        console.warn('⚠️ Firecrawl 서버 연결 실패:', error);
+    for (const [serverName, serverConfig] of enabledServers) {
+      // 사용자 토큰이 필요한 서버인지 확인
+      const userEnvVars = extractUserEnvVars(serverConfig);
+      if (userEnvVars.length > 0) {
+        // 필요한 토큰이 모두 있는지 확인
+        const hasAllTokens = userEnvVars.every(varName => {
+          const tokenKey = varName.replace('USER_', '');
+          return userServiceTokens[tokenKey] && userServiceTokens[tokenKey].trim() !== '';
+        });
+
+        if (hasAllTokens) {
+          console.log(`Connecting to ${serverName} server...`);
+          try {
+            await ensureServerConnected(serverName, userServiceTokens);
+          } catch (error) {
+            console.warn(`Failed to connect to ${serverName}:`, error);
+          }
+        }
+      } else {
+        // 토큰이 필요하지 않은 서버는 기본 연결 시도
+        console.log(`Connecting to ${serverName} server (no tokens required)...`);
+        try {
+          await ensureServerConnected(serverName, {});
+        } catch (error) {
+          console.warn(`Failed to connect to ${serverName}:`, error);
+        }
       }
-    } else {
-      console.log('🔗 Firecrawl 토큰이 없음');
     }
   } else {
-    console.log('🔑 사용자 토큰이 없음 또는 비어있음');
+    // 사용자 토큰이 없어도 기본 서버 연결 시도
+    console.log('Connecting to servers without user tokens...');
+    const settings = loadSettings();
+    const enabledServers = Object.entries(settings.mcpServers).filter(([_, config]) => config.enabled !== false);
+
+    for (const [serverName, serverConfig] of enabledServers) {
+      const userEnvVars = extractUserEnvVars(serverConfig);
+      if (userEnvVars.length === 0) {
+        // 토큰이 필요하지 않은 서버만 연결
+        console.log(`Connecting to ${serverName} server (no tokens required)...`);
+        try {
+          await ensureServerConnected(serverName, {});
+        } catch (error) {
+          console.warn(`Failed to connect to ${serverName}:`, error);
+        }
+      }
+    }
   }
 
   // Special handling for $smart group to return special tools
@@ -1295,8 +1318,35 @@ Available servers: ${serversList}`;
     };
   }
 
+  // 사용자 그룹 필터링 로직
+  let filteredServers: string[] = [];
+  
+  if (extra && extra.mcpHubKey) {
+    try {
+      const mcpHubKeyService = new MCPHubKeyService();
+      const authResult = await mcpHubKeyService.authenticateKey(extra.mcpHubKey);
+      if (authResult) {
+        const userGroupService = new UserGroupService();
+        const activeServers = await userGroupService.getActiveServers(authResult.user.id);
+        if (activeServers.length > 0) {
+          filteredServers = activeServers;
+        }
+      }
+    } catch (error) {
+      console.warn('사용자 그룹 필터링 실패:', error);
+    }
+  }
+
   const allServerInfos = serverInfos.filter((serverInfo) => {
+    // 기본 필터링: 비활성화된 서버 제외
     if (serverInfo.enabled === false) return false;
+
+    // 사용자 그룹 필터링: 활성 그룹이 있는 경우 해당 서버만 포함
+    if (filteredServers.length > 0) {
+      return filteredServers.includes(serverInfo.name);
+    }
+
+    // 기존 그룹 필터링 로직
     if (!requestGroup) return true;
     const serversInGroup = getServersInGroup(requestGroup);
     if (!serversInGroup || serversInGroup.length === 0) return serverInfo.name === requestGroup;
@@ -1335,23 +1385,19 @@ Available servers: ${serversList}`;
     }
   }
 
-  // Also add individual tools for backward compatibility and direct access
+  // 개별 툴 노출 활성화 (Cursor IDE 호환성을 위해)
   for (const serverInfo of allServerInfos) {
     if (serverInfo.tools && serverInfo.tools.length > 0) {
-      // Filter tools based on server configuration and apply custom descriptions
       const enabledTools = filterToolsByConfig(serverInfo.name, serverInfo.tools);
-
-      // Apply custom descriptions from configuration
       const settings = loadSettings();
       const serverConfig = settings.mcpServers[serverInfo.name];
       const toolsWithCustomDescriptions = enabledTools.map((tool) => {
         const toolConfig = serverConfig?.tools?.[tool.name];
         return {
           ...tool,
-          description: toolConfig?.description || tool.description, // Use custom description if available
+          description: toolConfig?.description || tool.description,
         };
       });
-
       allTools.push(...toolsWithCustomDescriptions);
     }
   }
@@ -1764,13 +1810,17 @@ export const createMcpServer = (name: string, version: string, group?: string, u
     },
     {
       capabilities: {
-        tools: {},
-        prompts: {},
-        resources: {},
-        logging: {},
-        roots: {
+        tools: {
           listChanged: true
-        }
+        },
+        prompts: {
+          listChanged: true
+        },
+        resources: {
+          listChanged: false,
+          subscribe: false
+        },
+        logging: {}
       }
     }
   );
@@ -1778,10 +1828,43 @@ export const createMcpServer = (name: string, version: string, group?: string, u
   // 사용자 토큰을 서버 인스턴스에 저장
   if (userServiceTokens) {
     (server as any).userServiceTokens = userServiceTokens;
-    console.log('🔑 서버에 사용자 토큰 저장:', Object.keys(userServiceTokens));
+    console.log('Storing user tokens for server');
   }
 
   server.setRequestHandler(ListToolsRequestSchema, (request, extra) => handleListToolsRequest(request, extra, group, userServiceTokens));
   server.setRequestHandler(CallToolRequestSchema, (request, extra) => handleCallToolRequest(request, extra, group, userServiceTokens));
+
+  // 모든 요청을 로깅하기 위한 글로벌 핸들러
+  const originalConnect = server.connect.bind(server);
+  server.connect = async (transport: any) => {
+    console.log('MCP Server connect called');
+
+    // Transport의 메시지 처리를 후킹
+    const originalHandleMessage = transport.handleMessage;
+    if (originalHandleMessage) {
+      transport.handleMessage = (message: any) => {
+        if (message && message.method === 'offerings/list') {
+          console.log('Transport level: offerings/list message detected');
+          // 직접 응답 반환
+          return {
+            jsonrpc: '2.0',
+            result: {
+              offerings: {
+                tools: true,
+                prompts: true,
+                resources: false,
+                logging: false
+              }
+            },
+            id: message.id
+          };
+        }
+        return originalHandleMessage.call(transport, message);
+      };
+    }
+
+    return originalConnect(transport);
+  };
+
   return server;
 };

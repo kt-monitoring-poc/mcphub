@@ -311,9 +311,46 @@ erDiagram
    - `user_api_keys`: 사용자별 실제 값 저장
    - 완전 자동화된 UI 필드 생성
 
+## 사용자 관리 시스템 (v2.0)
+
+### 🔧 **사용자 활성화/비활성화**
+- `users.isActive` 필드로 사용자 상태 제어
+- 비활성화된 사용자는 MCPHub Key 사용 불가
+- 관리자는 비활성화 대상에서 제외
+
+### 👤 **관리자 권한 관리**
+- `users.isAdmin` 필드로 관리자 권한 제어
+- 최소 1명의 관리자 유지 필수 (보호 로직)
+- 관리자는 다른 사용자의 권한 변경 가능
+
+### 🗑️ **사용자 삭제**
+- **소프트 삭제**: `isActive = false`로 설정
+- **하드 삭제**: DB에서 완전 제거 (CASCADE로 관련 데이터 함께 삭제)
+- 관리자 삭제 시 추가 보호 로직 적용
+
+### 🔐 **MCPHub Key 제한**
+- 비활성화된 사용자의 API 키 자동 차단
+- `oauthController.createUserKey`에서 `user.isActive` 검증
+- 실시간 사용자 상태 반영
+
 ## 마이그레이션 히스토리
 
-### 2025-07-30 (v2.0)
+### 2025-07-31 (v2.0 완료)
+- **사용자 관리 시스템 완전 구현**:
+  - 사용자 활성화/비활성화 기능
+  - 관리자 권한 토글 기능
+  - 사용자 삭제 (소프트/하드 삭제)
+  - 관리자 보호 로직 (최소 1명 관리자 유지)
+  - MCPHub Key 사용 제한 (비활성화 사용자)
+- **API 엔드포인트 추가**:
+  - `GET /admin/users/list` - 사용자 목록 조회
+  - `PUT /admin/users/:userId/active` - 사용자 활성화/비활성화
+  - `PUT /admin/users/:userId/admin` - 관리자 권한 토글
+  - `DELETE /admin/users/:userId` - 사용자 삭제
+- **UserRepository 확장**: 사용자 관리 메서드 추가
+- **타입 안전성 강화**: nullable 필드 처리 개선
+
+### 2025-07-30 (v2.0 시작)
 - **User 테이블 확장**: 로컬 관리자 계정 지원 추가
   - `username`, `password` 필드 추가 (nullable)
   - `githubId`, `githubUsername` 필드를 nullable로 변경

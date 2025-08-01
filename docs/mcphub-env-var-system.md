@@ -245,6 +245,67 @@ const handleSaveEnvVars = async () => {
 
 ---
 
-**작성일**: 2025-07-30  
+## 🚀 **v2.0 업데이트 (2025-07-31)**
+
+### ✅ **완전 환경변수 템플릿화 완료**
+
+모든 하드코딩된 값들이 환경변수 템플릿으로 변경되었습니다:
+
+#### **변경된 환경변수들**
+
+**mcp-atlassian 서버:**
+- `${USER_ATLASSIAN_TOKEN}` - Atlassian API 토큰
+- `${USER_ATLASSIAN_EMAIL}` - 사용자 이메일 (**새로 추가**)
+- `${USER_ATLASSIAN_CLOUD_ID}` - Atlassian Cloud ID (**새로 추가**)
+
+**jira-azure 서버:**
+- `${USER_JIRA_BASE_URL}` - Jira 베이스 URL (**새로 추가**)
+- `${USER_JIRA_EMAIL}` - Jira 사용자 이메일 (**새로 추가**)
+- `${USER_JIRA_API_TOKEN}` - Jira API 토큰
+
+**GitHub PR MCP 서버:**
+- `${USER_GITHUB_TOKEN}` - GitHub 토큰
+
+### 🔧 **완전 자동화된 UI 생성**
+
+이제 MCPHub 설정 페이지에서 다음과 같은 입력 필드들이 자동으로 생성됩니다:
+
+#### **📋 Atlassian 섹션:**
+- **Atlassian Token** (토큰 필드)
+- **Atlassian Email** (이메일 필드)
+- **Atlassian Cloud Id** (텍스트 필드)
+
+#### **🎫 Jira 섹션:**
+- **Jira Base Url** (URL 필드)
+- **Jira Email** (이메일 필드)
+- **Jira Api Token** (토큰 필드)
+
+#### **🐙 GitHub 섹션:**
+- **GitHub Token** (토큰 필드)
+
+### 🎯 **자동화 플로우 개선**
+
+```
+${USER_*} 패턴 템플릿 감지
+    ↓ 자동 처리
+extractUserEnvVars() 환경변수 탐지
+    ↓ 동적 생성
+/api/env-templates API 템플릿 제공
+    ↓ 실시간 렌더링
+프론트엔드 UI 필드 자동 생성
+    ↓ 보안 저장
+mcphub_keys.serviceTokens DB 암호화 저장
+```
+
+### 🔒 **보안 강화**
+
+1. **GitHub Secret Scanning 준수**: 모든 하드코딩된 토큰 제거
+2. **환경변수 마스킹**: 로그에서 토큰 값 일부만 표시
+3. **사용자별 격리**: 각 사용자의 환경변수 완전 분리
+4. **실시간 보안**: 토큰 노출 시 즉시 Git 커밋 차단
+
+---
+
+**작성일**: 2025-07-31  
 **작성자**: MCPHub 개발팀  
-**버전**: 1.0.0 
+**버전**: 2.1.0 (v2.0 완전 환경변수화 완료) 

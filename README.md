@@ -1,15 +1,16 @@
-# MCPHub v1.0.0 🎉
+# MCPHub v2.0.0 🚀
 
 <div align="center">
 
-**완전 자동화된 MCP 서버 환경변수 관리 시스템**
+**MCP 프로토콜 2025-06-18 + 완전한 사용자 관리 + 보안 강화**
 
-[![Version](https://img.shields.io/badge/version-v1.0.0-blue.svg)](https://github.com/jungchihoon/mcphub/releases/tag/v1.0.0)
+[![Version](https://img.shields.io/badge/version-v2.0.0-blue.svg)](https://github.com/jungchihoon/mcphub/releases/tag/v2.0.0)
 [![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 [![Node.js](https://img.shields.io/badge/node.js-%3E%3D18.0.0-brightgreen.svg)](https://nodejs.org/)
 [![PostgreSQL](https://img.shields.io/badge/postgresql-%3E%3D14.0.0-blue.svg)](https://postgresql.org/)
+[![MCP Protocol](https://img.shields.io/badge/MCP_Protocol-2025--06--18-brightgreen.svg)](https://modelcontextprotocol.io/)
 
-[빠른 시작](#-빠른-시작) • [문서](#-문서-가이드) • [기능](#-핵심-기능) • [API](#-api-문서) • [기여하기](#-기여하기)
+[빠른 시작](#-빠른-시작) • [v2.0 새 기능](#-v20-새로운-기능) • [문서](#-문서-가이드) • [기능](#-핵심-기능) • [API](#-api-문서) • [기여하기](#-기여하기)
 
 </div>
 
@@ -24,6 +25,39 @@
 - **⚡ 완전 자동화**: 환경변수 입력 필드 자동 생성
 - **🔒 프로덕션 준비**: GitHub OAuth + 암호화 + 벡터 검색
 - **🚀 무한 확장**: 서버 수량/환경변수 수량 제한 없음
+
+---
+
+## ✨ v2.0 새로운 기능
+
+### 🆕 **MCP 프로토콜 2025-06-18 지원**
+- 최신 MCP 프로토콜 버전으로 업그레이드
+- Cursor IDE와 완벽한 호환성
+- 동적 프로토콜 버전 감지
+
+### 👥 **완전한 사용자 관리 시스템**
+- **사용자 활성화/비활성화**: 관리자가 사용자 상태 제어
+- **관리자 권한 토글**: 일반 사용자 ↔ 관리자 권한 변경
+- **사용자 삭제**: 소프트/하드 삭제 옵션
+- **보호 로직**: 최소 1명 관리자 유지, 자기 자신 비활성화 방지
+- **API 키 제한**: 비활성화된 사용자의 MCPHub Key 사용 차단
+
+### 🎨 **UI/UX 대폭 개선**
+- **통합 레이아웃**: 관리자/사용자 인터페이스 일관성
+- **사용자 정보**: 우측 상단 표시 복구
+- **간소화**: 불필요한 비밀번호 변경 기능 제거
+- **권한 기반 라우팅**: 깔끔한 접근 제어
+
+### 🔒 **보안 대폭 강화**
+- **완전 환경변수화**: 모든 하드코딩된 토큰 제거
+- **GitHub Secret Scanning 준수**: 민감한 정보 커밋 차단
+- **토큰 마스킹**: 로그에서 보안 정보 보호
+- **사용자별 격리**: 환경변수 완전 분리
+
+### 🛠️ **개발자 경험 개선**
+- **서버 추상화**: 48개 개별 툴 → 2개 서버 툴로 정리
+- **동적 서버 연결**: 하드코딩 제거, 설정 기반 연결
+- **로버스트 에러 처리**: 서버 실패 시에도 안정성 유지
 
 ---
 

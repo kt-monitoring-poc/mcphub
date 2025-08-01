@@ -16,19 +16,19 @@
       "url": "https://mcp-atlassian.livelybeach-90f399a8.koreacentral.azurecontainerapps.io/mcp/",
       "enabled": true,
       "headers": {
-        "Authorization": "Bearer USER_ATLASSIAN_TOKEN",
-        "X-User-Email": "giglepeople@gmail.com",
-        "X-Atlassian-Cloud-Id": "kautotest"
+        "Authorization": "Bearer ${USER_ATLASSIAN_TOKEN}",
+        "X-User-Email": "${USER_ATLASSIAN_EMAIL}",
+        "X-Atlassian-Cloud-Id": "${USER_ATLASSIAN_CLOUD_ID}"
       }
     },
     "jira-azure": {
       "type": "streamable-http",
       "url": "https://streamable-jira-mcp-server-kt.greentree-fe6d930a.koreacentral.azurecontainerapps.io/mcp",
-      "enabled": true,
+      "enabled": false,
       "headers": {
-        "X-Jira-Base-Url": "https://emoket.atlassian.net",
-        "X-Jira-Email": "insight.emoket@gmail.com",
-        "X-Jira-Api-Token": "USER_JIRA_API_TOKEN"
+        "X-Jira-Base-Url": "${USER_JIRA_BASE_URL}",
+        "X-Jira-Email": "${USER_JIRA_EMAIL}",
+        "X-Jira-Api-Token": "${USER_JIRA_API_TOKEN}"
       }
     },
     "GitHub PR MCP (ACA)": {
@@ -36,7 +36,7 @@
       "url": "https://github-pr-mcp-server.livelybeach-90f399a8.koreacentral.azurecontainerapps.io/mcp/",
       "enabled": true,
       "headers": {
-        "Authorization": "Bearer USER_GITHUB_TOKEN"
+        "Authorization": "Bearer ${USER_GITHUB_TOKEN}"
       }
     }
   }

@@ -102,6 +102,15 @@ export class AppServer {
       // Express 미들웨어 초기화 (CORS, 바디 파서 등)
       initMiddlewares(this.app);
 
+      // 기본 요청 로깅 (필수 정보만)
+      this.app.use((req, res, next) => {
+        // API 요청만 간단히 로깅
+        if (req.path.startsWith('/api/') || req.path.startsWith('/mcp')) {
+          console.log(`${req.method} ${req.path}`);
+        }
+        next();
+      });
+
       // MCP 서버 관리 라우트 추가 (initRoutes 이전에 등록)
       // TODO: DB 시스템 오류 해결 후 활성화
       // const mcpServerRoutes = await import('./routes/mcpServerRoutes.js');
@@ -352,7 +361,7 @@ export class AppServer {
           const pkg = JSON.parse(fs.readFileSync(packageJsonPath, 'utf8'));
 
           // MCPHub 패키지인지 확인
-          if (pkg.name === 'mcphub' || pkg.name === '@samanhappy/mcphub') {
+          if (pkg.name === 'mcphub' || pkg.name === '@samanhappy/mcphub' || pkg.name === '@hades/mcphub') {
             if (debug) {
               console.log(`DEBUG: Found package.json at ${packageJsonPath}`);
             }
