@@ -1,16 +1,16 @@
-# MCPHub v2.0.0 🚀
+# MCPHub v2.1.0 🚀
 
 <div align="center">
 
-**MCP 프로토콜 2025-06-18 + 완전한 사용자 관리 + 보안 강화**
+**MCP 프로토콜 표준 준수 + 프론트엔드/백엔드 분리 + 현대적 아키텍처**
 
-[![Version](https://img.shields.io/badge/version-v2.0.0-blue.svg)](https://github.com/jungchihoon/mcphub/releases/tag/v2.0.0)
+[![Version](https://img.shields.io/badge/version-v2.1.0-blue.svg)](https://github.com/jungchihoon/mcphub/releases/tag/v2.1.0)
 [![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 [![Node.js](https://img.shields.io/badge/node.js-%3E%3D18.0.0-brightgreen.svg)](https://nodejs.org/)
 [![PostgreSQL](https://img.shields.io/badge/postgresql-%3E%3D14.0.0-blue.svg)](https://postgresql.org/)
 [![MCP Protocol](https://img.shields.io/badge/MCP_Protocol-2025--06--18-brightgreen.svg)](https://modelcontextprotocol.io/)
 
-[빠른 시작](#-빠른-시작) • [v2.0 새 기능](#-v20-새로운-기능) • [문서](#-문서-가이드) • [기능](#-핵심-기능) • [API](#-api-문서) • [기여하기](#-기여하기)
+[빠른 시작](#-빠른-시작) • [v2.1 새 기능](#-v21-새로운-기능) • [문서](#-문서-가이드) • [기능](#-핵심-기능) • [API](#-api-문서) • [기여하기](#-기여하기)
 
 </div>
 
@@ -20,44 +20,39 @@
 
 **MCPHub**는 Model Context Protocol (MCP) 서버들을 중앙 집중식으로 관리하는 혁신적인 허브 플랫폼입니다. 
 
-### 🎯 핵심 혁신
-- **🔥 무코딩 확장**: 새 MCP 서버 추가 시 코드 수정 0줄
-- **⚡ 완전 자동화**: 환경변수 입력 필드 자동 생성
-- **🔒 프로덕션 준비**: GitHub OAuth + 암호화 + 벡터 검색
-- **🚀 무한 확장**: 서버 수량/환경변수 수량 제한 없음
+### 🎯 핵심 혁신 (v2.1.0)
+- **🔥 MCP 표준 준수**: `/mcp` endpoint, 쿼리 파라미터 인증
+- **⚡ 완전한 분리**: 프론트엔드(5173) + 백엔드(3000) 독립 실행
+- **🔒 Cursor 완벽 호환**: "No tools" 오류 해결, 안정적 연결
+- **🚀 현대적 아키텍처**: CORS, 프록시, 독립 배포 지원
 
 ---
 
-## ✨ v2.0 새로운 기능
+## ✨ v2.1 새로운 기능
 
-### 🆕 **MCP 프로토콜 2025-06-18 지원**
-- 최신 MCP 프로토콜 버전으로 업그레이드
-- Cursor IDE와 완벽한 호환성
-- 동적 프로토콜 버전 감지
+### 🎯 **MCP 프로토콜 표준 완전 준수**
+- `/mcp` endpoint만 사용 (커스텀 path 제거)
+- 쿼리 파라미터 인증: `?key=YOUR_KEY`
+- 헤더 인증 하위 호환성 유지
+- Cursor IDE "No tools" 오류 완전 해결
 
-### 👥 **완전한 사용자 관리 시스템**
-- **사용자 활성화/비활성화**: 관리자가 사용자 상태 제어
-- **관리자 권한 토글**: 일반 사용자 ↔ 관리자 권한 변경
-- **사용자 삭제**: 소프트/하드 삭제 옵션
-- **보호 로직**: 최소 1명 관리자 유지, 자기 자신 비활성화 방지
-- **API 키 제한**: 비활성화된 사용자의 MCPHub Key 사용 차단
+### 🚀 **프론트엔드/백엔드 완전 분리**
+- **백엔드 (포트 3000)**: API + MCP endpoint만
+- **프론트엔드 (포트 5173)**: React SPA 독립 실행
+- **개발 환경**: `concurrently`로 동시 실행
+- **운영 환경**: 완전 독립 배포 가능
 
-### 🎨 **UI/UX 대폭 개선**
-- **통합 레이아웃**: 관리자/사용자 인터페이스 일관성
-- **사용자 정보**: 우측 상단 표시 복구
-- **간소화**: 불필요한 비밀번호 변경 기능 제거
-- **권한 기반 라우팅**: 깔끔한 접근 제어
+### 🔧 **CORS 및 프록시 시스템**
+- CORS 미들웨어 추가 완료
+- Vite 개발 서버 프록시 설정
+- 크로스 오리진 요청 완벽 지원
+- API 호출 안정성 대폭 향상
 
-### 🔒 **보안 대폭 강화**
-- **완전 환경변수화**: 모든 하드코딩된 토큰 제거
-- **GitHub Secret Scanning 준수**: 민감한 정보 커밋 차단
-- **토큰 마스킹**: 로그에서 보안 정보 보호
-- **사용자별 격리**: 환경변수 완전 분리
-
-### 🛠️ **개발자 경험 개선**
-- **서버 추상화**: 48개 개별 툴 → 2개 서버 툴로 정리
-- **동적 서버 연결**: 하드코딩 제거, 설정 기반 연결
-- **로버스트 에러 처리**: 서버 실패 시에도 안정성 유지
+### 📁 **환경변수 시스템 개선**
+- `frontend/.env.development` 개발 환경 분리
+- `frontend/.env.production` 운영 환경 분리
+- 프론트엔드/백엔드 설정 완전 독립
+- 환경별 최적화 설정 제공
 
 ---
 
@@ -77,17 +72,21 @@ pnpm install
 cp .env.example .env
 # .env 파일에서 필요한 환경변수 설정
 
-# 빌드 및 실행
-npm run build
-npm start
+# 프론트엔드 + 백엔드 동시 실행 (권장)
+pnpm run dev
+
+# 또는 개별 실행
+pnpm backend:dev    # 백엔드만 (포트 3000)
+pnpm frontend:dev   # 프론트엔드만 (포트 5173)
 ```
 
 ### 🎮 즉시 체험하기
 
-1. **http://localhost:3000** 접속
+1. **http://localhost:5173** 접속 (프론트엔드)
 2. **GitHub OAuth로 로그인**
 3. **설정 페이지**에서 API 키 입력
-4. **관리자라면** MCP 서버 관리 페이지 접근
+4. **그룹 관리**에서 원하는 MCP 서버 선택
+5. **Cursor IDE**에서 새로운 설정으로 연결
 
 ---
 
@@ -97,7 +96,8 @@ npm start
 
 | 문서 | 설명 | 중요도 |
 |------|------|-------|
-| 🎉 **[v1.0.0 릴리즈 노트](docs/release-notes/v1.0.0-release-2025-07-30.md)** | 최신 릴리즈 상세 정보 | ⭐⭐⭐ |
+| 🎉 **[v2.1.0 릴리즈 노트](docs/release-notes/v2.1.0-frontend-backend-separation-2025-08-01.md)** | 최신 릴리즈 상세 정보 | ⭐⭐⭐ |
+| 🚀 **[프론트엔드/백엔드 분리 가이드](docs/frontend-backend-separation-plan.md)** | 아키텍처 분리 완전 가이드 | ⭐⭐⭐ |
 | 📊 **[프로젝트 현황](docs/mcphub-project-status.md)** | 전체 프로젝트 상태 및 완성도 | ⭐⭐⭐ |
 | ⚡ **[환경변수 시스템](docs/mcphub-env-var-system.md)** | 핵심 자동화 시스템 가이드 | ⭐⭐⭐ |
 
