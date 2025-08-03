@@ -1,5 +1,0 @@
-Session A ID: 16A562F5-197E-4EF0-90BF-2FB8A57F5B22
-=== 사용자 A Offerings List ===
-{"jsonrpc":"2.0","result":{"protocolVersion":"2025-06-18","capabilities":{"tools":{"listChanged":true},"prompts":{"listChanged":true},"resources":{"listChanged":false,"subscribe":false},"logging":{}},"serverInfo":{"name":"MCPHub","version":"2.0.0"}},"id":1}
-=== 사용자 A Tools List (같은 세션) ===
-{"jsonrpc":"2.0","error":{"code":-32000,"message":"Bad Request: No valid session ID provided"},"id":null}

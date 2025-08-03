@@ -1,8 +1,0 @@
-=== 사용자 A MCP 초기화 테스트 ===
-Session ID: F001F608-B54A-4C4A-BBC4-BAB2554226CB
-1. Initialize 요청:
-{"jsonrpc":"2.0","error":{"code":-32000,"message":"Bad Request: No valid session ID provided"},"id":null}
-2. Initialized 알림:
-{"jsonrpc":"2.0","error":{"code":-32000,"message":"Bad Request: No valid session ID provided"},"id":null}
-3. Tools List 요청:
-{"jsonrpc":"2.0","error":{"code":-32000,"message":"Bad Request: No valid session ID provided"},"id":null}

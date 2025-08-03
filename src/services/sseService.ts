@@ -572,6 +572,8 @@ export const handleMcpPostRequest = async (req: Request, res: Response): Promise
     }
   }
 
+  console.log(`🔍 세션 ID 확인: ${sessionId || 'undefined'} (요청 메서드: ${req.body?.method || 'unknown'})`);
+
   const group = req.params.group;
   const userKey = req.query.key as string; // 쿼리 파라미터 기반 사용자 키
   const body = req.body;
@@ -580,8 +582,9 @@ export const handleMcpPostRequest = async (req: Request, res: Response): Promise
   if (body && body.method) {
     console.log(`MCP ${body.method} request`);
   }
+  // offerings/list는 항상 직접 처리 (세션 ID 무관)
   if (body && body.method === 'offerings/list') {
-    console.log('🎯 EARLY STAGE: offerings/list POST 요청 감지 및 처리');
+    console.log('🎯 offerings/list 요청 직접 처리 (MCP 표준)');
     const mcpResponse = {
       jsonrpc: '2.0',
       result: {
@@ -600,20 +603,21 @@ export const handleMcpPostRequest = async (req: Request, res: Response): Promise
       id: body.id
     };
 
-    console.log('📤 offerings/list POST 응답 전송:', JSON.stringify(mcpResponse, null, 2));
+    console.log('📤 offerings/list 응답 전송');
     res.json(mcpResponse);
     return;
   }
 
   // MCPHub Key 인증 수행 (쿼리 파라미터 또는 헤더 기반)
   let userServiceTokens: Record<string, string> = {};
+
+  // 먼저 인증을 처리하여 userServiceTokens를 얻음
   const authHeader = req.headers.authorization;
-  const isNewSession = !sessionId || !transports.streamable[sessionId];
 
   // 쿼리 파라미터 기반 인증 (MCP 표준 준수)
   if (userKey) {
     console.log(`🔐 쿼리 파라미터 인증 시도: ${userKey.substring(0, 10)}...`);
-    const authenticatedTokens = await authenticateWithMcpHubKey(userKey, !isNewSession);
+    const authenticatedTokens = await authenticateWithMcpHubKey(userKey, true);
     if (authenticatedTokens) {
       userServiceTokens = authenticatedTokens;
       console.log(`✅ 쿼리 파라미터 인증 성공`);
@@ -628,7 +632,7 @@ export const handleMcpPostRequest = async (req: Request, res: Response): Promise
     const token = authHeader.substring(7);
     console.log(`🔐 헤더 기반 인증 시도: ${token.substring(0, 10)}...`);
 
-    const authenticatedTokens = await authenticateWithMcpHubKey(token, !isNewSession);
+    const authenticatedTokens = await authenticateWithMcpHubKey(token, true);
     if (authenticatedTokens) {
       userServiceTokens = authenticatedTokens;
       console.log(`✅ 헤더 기반 인증 성공`);
@@ -645,6 +649,68 @@ export const handleMcpPostRequest = async (req: Request, res: Response): Promise
     res.status(401).send('Authentication required: either ?key=... or Authorization header');
     return;
   }
+
+  // Cursor IDE 호환: 세션 ID가 없는 경우에만 직접 처리 (테스트/개발용)
+  // 실제 Cursor IDE는 세션 ID를 제공하므로 정상적인 MCP 프로토콜 플로우를 따름
+  if (!sessionId && body && ['tools/list', 'tools/call'].includes(body.method)) {
+    console.log(`🔧 DIRECT: ${body.method} 요청 직접 처리 (세션 ID 없음 - 테스트/개발 모드)`);
+
+    try {
+      if (body.method === 'tools/list') {
+        // handleListToolsRequest를 직접 호출
+        const { handleListToolsRequest } = await import('./mcpService.js');
+        const toolsResult = await handleListToolsRequest(body, {
+          sessionId: 'direct-session-' + Date.now(),
+          mcpHubKey: userKey
+        }, group, userServiceTokens);
+
+        const mcpResponse = {
+          jsonrpc: '2.0',
+          result: {
+            tools: toolsResult || []
+          },
+          id: body.id
+        };
+
+        console.log('📤 tools/list 직접 응답 전송');
+        res.json(mcpResponse);
+        return;
+      }
+
+      if (body.method === 'tools/call') {
+        // handleCallToolRequest를 직접 호출
+        const { handleCallToolRequest } = await import('./mcpService.js');
+        const callResult = await handleCallToolRequest(body, {
+          sessionId: 'direct-session-' + Date.now(),
+          mcpHubKey: userKey
+        }, group, userServiceTokens);
+
+        const mcpResponse = {
+          jsonrpc: '2.0',
+          result: callResult || {},
+          id: body.id
+        };
+
+        console.log('📤 tools/call 직접 응답 전송');
+        res.json(mcpResponse);
+        return;
+      }
+    } catch (error) {
+      console.error(`❌ ${body.method} 직접 처리 실패:`, error);
+      res.status(500).json({
+        jsonrpc: '2.0',
+        error: {
+          code: -32603,
+          message: `Internal error during ${body.method} processing`,
+        },
+        id: body.id,
+      });
+      return;
+    }
+  }
+
+  // 인증이 이미 완료되었으므로 세션 생성 진행
+  const isNewSession = !sessionId || !transports.streamable[sessionId];
 
   const settings = loadSettings();
   const routingConfig = settings.systemConfig?.routing || {
@@ -679,7 +745,8 @@ export const handleMcpPostRequest = async (req: Request, res: Response): Promise
       userServiceTokens = transports.streamable[sessionId].userServiceTokens || {};
     }
 
-  } else if (!sessionId && isInitializeRequest(req.body)) {
+  } else if (isInitializeRequest(req.body)) {
+    // Initialize 요청은 새 세션을 생성하므로 세션 ID가 없어도 처리
     // 새로운 StreamableHTTP 전송 계층 생성
     transport = new StreamableHTTPServerTransport({
       sessionIdGenerator: () => randomUUID(),
@@ -742,6 +809,8 @@ export const handleMcpPostRequest = async (req: Request, res: Response): Promise
     if (transport.sessionId && transports.streamable[transport.sessionId]) {
       transports.streamable[transport.sessionId].connectionStatus = 'connected';
     }
+    // Cursor IDE가 세션 ID를 제공하지 않는 경우는 정상적인 MCP 프로토콜이 아님
+    // 이 경우 위의 직접 처리 로직으로 이미 처리되었으므로 여기서는 에러 처리
   } else {
     // 유효하지 않은 요청
     res.status(400).json({
@@ -779,9 +848,9 @@ export const handleMcpPostRequest = async (req: Request, res: Response): Promise
     return;
   }
 
-  // 기타 요청 처리 (tools/list, tools/call 등)
+  // MCP 요청 처리 준비
   if (req.body && ['tools/list', 'tools/call', 'prompts/list'].includes(req.body.method)) {
-    console.log('Handling MCP other request');
+    console.log(`Handling MCP ${req.body.method} request`);
   }
 
   // Keep-Alive 응답 헤더 설정

@@ -1,5 +1,14 @@
 {
   "mcpServers": {
+    "context7": {
+      "type": "stdio",
+      "enabled": true,
+      "command": "npx",
+      "args": [
+        "-y",
+        "@upstash/context7-mcp"
+      ]
+    },
     "test": {
       "type": "streamable-http",
       "url": "https://streamable-http-test-mcp.livelybeach-90f399a8.koreacentral.azurecontainerapps.io/mcp",
@@ -31,12 +40,17 @@
         "X-Jira-Api-Token": "${USER_JIRA_API_TOKEN}"
       }
     },
-    "GitHub PR MCP (ACA)": {
+    "github-pr-mcp-server": {
       "type": "streamable-http",
       "url": "https://github-pr-mcp-server.livelybeach-90f399a8.koreacentral.azurecontainerapps.io/mcp/",
       "enabled": true,
       "headers": {
         "Authorization": "Bearer ${USER_GITHUB_TOKEN}"
+      },
+      "tools": {
+        "GitHub PR MCP (ACA)-create_pull_request": {
+          "enabled": true
+        }
       }
     }
   }

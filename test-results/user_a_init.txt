@@ -1,3 +1,0 @@
-event: message
-data: {"result":{"protocolVersion":"2025-06-18","capabilities":{"tools":{"listChanged":true},"prompts":{"listChanged":true},"resources":{"listChanged":false,"subscribe":false},"logging":{}},"serverInfo":{"name":"mcphub","version":"2.0.0"}},"jsonrpc":"2.0","id":1}
-
