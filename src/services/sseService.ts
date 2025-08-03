@@ -378,7 +378,7 @@ export const handleMcpOtherRequest = async (req: Request, res: Response): Promis
     body: req.body
   });
 
-    // MCPHub Key 인증 수행 (쿼리 파라미터 또는 헤더 기반)
+  // MCPHub Key 인증 수행 (쿼리 파라미터 또는 헤더 기반)
   let userServiceTokens: Record<string, string> = {};
   const authHeader = req.headers.authorization;
 
@@ -399,7 +399,7 @@ export const handleMcpOtherRequest = async (req: Request, res: Response): Promis
   else if (authHeader && authHeader.startsWith('Bearer ')) {
     const token = authHeader.substring(7);
     console.log(`🔐 헤더 기반 인증 시도: ${token.substring(0, 10)}...`);
-    
+
     const authenticatedTokens = await authenticateWithMcpHubKey(token, true);
     if (authenticatedTokens) {
       userServiceTokens = authenticatedTokens;
@@ -715,13 +715,25 @@ export const handleMcpPostRequest = async (req: Request, res: Response): Promise
     // MCP 서버와 연결 (사용자 토큰 및 MCPHub Key 전달)
     const mcpServer = getMcpServer(transport.sessionId, group, userServiceTokens);
 
-    // MCPHub Key를 서버 인스턴스에 저장
-    if (authHeader && authHeader.startsWith('Bearer ')) {
+    // MCPHub Key를 서버 인스턴스에 저장 (쿼리 파라미터 또는 헤더)
+    let mcpHubKeyToStore: string | undefined;
+
+    // 쿼리 파라미터에서 MCPHub Key 추출
+    if (userKey && userKey.startsWith('mcphub_')) {
+      mcpHubKeyToStore = userKey;
+    }
+    // 헤더에서 MCPHub Key 추출 (하위 호환성)
+    else if (authHeader && authHeader.startsWith('Bearer ')) {
       const token = authHeader.substring(7);
       if (token.startsWith('mcphub_')) {
-        (mcpServer as any).mcpHubKey = token;
-        console.log('MCPHub Key stored in server instance');
+        mcpHubKeyToStore = token;
       }
+    }
+
+    // MCPHub Key를 서버 인스턴스에 저장
+    if (mcpHubKeyToStore) {
+      (mcpServer as any).mcpHubKey = mcpHubKeyToStore;
+      console.log(`MCPHub Key stored in server instance: ${mcpHubKeyToStore.substring(0, 10)}...`);
     }
 
     await mcpServer.connect(transport);

@@ -20,6 +20,7 @@ import { OpenAPIClient } from '../clients/openapi.js';
 import config, { expandEnvVars, loadSettings, replaceEnvVars, saveSettings } from '../config/index.js';
 import { MCPHubKeyService } from '../services/mcpHubKeyService.js';
 import { ServerConfig, ServerInfo, ToolInfo } from '../types/index.js';
+import { upstreamContextPropagator } from '../utils/upstreamContext.js';
 import { extractUserEnvVars } from '../utils/variableDetection.js';
 
 import { getGroup } from './sseService.js';
@@ -185,7 +186,12 @@ let serverInfos: ServerInfo[] = [];
  * @returns {any} 생성된 전송 계층 인스턴스
  * @throws {Error} 전송 계층 생성 실패 시
  */
-const createTransportFromConfig = (name: string, conf: ServerConfig, userApiKeys?: Record<string, string>): any => {
+const createTransportFromConfig = (
+  name: string,
+  conf: ServerConfig,
+  userApiKeys?: Record<string, string>,
+  userContext?: { userId: string; userSessionId: string; mcpHubSessionId: string; requestId: string }
+): any => {
   let transport;
 
   // type 필드가 없는 경우 예외 처리
@@ -196,9 +202,31 @@ const createTransportFromConfig = (name: string, conf: ServerConfig, userApiKeys
   if (conf.type === 'streamable-http') {
     // HTTP 스트리밍 전송 계층 생성
     const options: any = {};
-    if (conf.headers && Object.keys(conf.headers).length > 0) {
+    const headers: Record<string, string> = {
+      ...conf.headers
+    };
+
+    // 사용자 컨텍스트가 있으면 업스트림 헤더 추가
+    if (userContext && userApiKeys) {
+      const upstreamHeaders = upstreamContextPropagator.generateUpstreamHeaders(
+        {
+          userId: userContext.userId,
+          userSessionId: userContext.userSessionId,
+          mcpHubSessionId: userContext.mcpHubSessionId,
+          userServiceTokens: userApiKeys,
+          requestId: userContext.requestId,
+          timestamp: Date.now()
+        },
+        name
+      );
+
+      Object.assign(headers, upstreamHeaders);
+      console.log(`🔄 업스트림 헤더 추가 (${name}): ${Object.keys(upstreamHeaders).length}개`);
+    }
+
+    if (Object.keys(headers).length > 0) {
       options.requestInit = {
-        headers: conf.headers,
+        headers,
       };
     }
     transport = new StreamableHTTPClientTransport(new URL(conf.url || ''), options);
@@ -509,7 +537,8 @@ function applyUserApiKeysToConfig(
  */
 export const ensureServerConnected = async (
   serverName: string,
-  userApiKeys: Record<string, string>
+  userApiKeys: Record<string, string>,
+  userContext?: { userId: string; userSessionId: string; mcpHubSessionId: string; requestId: string }
 ): Promise<boolean> => {
   try {
     // 서버 설정 가져오기
@@ -546,8 +575,8 @@ export const ensureServerConnected = async (
       // 사용자 API Keys를 적용한 설정 생성
       const configWithKeys = applyUserApiKeysToConfig(serverConfig, userApiKeys);
 
-      // Transport 생성
-      const transport = createTransportFromConfig(serverName, configWithKeys, userApiKeys);
+      // Transport 생성 (사용자 컨텍스트 포함)
+      const transport = createTransportFromConfig(serverName, configWithKeys, userApiKeys, userContext);
 
       const client = new Client(
         {
@@ -1190,10 +1219,67 @@ export const toggleServerStatus = async (
   }
 };
 
+/**
+ * MCPHub Key로부터 사용자 정보 추출
+ */
+const getUserFromMcpHubKey = async (mcpHubKey?: string): Promise<{ userId: string; user: any } | null> => {
+  if (!mcpHubKey || !mcpHubKey.startsWith('mcphub_')) {
+    return null;
+  }
+
+  try {
+    const mcpHubKeyService = new MCPHubKeyService();
+    const authResult = await mcpHubKeyService.authenticateKey(mcpHubKey);
+
+    if (authResult && authResult.user) {
+      return {
+        userId: authResult.user.id,
+        user: authResult.user
+      };
+    }
+    return null;
+  } catch (error) {
+    console.error('MCPHub Key에서 사용자 정보 추출 실패:', error);
+    return null;
+  }
+};
+
 export const handleListToolsRequest = async (_: any, extra: any, group?: string, userServiceTokens?: Record<string, string>) => {
   const sessionId = extra.sessionId || '';
+  const mcpHubKey = extra.mcpHubKey;
   const requestGroup = group || getGroup(sessionId, 'streamable');
-  console.log(`Handling ListToolsRequest for group: ${requestGroup || 'global'}`);
+
+  console.log(`📋 ListToolsRequest 처리 시작 (세션: ${sessionId.substring(0, 8)}..., 그룹: ${requestGroup || 'global'})`);
+
+  // 사용자 정보 추출
+  let userId: string | undefined;
+  let userInfo: any = null;
+
+  if (mcpHubKey) {
+    const userAuth = await getUserFromMcpHubKey(mcpHubKey);
+    if (userAuth) {
+      userId = userAuth.userId;
+      userInfo = userAuth.user;
+      console.log(`👤 사용자 인증 성공: ${userInfo.githubUsername} (${userId})`);
+    }
+  }
+
+  // 사용자별 컨텍스트 생성 및 요청 추적
+  let userContext;
+  let trackingInfo;
+
+  if (userId && userServiceTokens) {
+    const result = upstreamContextPropagator.createUserContext(
+      userId,
+      sessionId,
+      userServiceTokens,
+      'tools/list'
+    );
+    userContext = result.context;
+    trackingInfo = result.trackingInfo;
+
+    console.log(`🔄 업스트림 컨텍스트 생성: ${upstreamContextPropagator.generateDebugInfo(userContext, 'tools/list')}`);
+  }
 
   // 사용자 토큰이 있다면 동적 서버 연결 시도
   if (userServiceTokens && Object.keys(userServiceTokens).length > 0) {
@@ -1216,7 +1302,15 @@ export const handleListToolsRequest = async (_: any, extra: any, group?: string,
         if (hasAllTokens) {
           console.log(`Connecting to ${serverName} server...`);
           try {
-            await ensureServerConnected(serverName, userServiceTokens);
+            // 사용자 컨텍스트와 함께 서버 연결
+            const contextForConnection = userContext ? {
+              userId: userContext.userId,
+              userSessionId: userContext.userSessionId,
+              mcpHubSessionId: userContext.mcpHubSessionId,
+              requestId: userContext.requestId
+            } : undefined;
+
+            await ensureServerConnected(serverName, userServiceTokens, contextForConnection);
           } catch (error) {
             console.warn(`Failed to connect to ${serverName}:`, error);
           }

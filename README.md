@@ -1,16 +1,16 @@
-# MCPHub v2.1.0 🚀
+# MCPHub v2.6.0 🚀
 
 <div align="center">
 
-**MCP 프로토콜 표준 준수 + 프론트엔드/백엔드 분리 + 현대적 아키텍처**
+**MCP 프로토콜 표준 준수 + 다중 사용자 세션 격리 + 현대적 아키텍처**
 
-[![Version](https://img.shields.io/badge/version-v2.1.0-blue.svg)](https://github.com/jungchihoon/mcphub/releases/tag/v2.1.0)
+[![Version](https://img.shields.io/badge/version-v2.6.0-blue.svg)](https://github.com/jungchihoon/mcphub/releases/tag/v2.6.0)
 [![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 [![Node.js](https://img.shields.io/badge/node.js-%3E%3D18.0.0-brightgreen.svg)](https://nodejs.org/)
 [![PostgreSQL](https://img.shields.io/badge/postgresql-%3E%3D14.0.0-blue.svg)](https://postgresql.org/)
 [![MCP Protocol](https://img.shields.io/badge/MCP_Protocol-2025--06--18-brightgreen.svg)](https://modelcontextprotocol.io/)
 
-[빠른 시작](#-빠른-시작) • [v2.1 새 기능](#-v21-새로운-기능) • [문서](#-문서-가이드) • [기능](#-핵심-기능) • [API](#-api-문서) • [기여하기](#-기여하기)
+[빠른 시작](#-빠른-시작) • [v2.6 새 기능](#-v26-새로운-기능) • [문서](#-문서-가이드) • [기능](#-핵심-기능) • [API](#-api-문서) • [기여하기](#-기여하기)
 
 </div>
 
@@ -20,39 +20,45 @@
 
 **MCPHub**는 Model Context Protocol (MCP) 서버들을 중앙 집중식으로 관리하는 혁신적인 허브 플랫폼입니다. 
 
-### 🎯 핵심 혁신 (v2.1.0)
-- **🔥 MCP 표준 준수**: `/mcp` endpoint, 쿼리 파라미터 인증
-- **⚡ 완전한 분리**: 프론트엔드(5173) + 백엔드(3000) 독립 실행
-- **🔒 Cursor 완벽 호환**: "No tools" 오류 해결, 안정적 연결
-- **🚀 현대적 아키텍처**: CORS, 프록시, 독립 배포 지원
+### 🎯 핵심 혁신 (v2.6.0)
+- **🔥 다중 사용자 세션 격리**: 사용자별 요청/토큰/상태 완전 분리
+- **⚡ 업스트림 컨텍스트 전파**: 업스트림 MCP 서버에 사용자 정보 전달
+- **🔒 보안 강화**: 사용자별 API 토큰 격리, 요청 추적 시스템
+- **🚀 엔터프라이즈 준비**: 다중 사용자 환경에서 완전한 격리와 안정성
 
 ---
 
-## ✨ v2.1 새로운 기능
+## ✨ v2.6 새로운 기능
 
-### 🎯 **MCP 프로토콜 표준 완전 준수**
-- `/mcp` endpoint만 사용 (커스텀 path 제거)
-- 쿼리 파라미터 인증: `?key=YOUR_KEY`
-- 헤더 인증 하위 호환성 유지
-- Cursor IDE "No tools" 오류 완전 해결
+### 🔒 **다중 사용자 세션 격리 시스템**
+- **사용자별 요청 추적**: 고유 ID로 모든 요청 추적 및 관리
+- **업스트림 컨텍스트 전파**: 사용자 정보를 업스트림 MCP 서버에 헤더로 전달
+- **토큰 격리**: 사용자별 API 토큰이 정확한 업스트림에만 전달
+- **세션 보안**: 세션 종료 시 관련 리소스 자동 정리
 
-### 🚀 **프론트엔드/백엔드 완전 분리**
-- **백엔드 (포트 3000)**: API + MCP endpoint만
-- **프론트엔드 (포트 5173)**: React SPA 독립 실행
-- **개발 환경**: `concurrently`로 동시 실행
-- **운영 환경**: 완전 독립 배포 가능
+### ⚡ **요청 추적 및 모니터링**
+- **실시간 요청 추적**: 사용자별/세션별 진행 중인 요청 모니터링
+- **성능 통계**: 응답 시간, 에러율 등 사용자별 통계 수집
+- **타임아웃 관리**: 30초 타임아웃으로 무한 대기 방지
+- **디버깅 향상**: 상세한 로그로 요청 플로우 추적
 
-### 🔧 **CORS 및 프록시 시스템**
-- CORS 미들웨어 추가 완료
-- Vite 개발 서버 프록시 설정
-- 크로스 오리진 요청 완벽 지원
-- API 호출 안정성 대폭 향상
+### 🛡️ **보안 강화**
+- **권한 격리**: 사용자별 API 토큰이 올바른 업스트림에만 전달
+- **상태 분리**: 사용자별 컨텍스트가 완전히 독립적으로 관리
+- **감사 추적**: 모든 요청이 고유 ID로 추적되어 보안 감사 가능
+- **세션 정리**: 비정상 종료 시에도 리소스 자동 정리
 
-### 📁 **환경변수 시스템 개선**
-- `frontend/.env.development` 개발 환경 분리
-- `frontend/.env.production` 운영 환경 분리
-- 프론트엔드/백엔드 설정 완전 독립
-- 환경별 최적화 설정 제공
+### 🎯 **업스트림 헤더 시스템**
+```typescript
+// 업스트림 MCP 서버가 받는 헤더
+{
+  'X-MCPHub-User-Id': 'user-uuid',
+  'X-MCPHub-User-Session-Id': 'user-session',
+  'X-MCPHub-Request-Id': 'request-uuid', 
+  'X-MCPHub-GitHub-Token': 'user-token',
+  'X-MCPHub-Protocol-Version': '2025-06-18'
+}
+```
 
 ---
 
@@ -96,7 +102,7 @@ pnpm frontend:dev   # 프론트엔드만 (포트 5173)
 
 | 문서 | 설명 | 중요도 |
 |------|------|-------|
-| 🎉 **[v2.1.0 릴리즈 노트](docs/release-notes/v2.1.0-frontend-backend-separation-2025-08-01.md)** | 최신 릴리즈 상세 정보 | ⭐⭐⭐ |
+| 🎉 **[v2.6.0 릴리즈 노트](docs/release-notes/v2.6.0-session-isolation-2025-08-01.md)** | 최신 릴리즈 상세 정보 | ⭐⭐⭐ |
 | 🚀 **[프론트엔드/백엔드 분리 가이드](docs/frontend-backend-separation-plan.md)** | 아키텍처 분리 완전 가이드 | ⭐⭐⭐ |
 | 📊 **[프로젝트 현황](docs/mcphub-project-status.md)** | 전체 프로젝트 상태 및 완성도 | ⭐⭐⭐ |
 | ⚡ **[환경변수 시스템](docs/mcphub-env-var-system.md)** | 핵심 자동화 시스템 가이드 | ⭐⭐⭐ |
@@ -105,6 +111,10 @@ pnpm frontend:dev   # 프론트엔드만 (포트 5173)
 
 | 문서 | 설명 | 대상 |
 |------|------|------|
+| 🔄 **[MCP 세션 관리](docs/mcp-session-management.md)** | MCP 프로토콜 세션 처리 메커니즘 | 백엔드 개발자 |
+| 🧪 **[세션 격리 테스트 가이드](docs/session-isolation-test-guide.md)** | 다중 사용자 세션 격리 테스트 방법 | ⭐ **신규** |
+| 🔐 **[MCPHub Key + 세션 격리 통합](docs/mcphub-key-session-integration-flow.md)** | OAuth → Key 발급 → Cursor 연결 전체 플로우 | ⭐ **신규** |
+| ⚠️ **[MCP 서버 격리 현실 점검](docs/mcp-server-user-isolation-reality-check.md)** | 기존 MCP 서버의 한계와 실제 보안 위험 | ⭐ **신규** |
 | 🗄️ **[데이터베이스 스키마](docs/database-schema.md)** | 완전한 DB 구조 및 관계 | 백엔드 개발자 |
 | 📡 **[API 참조](docs/api-reference.md)** | 모든 API 엔드포인트 명세 | 풀스택 개발자 |
 | 🛣️ **[라우팅 참조](docs/routing-reference.md)** | 프론트엔드 라우팅 구조 | 프론트엔드 개발자 |
