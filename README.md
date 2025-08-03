@@ -1,16 +1,16 @@
-# MCPHub v2.6.0 🚀
+# MCPHub v3.0.0 🚀
 
 <div align="center">
 
 **MCP 프로토콜 표준 준수 + 다중 사용자 세션 격리 + 현대적 아키텍처**
 
-[![Version](https://img.shields.io/badge/version-v2.6.0-blue.svg)](https://github.com/jungchihoon/mcphub/releases/tag/v2.6.0)
+[![Version](https://img.shields.io/badge/version-v3.0.0-blue.svg)](https://github.com/jungchihoon/mcphub/releases/tag/v3.0.0)
 [![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 [![Node.js](https://img.shields.io/badge/node.js-%3E%3D18.0.0-brightgreen.svg)](https://nodejs.org/)
 [![PostgreSQL](https://img.shields.io/badge/postgresql-%3E%3D14.0.0-blue.svg)](https://postgresql.org/)
 [![MCP Protocol](https://img.shields.io/badge/MCP_Protocol-2025--06--18-brightgreen.svg)](https://modelcontextprotocol.io/)
 
-[빠른 시작](#-빠른-시작) • [v2.6 새 기능](#-v26-새로운-기능) • [문서](#-문서-가이드) • [기능](#-핵심-기능) • [API](#-api-문서) • [기여하기](#-기여하기)
+[빠른 시작](#-빠른-시작) • [v3.0 새 기능](#-v30-새로운-기능) • [문서](#-문서-가이드) • [기능](#-핵심-기능) • [API](#-api-문서) • [기여하기](#-기여하기)
 
 </div>
 
@@ -20,15 +20,15 @@
 
 **MCPHub**는 Model Context Protocol (MCP) 서버들을 중앙 집중식으로 관리하는 혁신적인 허브 플랫폼입니다. 
 
-### 🎯 핵심 혁신 (v2.6.0)
-- **🔥 다중 사용자 세션 격리**: 사용자별 요청/토큰/상태 완전 분리
-- **⚡ 업스트림 컨텍스트 전파**: 업스트림 MCP 서버에 사용자 정보 전달
-- **🔒 보안 강화**: 사용자별 API 토큰 격리, 요청 추적 시스템
-- **🚀 엔터프라이즈 준비**: 다중 사용자 환경에서 완전한 격리와 안정성
+### 🎯 핵심 혁신 (v3.0.0)
+- **🔥 Cursor IDE 완벽 호환**: MCP 프로토콜 2025-06-18 표준 준수
+- **⚡ 다중 사용자 세션 격리**: 사용자별 요청/토큰/상태 완전 분리
+- **🔒 개인 그룹 관리**: 사용자별 MCP 서버 그룹 생성 및 도구 선택적 노출
+- **🚀 엔터프라이즈 준비**: 프로덕션 환경에서 즉시 사용 가능
 
 ---
 
-## ✨ v2.6 새로운 기능
+## ✨ v3.0 새로운 기능
 
 ### 🔒 **다중 사용자 세션 격리 시스템**
 - **사용자별 요청 추적**: 고유 ID로 모든 요청 추적 및 관리
