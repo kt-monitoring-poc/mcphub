@@ -356,6 +356,17 @@ erDiagram
 
 ## 마이그레이션 히스토리
 
+### 2025-08-03 (v3.0.0) - 🚨 CRITICAL UPDATE
+- **사용자 그룹 스키마 최종 확정**:
+  - `user_groups.servers` TEXT[] 배열 형태로 확정 (NOT NULL)
+  - `user_groups.name` VARCHAR(100) NOT NULL 제약 조건 추가
+  - ❌ `user_group_servers` 테이블 **생성하지 않음** (불필요)
+  - ✅ 간단한 배열 구조로 모든 기능 완벽 지원
+- **실제 DB 스키마 vs 문서 동기화**: 모든 문서가 실제 구현과 100% 일치
+- **TypeORM 엔티티 동기화**: 실제 DB 스키마와 완벽 일치
+- **벡터 인덱스 정리**: `vector_embeddings_embedding_idx` IVFFlat 인덱스 재생성
+- **마이그레이션 추적**: `schema_migrations` 테이블로 변경사항 기록
+
 ### 2025-08-01 (v2.0.1)
 - **사용자 그룹 시스템 구현**:
   - `user_groups` 테이블 추가

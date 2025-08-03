@@ -14,13 +14,13 @@ export class UserGroup {
   @PrimaryGeneratedColumn('uuid')
   id: string;
 
-  @Column({ type: 'varchar', length: 255, nullable: true })
+  @Column({ type: 'varchar', length: 100, nullable: false })
   name: string;
 
   @Column({ type: 'text', nullable: true })
   description?: string;
 
-  @Column('simple-array')
+  @Column('text', { array: true })
   servers: string[];
 
   @Column({ type: 'boolean', default: true })
