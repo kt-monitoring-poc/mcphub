@@ -1,15 +1,14 @@
 # ========================================
-# MCPHub: Model Context Protocol 서버 통합 관리 플랫폼
+# MCPHub Backend: Model Context Protocol 서버 통합 관리 플랫폼 (Backend Only)
+# Azure Container Apps 배포 최적화 버전
 # 참고: https://github.com/samanhappy/mcphub
 # ========================================
-# MCPHub는 여러 MCP 서버를 중앙에서 관리하고 Streamable HTTP 엔드포인트로 
-# 조직화하는 통합 허브입니다. 다양한 AI 클라이언트(Claude Desktop, Cursor 등)가
-# 단일 엔드포인트를 통해 모든 MCP 서버에 접근할 수 있게 해줍니다.
+# MCPHub 백엔드는 여러 MCP 서버를 중앙에서 관리하고 API 엔드포인트로 
+# 서비스를 제공하는 서버입니다. Frontend/Backend 분리 아키텍처에서
+# API 서버 및 MCP 프로토콜 처리를 담당합니다.
 
-# Python 베이스 이미지를 사용하는 이유:
-# 1. uvx를 통한 Python 기반 MCP 서버들 (mcp-server-fetch 등) 실행
-# 2. Python 생태계의 다양한 MCP 서버 지원
-FROM python:3.13-slim-bookworm AS base
+# Azure Container Apps는 amd64 플랫폼을 사용하므로 명시적 지정
+FROM --platform=linux/amd64 python:3.13-slim-bookworm AS base
 
 # uv (Python 패키지 매니저) 설치
 # uv는 Python 패키지 설치 및 실행을 위한 고성능 도구
@@ -49,81 +48,67 @@ ARG BASE_PATH=""
 ENV BASE_PATH=$BASE_PATH
 
 # 전역 MCP 서버 패키지 설치
-# MCPHub는 다양한 MCP 서버를 지원하며, 자주 사용되는 서버들을 미리 설치
+# 현재 mcp_settings.json에서 실제 사용하는 패키지만 설치
 ENV PNPM_HOME=/usr/local/share/pnpm
 ENV PATH=$PNPM_HOME:$PATH
 RUN mkdir -p $PNPM_HOME && \
-  # 기존 패키지들 (주석 처리)
-  # pnpm add -g @amap/amap-maps-mcp-server @playwright/mcp@latest tavily-mcp@latest @modelcontextprotocol/server-github @modelcontextprotocol/server-slack
-  # 현재 mcp_settings.json에 맞는 패키지들 설치:
-  # - @amap/amap-maps-mcp-server: 지도 및 위치 기반 서비스
-  # - @modelcontextprotocol/server-github: GitHub API 연동
-  # - @modelcontextprotocol/server-slack: Slack 통합
-  # - @smithery/cli: Smithery MCP 서버 실행 도구
-  # - firecrawl-mcp: 웹 크롤링 및 스크래핑 서비스
-  pnpm add -g @amap/amap-maps-mcp-server @modelcontextprotocol/server-github @modelcontextprotocol/server-slack @smithery/cli@latest firecrawl-mcp
-
-# 기존 INSTALL_EXT 블록 (주석 처리)
-# ARG INSTALL_EXT=false
-# RUN if [ "$INSTALL_EXT" = "true" ]; then \
-#   ARCH=$(uname -m); \
-#   if [ "$ARCH" = "x86_64" ]; then \
-#   npx -y playwright install --with-deps chrome; \
-#   else \
-#   echo "Skipping Chrome installation on non-amd64 architecture: $ARCH"; \
-#   fi; \
-#   fi
+  # Context7 MCP 서버만 설치 (현재 활성화된 유일한 stdio 서버)
+  # - @upstash/context7-mcp: Context7 문서화 MCP 서버
+  # 다른 서버들(mcp-atlassian, github-pr-mcp-server)은 외부 HTTP 서버이므로 설치 불필요
+  pnpm add -g @upstash/context7-mcp
 
 # Playwright 브라우저 설치 (선택적)
 # 웹 자동화 및 스크래핑이 필요한 MCP 서버들을 위한 Chrome 브라우저 설치
-# amd64 플랫폼에서만 설치되며, ARM 등 다른 아키텍처에서는 스킵
+# Azure Container Apps는 amd64 플랫폼이므로 Chrome 설치 가능
 # Docker 빌드 시 --build-arg INSTALL_PLAYWRIGHT=true 로 활성화 가능
 ARG INSTALL_PLAYWRIGHT=false
 RUN if [ "$INSTALL_PLAYWRIGHT" = "true" ]; then \
-  ARCH=$(uname -m); \
-  if [ "$ARCH" = "x86_64" ]; then \
-  echo "Installing Playwright Chrome for amd64 platform..."; \
+  echo "Installing Playwright Chrome for Azure Container Apps (amd64)..."; \
   npx -y playwright install --with-deps chrome; \
-  else \
-  echo "Skipping Chrome installation on non-amd64 architecture: $ARCH"; \
-  fi; \
   fi
 
 # Python 기반 MCP 서버 설치
-# mcp-server-fetch: HTTP 요청 및 웹 리소스 접근을 위한 MCP 서버
-# MCPHub의 기본 제공 서버 중 하나로 웹 API 호출 기능 제공
-RUN uv tool install mcp-server-fetch
+# 현재 mcp_settings.json에서 Python 기반 MCP 서버를 사용하지 않으므로 생략
+# 필요시 uv tool install <package-name> 형태로 추가 가능
 
 # 애플리케이션 작업 디렉토리 설정
 WORKDIR /app
 
-# Node.js 의존성 설치 (캐시 최적화)
+# Backend 의존성 설치 (캐시 최적화)
 # package.json과 pnpm-lock.yaml을 먼저 복사하여 Docker 레이어 캐싱 활용
+# TypeScript 빌드를 위해 devDependencies도 포함하여 설치
 COPY package.json pnpm-lock.yaml ./
-RUN pnpm install
+RUN pnpm install --frozen-lockfile
 
-# 소스 코드 복사
-# 의존성 설치 후 소스 코드를 복사하여 코드 변경 시에만 재빌드되도록 최적화
-COPY . .
+# Backend 소스 코드 복사
+# 프론트엔드는 제외하고 백엔드 소스만 복사 (Frontend/Backend 분리)
+COPY src/ ./src/
+COPY tsconfig.json ./
+
+# 설정 파일들 복사 (이미지 빌드 시점의 설정 사용)
+COPY mcp_settings.json ./
+COPY servers.json ./
+
+# 환경변수 파일 복사
+COPY .env* ./
 
 # 최신 MCP 서버 목록 다운로드
-# mcpm.sh에서 제공하는 최신 MCP 서버 목록을 다운로드
-# 실패 시 번들된 기본 servers.json 파일 사용
-# 이를 통해 MCPHub 마켓플레이스에서 최신 MCP 서버들을 확인할 수 있음
 RUN curl -s -f --connect-timeout 10 https://mcpm.sh/api/servers.json -o servers.json || echo "Failed to download servers.json, using bundled version"
 
-# 프론트엔드 및 백엔드 빌드
-# - frontend:build: React 기반 웹 대시보드 빌드
-# - build: TypeScript 백엔드 서버 빌드
-RUN pnpm frontend:build && pnpm build
+# 백엔드 빌드
+# TypeScript 백엔드 서버 빌드 (Frontend는 별도 컨테이너에서 빌드)
+RUN pnpm backend:build
 
-# 엔트리포인트 스크립트 설정
+# 프로덕션 의존성만 남기고 devDependencies 제거 (이미지 크기 최적화)
+RUN pnpm install --prod --frozen-lockfile
+
+# Azure Container Apps용 엔트리포인트 스크립트 설정
 # 컨테이너 시작 시 실행될 스크립트 (환경 설정, 초기화 등)
 COPY entrypoint.sh /usr/local/bin/entrypoint.sh
 RUN chmod +x /usr/local/bin/entrypoint.sh
 
-# MCPHub 웹 서버 포트 노출
-# 3000번 포트로 웹 대시보드 및 MCP 엔드포인트 서비스 제공
+# MCPHub 백엔드 API 서버 포트 노출
+# 3000번 포트로 API 엔드포인트 및 MCP 프로토콜 서비스 제공
 EXPOSE 3000
 
 # 컨테이너 헬스체크 설정
@@ -133,6 +118,6 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
   CMD curl -f http://localhost:3000/health || exit 1
 
 # 컨테이너 실행 설정
-# entrypoint.sh를 통해 환경 초기화 후 MCPHub 서버 시작
+# entrypoint.sh를 통해 환경 초기화 후 MCPHub 백엔드 서버 시작
 ENTRYPOINT ["/usr/local/bin/entrypoint.sh"]
-CMD ["pnpm", "start"]
+CMD ["node", "dist/index.js"]

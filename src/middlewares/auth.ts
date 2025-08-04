@@ -1,9 +1,13 @@
-import { Request, Response, NextFunction } from 'express';
+import { NextFunction, Request, Response } from 'express';
 import jwt from 'jsonwebtoken';
 import { loadSettings } from '../config/index.js';
+import { MCPHubKeyService } from '../services/mcpHubKeyService.js';
 
 // Default secret key - in production, use an environment variable
 const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key-change-this';
+
+// MCPHub Key Service instance
+const mcpHubKeyService = new MCPHubKeyService();
 
 const validateBearerAuth = (req: Request, routingConfig: any): boolean => {
   if (!routingConfig.enableBearerAuth) {
@@ -18,8 +22,39 @@ const validateBearerAuth = (req: Request, routingConfig: any): boolean => {
   return authHeader.substring(7) === routingConfig.bearerAuthKey;
 };
 
-// Middleware to authenticate JWT token
-export const auth = (req: Request, res: Response, next: NextFunction): void => {
+// MCPHub Key 인증 함수
+const validateMcpHubKey = async (req: Request): Promise<boolean> => {
+  const authHeader = req.headers.authorization;
+
+  if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    return false;
+  }
+
+  const keyValue = authHeader.substring(7);
+
+  if (!keyValue.startsWith('mcphub_')) {
+    return false;
+  }
+
+  try {
+    const authResult = await mcpHubKeyService.authenticateKey(keyValue);
+
+    if (authResult) {
+      // 인증된 사용자 정보를 request에 추가
+      (req as any).user = authResult.user;
+      (req as any).mcpHubKey = authResult.key;
+      (req as any).serviceTokens = authResult.serviceTokens;
+      return true;
+    }
+  } catch (error) {
+    console.error('MCPHub Key 인증 오류:', error);
+  }
+
+  return false;
+};
+
+// Middleware to authenticate JWT token, session, or MCPHub Key
+export const auth = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   // Check if authentication is disabled globally
   const routingConfig = loadSettings().systemConfig?.routing || {
     enableGlobalRoute: true,
@@ -34,31 +69,65 @@ export const auth = (req: Request, res: Response, next: NextFunction): void => {
     return;
   }
 
-  // Check if bearer auth is enabled and validate it
+  // 1. MCPHub Key 인증 시도
+  try {
+    if (await validateMcpHubKey(req)) {
+      next();
+      return;
+    }
+  } catch (error) {
+    console.error('MCPHub Key 인증 오류:', error);
+  }
+
+  // 2. Bearer Auth 인증 시도
   if (validateBearerAuth(req, routingConfig)) {
     next();
     return;
   }
 
-  // Get token from header or query parameter
+  // 3. JWT 토큰 인증 시도
   const headerToken = req.header('x-auth-token');
   const queryToken = req.query.token as string;
   const token = headerToken || queryToken;
 
-  // Check if no token
-  if (!token) {
-    res.status(401).json({ success: false, message: 'No token, authorization denied' });
+  if (token) {
+    try {
+      const decoded = jwt.verify(token, JWT_SECRET);
+      // Add user from payload to request
+      (req as any).user = (decoded as any).user;
+      next();
+      return;
+    } catch (error) {
+      console.error('JWT 토큰 인증 실패:', error);
+    }
+  }
+
+  // 모든 인증 방법 실패
+  res.status(401).json({ success: false, message: 'No valid authentication found' });
+};
+
+// 기본 인증 필요 middleware (auth와 동일)
+export const requireAuth = auth;
+
+// 관리자 권한 필요 middleware
+export const requireAdmin = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+  // 먼저 인증 확인
+  await new Promise<void>((resolve, reject) => {
+    auth(req, res, (err) => {
+      if (err) reject(err);
+      else resolve();
+    });
+  }).catch(() => {
+    res.status(401).json({ success: false, message: 'Authentication required' });
+    return;
+  });
+
+  // 관리자 권한 확인
+  const user = (req as any).user;
+  if (!user || !user.isAdmin) {
+    res.status(403).json({ success: false, message: 'Admin access required' });
     return;
   }
 
-  // Verify token
-  try {
-    const decoded = jwt.verify(token, JWT_SECRET);
-
-    // Add user from payload to request
-    (req as any).user = (decoded as any).user;
-    next();
-  } catch (error) {
-    res.status(401).json({ success: false, message: 'Token is not valid' });
-  }
+  next();
 };

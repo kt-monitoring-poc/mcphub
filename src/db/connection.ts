@@ -1,9 +1,9 @@
 import 'reflect-metadata'; // Ensure reflect-metadata is imported here too
 import { DataSource, DataSourceOptions } from 'typeorm';
-import entities from './entities/index.js';
-import { registerPostgresVectorType } from './types/postgresVectorType.js';
-import { VectorEmbeddingSubscriber } from './subscribers/VectorEmbeddingSubscriber.js';
 import { getSmartRoutingConfig } from '../utils/smartRouting.js';
+import entities from './entities/index.js';
+import { VectorEmbeddingSubscriber } from './subscribers/VectorEmbeddingSubscriber.js';
+import { registerPostgresVectorType } from './types/postgresVectorType.js';
 
 // Helper function to create required PostgreSQL extensions
 const createRequiredExtensions = async (dataSource: DataSource): Promise<void> => {
@@ -338,5 +338,10 @@ export const closeDatabase = async (): Promise<void> => {
 
 // Export AppDataSource for backward compatibility
 export const AppDataSource = appDataSource;
+
+// Export getDataSource function for new controller usage
+export const getDataSource = (): DataSource => {
+  return appDataSource;
+};
 
 export default getAppDataSource;

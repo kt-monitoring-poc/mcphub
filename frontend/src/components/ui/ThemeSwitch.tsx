@@ -13,10 +13,10 @@
  * - 테마 컨텍스트 연동
  */
 
+import { useTheme } from '@/contexts/ThemeContext';
+import { Moon, Sun } from 'lucide-react';
 import React from 'react';
 import { useTranslation } from 'react-i18next';
-import { useTheme } from '@/contexts/ThemeContext';
-import { Sun, Moon } from 'lucide-react';
 
 /**
  * 테마 스위치 컴포넌트
@@ -33,7 +33,7 @@ import { Sun, Moon } from 'lucide-react';
  */
 const ThemeSwitch: React.FC = () => {
   const { t } = useTranslation();
-  const { theme, setTheme } = useTheme();
+  const { theme, setTheme, resolvedTheme } = useTheme();
 
   return (
     <div className="flex items-center space-x-2">
@@ -41,7 +41,7 @@ const ThemeSwitch: React.FC = () => {
         {/* 라이트 테마 버튼 */}
         <button
           onClick={() => setTheme('light')}
-          className={`flex items-center justify-center rounded-md p-1.5 ${theme === 'light'
+          className={`flex items-center justify-center rounded-md p-1.5 ${resolvedTheme === 'light'
             ? 'bg-white text-yellow-600 shadow'
             : 'text-black dark:text-gray-300 hover:text-yellow-600 dark:hover:text-yellow-500'
             }`}
@@ -50,11 +50,11 @@ const ThemeSwitch: React.FC = () => {
         >
           <Sun size={18} />
         </button>
-        
+
         {/* 다크 테마 버튼 */}
         <button
           onClick={() => setTheme('dark')}
-          className={`flex items-center justify-center rounded-md p-1.5 ${theme === 'dark'
+          className={`flex items-center justify-center rounded-md p-1.5 ${resolvedTheme === 'dark'
             ? 'bg-gray-800 text-blue-400 shadow'
             : 'text-gray-600 dark:text-gray-300 hover:text-blue-500 dark:hover:text-blue-400'
             }`}
@@ -63,7 +63,7 @@ const ThemeSwitch: React.FC = () => {
         >
           <Moon size={18} />
         </button>
-        
+
         {/* 시스템 테마 버튼 (현재 비활성화) */}
         {/* <button
           onClick={() => setTheme('system')}

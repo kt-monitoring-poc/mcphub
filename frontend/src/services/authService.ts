@@ -3,7 +3,6 @@ import {
   AuthResponse,
   LoginCredentials,
   RegisterCredentials,
-  ChangePasswordCredentials,
 } from '../types';
 
 // API URL 생성을 위한 유틸리티 함수를 가져옵니다
@@ -144,8 +143,7 @@ export const getCurrentUser = async (): Promise<AuthResponse> => {
   }
 
   try {
-    // 토큰을 헤더에 포함하여 사용자 정보 요청
-    const response = await fetch(getApiUrl('/auth/user'), {
+    const response = await fetch(getApiUrl('/auth/me'), {
       method: 'GET',
       headers: {
         'x-auth-token': token,
@@ -163,48 +161,7 @@ export const getCurrentUser = async (): Promise<AuthResponse> => {
   }
 };
 
-/**
- * 비밀번호 변경 함수
- * 
- * 현재 비밀번호와 새 비밀번호를 사용하여 비밀번호를 변경합니다.
- * 
- * @param credentials - 비밀번호 변경 정보 (현재 비밀번호, 새 비밀번호)
- * @returns Promise<AuthResponse> - 비밀번호 변경 결과
- */
-export const changePassword = async (
-  credentials: ChangePasswordCredentials,
-): Promise<AuthResponse> => {
-  const token = getToken();
 
-  // 토큰이 없으면 오류 반환
-  if (!token) {
-    return {
-      success: false,
-      message: 'No authentication token',
-    };
-  }
-
-  try {
-    // 토큰을 헤더에 포함하여 비밀번호 변경 요청
-    const response = await fetch(getApiUrl('/auth/change-password'), {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-auth-token': token,
-      },
-      body: JSON.stringify(credentials),
-    });
-
-    return await response.json();
-  } catch (error) {
-    // 네트워크 오류나 기타 예외 상황 처리
-    console.error('Change password error:', error);
-    return {
-      success: false,
-      message: 'An error occurred while changing password',
-    };
-  }
-};
 
 /**
  * 사용자 로그아웃 함수
@@ -214,4 +171,70 @@ export const changePassword = async (
  */
 export const logout = (): void => {
   removeToken();
+};
+
+// 사용자 관리 API (관리자용)
+export const getAllUsers = async () => {
+  const response = await fetch('/api/admin/users/list', {
+    headers: {
+      'x-auth-token': getToken() || '',
+      'Content-Type': 'application/json',
+    },
+  });
+
+  if (!response.ok) {
+    throw new Error('사용자 목록 조회에 실패했습니다.');
+  }
+
+  return response.json();
+};
+
+export const toggleUserActive = async (userId: string, isActive: boolean) => {
+  const response = await fetch(`/api/admin/users/${userId}/active`, {
+    method: 'PUT',
+    headers: {
+      'x-auth-token': getToken() || '',
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ isActive }),
+  });
+
+  if (!response.ok) {
+    throw new Error('사용자 활성화 상태 변경에 실패했습니다.');
+  }
+
+  return response.json();
+};
+
+export const toggleUserAdmin = async (userId: string, isAdmin: boolean) => {
+  const response = await fetch(`/api/admin/users/${userId}/admin`, {
+    method: 'PUT',
+    headers: {
+      'x-auth-token': getToken() || '',
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ isAdmin }),
+  });
+
+  if (!response.ok) {
+    throw new Error('사용자 권한 변경에 실패했습니다.');
+  }
+
+  return response.json();
+};
+
+export const deleteUser = async (userId: string) => {
+  const response = await fetch(`/api/admin/users/${userId}`, {
+    method: 'DELETE',
+    headers: {
+      'x-auth-token': getToken() || '',
+      'Content-Type': 'application/json',
+    },
+  });
+
+  if (!response.ok) {
+    throw new Error('사용자 삭제에 실패했습니다.');
+  }
+
+  return response.json();
 };

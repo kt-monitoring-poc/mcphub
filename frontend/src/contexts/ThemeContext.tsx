@@ -1,10 +1,4 @@
-// React 라이브러리와 필요한 훅들을 가져옵니다
-// createContext: React Context API를 사용하여 전역 상태를 만들기 위한 함수
-// useContext: Context에서 값을 가져오는 훅
-// useState: 컴포넌트 내 상태 관리 훅
-// useEffect: 컴포넌트 생명주기와 관련된 부수 효과를 처리하는 훅
-// ReactNode: React 컴포넌트의 자식 요소 타입
-import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import React, { createContext, ReactNode, useContext, useEffect, useState } from 'react';
 
 // 테마 타입 정의: 사용자가 선택할 수 있는 테마 옵션들
 type Theme = 'light' | 'dark' | 'system';
@@ -58,8 +52,7 @@ export const ThemeProvider: React.FC<{ children: ReactNode }> = ({ children }) =
     const savedTheme = localStorage.getItem('theme') as Theme;
     return savedTheme || 'system';
   });
-  
-  // 실제 적용된 테마 상태 (system 선택 시 OS 설정에 따라 결정됨)
+
   const [resolvedTheme, setResolvedTheme] = useState<'light' | 'dark'>('light');
 
   /**
@@ -67,8 +60,10 @@ export const ThemeProvider: React.FC<{ children: ReactNode }> = ({ children }) =
    * @param newTheme - 새로운 테마 설정
    */
   const handleSetTheme = (newTheme: Theme) => {
+    console.log('🔄 Theme change requested:', newTheme);
     setTheme(newTheme);
     localStorage.setItem('theme', newTheme);
+    console.log('💾 Theme saved to localStorage:', newTheme);
   };
 
   /**
@@ -89,29 +84,38 @@ export const ThemeProvider: React.FC<{ children: ReactNode }> = ({ children }) =
       // OS의 다크 모드 설정을 확인
       // matchMedia는 CSS 미디어 쿼리를 JavaScript에서 확인하는 방법입니다
       const systemTheme = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
-      
-      // 어떤 테마를 적용할지 결정
-      // theme이 'system'이면 OS 설정을 따르고, 그렇지 않으면 사용자가 선택한 테마를 사용
+
+      // Determine which theme to use
       const themeToApply = theme === 'system' ? systemTheme : theme;
+      console.log('🎨 Theme resolution:', { theme, systemTheme, themeToApply });
       setResolvedTheme(themeToApply as 'light' | 'dark');
-      
-      // HTML 요소에 다크 모드 클래스를 추가하거나 제거
+
+      // Apply or remove dark class based on theme
       if (themeToApply === 'dark') {
-        console.log('Applying dark mode to HTML root element'); // 로그 추가
-        root.classList.add('dark');  // Tailwind CSS의 다크 모드 클래스 추가
-        document.body.style.backgroundColor = '#111827'; // 강제로 다크 배경 적용
+        console.log('🌙 Applying dark mode to HTML root element');
+        root.classList.add('dark');
+        console.log('✅ Dark class added. Current classes:', root.className);
+        // Force remove any light mode styles
+        document.body.style.backgroundColor = '';
+        document.body.style.color = '';
       } else {
-        console.log('Removing dark mode from HTML root element'); // 로그 추가
-        root.classList.remove('dark');  // 다크 모드 클래스 제거
-        document.body.style.backgroundColor = ''; // 배경색 초기화
+        console.log('☀️ Removing dark mode from HTML root element');
+        root.classList.remove('dark');
+        console.log('✅ Dark class removed. Current classes:', root.className);
+        // Force remove any dark mode styles
+        document.body.style.backgroundColor = '';
+        document.body.style.color = '';
+        // Force light mode styles
+        document.body.style.backgroundColor = '#f9fafb';
+        document.body.style.color = '#111827';
       }
     };
 
     // OS 테마 변경을 감지하는 이벤트 리스너 설정
     const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
     mediaQuery.addEventListener('change', updateTheme);
-    
-    // 초기 테마 설정
+
+    // Initial theme setup
     updateTheme();
 
     // 클린업 함수: 컴포넌트가 언마운트될 때 이벤트 리스너 제거

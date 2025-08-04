@@ -1,8 +1,8 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { LogEntry } from '../services/logService';
-import { Button } from './ui/Button';
-import { Badge } from './ui/Badge';
 import { useTranslation } from 'react-i18next';
+import { LogEntry } from '../services/logService';
+import { Badge } from './ui/Badge';
+import { Button } from './ui/Button';
 
 interface LogViewerProps {
   logs: LogEntry[];
@@ -28,9 +28,14 @@ const LogViewer: React.FC<LogViewerProps> = ({ logs, isLoading = false, error = 
 
   // Filter logs based on current filter settings
   const filteredLogs = logs.filter(log => {
-    const matchesText = filter ? log.message.toLowerCase().includes(filter.toLowerCase()) : true;
-    const matchesType = typeFilter.includes(log.type);
-    const matchesSource = sourceFilter.includes(log.source as 'main' | 'child');
+    // log 객체가 유효한지 확인
+    if (!log || typeof log !== 'object') return false;
+
+    const matchesText = filter ?
+      (log.message && log.message.toLowerCase().includes(filter.toLowerCase())) : true;
+    const matchesType = log.type ? typeFilter.includes(log.type) : true;
+    const matchesSource = log.source ?
+      sourceFilter.includes(log.source as 'main' | 'child') : true;
     return matchesText && matchesType && matchesSource;
   });
 

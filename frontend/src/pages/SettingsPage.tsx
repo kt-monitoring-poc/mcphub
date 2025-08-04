@@ -1,40 +1,32 @@
-// React 라이브러리와 필요한 훅들을 가져옵니다
-// useState: 컴포넌트 내에서 상태를 관리하는 훅
-// useEffect: 컴포넌트 생명주기와 관련된 부수 효과를 처리하는 훅
-import React, { useState, useEffect } from 'react';
 
-// 다국어 지원을 위한 react-i18next 라이브러리를 가져옵니다
-// useTranslation: 번역 함수와 현재 언어 정보를 제공하는 훅
+import { useAuth } from '@/contexts/AuthContext';
+import { useToast } from '@/contexts/ToastContext';
+import { Eye, EyeOff, FileText, Github, Globe, Key, MessageSquare, Save, Server, Settings } from 'lucide-react';
+import React, { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
 // React Router의 페이지 이동 기능을 가져옵니다
 // useNavigate: 프로그래밍 방식으로 페이지를 이동시키는 훅
 import { useNavigate } from 'react-router-dom';
 
-// UI 컴포넌트들을 가져옵니다
-import ChangePasswordForm from '@/components/ChangePasswordForm';  // 비밀번호 변경 폼
-import { Switch } from '@/components/ui/ToggleGroup';              // 토글 스위치 컴포넌트
+// 환경변수 설정 인터페이스
+interface EnvVarConfig {
+  varName: string;
+  serverName: string;
+  displayName: string;
+  description: string;
+  required: boolean;
+  icon: React.ReactNode;
+}
 
-// 커스텀 훅들을 가져옵니다
-import { useSettingsData } from '@/hooks/useSettingsData';  // 설정 데이터 관리 훅
-import { useToast } from '@/contexts/ToastContext';         // 알림 메시지 표시 훅
+// MCP 서버 정보 인터페이스
+interface McpServerInfo {
+  name: string;
+  displayName?: string;
+  description?: string;
+  enabled: boolean;
+}
 
-// 유틸리티 함수를 가져옵니다
-import { generateRandomKey } from '@/utils/key';  // 랜덤 키 생성 함수
-
-/**
- * SettingsPage 컴포넌트: 애플리케이션 설정 페이지
- * 
- * 이 컴포넌트는 다음과 같은 설정들을 관리합니다:
- * - 언어 설정 (한국어/영어/중국어)
- * - 스마트 라우팅 설정 (AI 기반 서버 선택)
- * - 라우팅 설정 (인증, 글로벌 라우트 등)
- * - 설치 설정 (Python, NPM 레지스트리)
- * - 비밀번호 변경
- * 
- * 각 설정 섹션은 접을 수 있는 형태로 구성되어 있어서
- * 사용자가 필요한 설정만 펼쳐서 볼 수 있습니다.
- */
 const SettingsPage: React.FC = () => {
   // 다국어 지원 훅 사용
   // t: 번역 함수 (예: t('settings.title') → "설정")
@@ -46,542 +38,432 @@ const SettingsPage: React.FC = () => {
   
   // 알림 메시지 표시를 위한 showToast 함수
   const { showToast } = useToast();
-  
-  // 현재 언어 상태 관리
-  // useState는 컴포넌트의 상태를 관리하는 React 훅입니다
+  const { user } = useAuth();
   const [currentLanguage, setCurrentLanguage] = useState(i18n.language);
 
-  // 언어가 변경될 때 현재 언어 상태를 업데이트
-  // useEffect는 컴포넌트가 렌더링된 후 실행되는 부수 효과를 처리합니다
-  // 의존성 배열 [i18n.language]에 i18n.language가 포함되어 있어서, 언어가 변경될 때마다 실행됩니다
+  // 환경변수 관련 상태
+  const [envVars, setEnvVars] = useState<Record<string, string>>({});
+  const [envVarConfigs, setEnvVarConfigs] = useState<EnvVarConfig[]>([]);
+  const [mcpServers, setMcpServers] = useState<McpServerInfo[]>([]);
+  const [showPasswords, setShowPasswords] = useState<Record<string, boolean>>({});
+  const [savingEnvVars, setSavingEnvVars] = useState(false);
+  const [loading, setLoading] = useState(true);
+
+  // Update current language when it changes
   useEffect(() => {
     setCurrentLanguage(i18n.language);
   }, [i18n.language]);
 
-  // 설치 설정 상태 관리
-  // TypeScript에서 객체의 타입을 인라인으로 정의
-  const [installConfig, setInstallConfig] = useState<{
-    pythonIndexUrl: string;  // Python 패키지 인덱스 URL
-    npmRegistry: string;     // NPM 레지스트리 URL
-  }>({
-    pythonIndexUrl: '',
-    npmRegistry: '',
-  });
-
-  // 스마트 라우팅 임시 설정 상태 관리
-  // 사용자가 입력 중인 값들을 임시로 저장하는 상태
-  const [tempSmartRoutingConfig, setTempSmartRoutingConfig] = useState<{
-    dbUrl: string;                    // 데이터베이스 URL
-    openaiApiBaseUrl: string;         // OpenAI API 기본 URL
-    openaiApiKey: string;             // OpenAI API 키
-    openaiApiEmbeddingModel: string;  // OpenAI 임베딩 모델명
-  }>({
-    dbUrl: '',
-    openaiApiBaseUrl: '',
-    openaiApiKey: '',
-    openaiApiEmbeddingModel: '',
-  });
-
-  // useSettingsData 훅에서 설정 관련 데이터와 함수들을 가져옵니다
-  // 이 훅은 서버와의 통신을 담당하며, 설정 데이터를 관리합니다
-  const {
-    routingConfig,                    // 현재 라우팅 설정
-    tempRoutingConfig,                // 임시 라우팅 설정
-    setTempRoutingConfig,             // 임시 라우팅 설정 변경 함수
-    installConfig: savedInstallConfig, // 저장된 설치 설정
-    smartRoutingConfig,               // 현재 스마트 라우팅 설정
-    loading,                          // 로딩 상태
-    updateRoutingConfig,              // 라우팅 설정 업데이트 함수
-    updateRoutingConfigBatch,         // 라우팅 설정 일괄 업데이트 함수
-    updateInstallConfig,              // 설치 설정 업데이트 함수
-    updateSmartRoutingConfig,         // 스마트 라우팅 설정 업데이트 함수
-    updateSmartRoutingConfigBatch     // 스마트 라우팅 설정 일괄 업데이트 함수
-  } = useSettingsData();
-
-  // 저장된 설치 설정이 변경될 때 로컬 상태를 업데이트
+  // 환경변수 템플릿 및 서버 정보 로드
   useEffect(() => {
-    if (savedInstallConfig) {
-      setInstallConfig(savedInstallConfig);
-    }
-  }, [savedInstallConfig]);
+    loadEnvVarTemplates();
+  }, []);
 
-  // 스마트 라우팅 설정이 변경될 때 임시 상태를 업데이트
-  useEffect(() => {
-    if (smartRoutingConfig) {
-      setTempSmartRoutingConfig({
-        dbUrl: smartRoutingConfig.dbUrl || '',
-        openaiApiBaseUrl: smartRoutingConfig.openaiApiBaseUrl || '',
-        openaiApiKey: smartRoutingConfig.openaiApiKey || '',
-        openaiApiEmbeddingModel: smartRoutingConfig.openaiApiEmbeddingModel || '',
+  // 환경변수 템플릿 로드
+  const loadEnvVarTemplates = async () => {
+    try {
+      setLoading(true);
+      const token = localStorage.getItem('mcphub_token');
+
+      // 1. 환경변수 템플릿 조회
+      const envTemplatesResponse = await fetch('/api/env-templates', {
+        headers: {
+          'x-auth-token': token || '',
+        },
       });
-    }
-  }, [smartRoutingConfig]);
 
-  // 각 설정 섹션의 펼침/접힘 상태 관리
-  // 사용자가 어떤 설정 섹션을 보고 있는지 추적합니다
-  const [sectionsVisible, setSectionsVisible] = useState({
-    routingConfig: false,      // 라우팅 설정 섹션
-    installConfig: false,      // 설치 설정 섹션
-    smartRoutingConfig: false, // 스마트 라우팅 설정 섹션
-    password: false            // 비밀번호 변경 섹션
-  });
+      if (envTemplatesResponse.ok) {
+        const envTemplatesData = await envTemplatesResponse.json();
+        const templates = envTemplatesData.data;
 
-  /**
-   * 설정 섹션의 펼침/접힘 상태를 토글하는 함수
-   * @param section - 토글할 섹션 이름
-   */
-  const toggleSection = (section: 'routingConfig' | 'installConfig' | 'smartRoutingConfig' | 'password') => {
-    setSectionsVisible(prev => ({
-      ...prev,  // 기존 상태를 복사
-      [section]: !prev[section]  // 해당 섹션의 상태를 반전
-    }));
-  };
-
-  const handleRoutingConfigChange = async (key: 'enableGlobalRoute' | 'enableGroupNameRoute' | 'enableBearerAuth' | 'bearerAuthKey' | 'skipAuth', value: boolean | string) => {
-    // If enableBearerAuth is turned on and there's no key, generate one first
-    if (key === 'enableBearerAuth' && value === true) {
-      if (!tempRoutingConfig.bearerAuthKey && !routingConfig.bearerAuthKey) {
-        const newKey = generateRandomKey();
-        handleBearerAuthKeyChange(newKey);
-
-        // Update both enableBearerAuth and bearerAuthKey in a single call
-        const success = await updateRoutingConfigBatch({
-          enableBearerAuth: true,
-          bearerAuthKey: newKey
+        // 2. MCP 서버 정보 조회
+        const serversResponse = await fetch('/api/servers', {
+          headers: {
+            'x-auth-token': token || '',
+          },
         });
 
-        if (success) {
-          // Update tempRoutingConfig to reflect the saved values
-          setTempRoutingConfig(prev => ({
-            ...prev,
-            bearerAuthKey: newKey
-          }));
-        }
-        return;
-      }
-    }
+        if (serversResponse.ok) {
+          const serversData = await serversResponse.json();
+          const servers = serversData.data;
+          setMcpServers(servers);
 
-    await updateRoutingConfig(key, value);
+          // 3. 환경변수 설정 생성
+          const configs: EnvVarConfig[] = [];
+          const initialEnvVars: Record<string, string> = {};
+          const initialShowPasswords: Record<string, boolean> = {};
+
+          Object.entries(templates).forEach(([serverName, envVars]) => {
+            const server = servers.find((s: McpServerInfo) => s.name === serverName);
+
+            (envVars as string[]).forEach((envVar) => {
+              const config: EnvVarConfig = {
+                varName: envVar,
+                serverName: serverName,
+                displayName: getEnvVarDisplayName(envVar),
+                description: getEnvVarDescription(envVar, server),
+                required: true,
+                icon: getEnvVarIcon(envVar)
+              };
+
+              configs.push(config);
+              initialEnvVars[envVar] = '';
+              initialShowPasswords[envVar] = false;
+            });
+          });
+
+          setEnvVarConfigs(configs);
+          setEnvVars(initialEnvVars);
+          setShowPasswords(initialShowPasswords);
+
+          // 4. 기존 사용자 환경변수 로드
+          await loadUserEnvVars();
+        } else {
+          console.error('서버 정보 로드 실패');
+        }
+      } else {
+        console.error('환경변수 템플릿 로드 실패');
+      }
+    } catch (error) {
+      console.error('환경변수 설정 로드 중 오류 발생:', error);
+      showToast('환경변수 정보를 불러오는데 실패했습니다.', 'error');
+    } finally {
+      setLoading(false);
+    }
   };
 
-  const handleBearerAuthKeyChange = (value: string) => {
-    setTempRoutingConfig(prev => ({
+  // 사용자 환경변수 로드
+  const loadUserEnvVars = async () => {
+    try {
+      const token = localStorage.getItem('mcphub_token');
+
+      const response = await fetch('/api/user-env-vars', {
+        headers: {
+          'x-auth-token': token || '',
+        },
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+
+        if (data.data && typeof data.data === 'object') {
+          // API 응답 데이터를 envVars 구조로 변환
+          const flattenedEnvVars: Record<string, string> = {};
+
+          Object.entries(data.data).forEach(([serverName, serverEnvVars]) => {
+            if (typeof serverEnvVars === 'object' && serverEnvVars !== null) {
+              Object.entries(serverEnvVars as Record<string, string>).forEach(([varName, value]) => {
+                // 백엔드에서는 USER_ 없이 오므로 추가
+                const userVarName = `USER_${varName}`;
+                flattenedEnvVars[userVarName] = value;
+              });
+            }
+          });
+
+          setEnvVars(prev => ({ ...prev, ...flattenedEnvVars }));
+        }
+      } else {
+        console.error('사용자 환경변수 로드 실패');
+      }
+    } catch (error) {
+      console.error('사용자 환경변수 로드 중 오류 발생:', error);
+    }
+  };
+
+  // 환경변수 저장
+  const handleSaveEnvVars = async () => {
+    try {
+      setSavingEnvVars(true);
+      const token = localStorage.getItem('mcphub_token');
+
+      // envVars를 서버별로 그룹화하고 USER_ 접두사 제거
+      const groupedEnvVarsForSave: Record<string, Record<string, string>> = {};
+
+      Object.entries(envVars).forEach(([varName, value]) => {
+        if (value && value.trim() !== '') {
+          // USER_ 접두사 제거
+          const cleanVarName = varName.startsWith('USER_') ? varName.substring(5) : varName;
+
+          // envVarConfigs에서 동적으로 서버 찾기 (완전 자동화)
+          const config = envVarConfigs.find(c => c.varName === varName);
+          if (config) {
+            const serverName = config.serverName;
+            if (!groupedEnvVarsForSave[serverName]) {
+              groupedEnvVarsForSave[serverName] = {};
+            }
+            groupedEnvVarsForSave[serverName][cleanVarName] = value;
+          }
+        }
+      });
+
+      const response = await fetch('/api/user-env-vars', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-auth-token': token || '',
+        },
+        body: JSON.stringify({
+          envVars: groupedEnvVarsForSave
+        }),
+      });
+
+      if (response.ok) {
+        showToast('환경변수가 성공적으로 저장되었습니다.', 'success');
+      } else {
+        const data = await response.json();
+        showToast(data.message || '환경변수 저장에 실패했습니다.', 'error');
+      }
+    } catch (error) {
+      console.error('환경변수 저장 실패:', error);
+      showToast('환경변수 저장 중 오류가 발생했습니다.', 'error');
+    } finally {
+      setSavingEnvVars(false);
+    }
+  };
+
+  // 환경변수 표시명 생성
+  const getEnvVarDisplayName = (envVar: string): string => {
+    const varName = envVar.replace('USER_', '');
+    return varName.split('_').map(word =>
+      word.charAt(0).toUpperCase() + word.slice(1).toLowerCase()
+    ).join(' ');
+  };
+
+  // 환경변수 설명 생성
+  const getEnvVarDescription = (envVar: string, server?: McpServerInfo): string => {
+    const serverName = server?.displayName || server?.name || '알 수 없는 서버';
+    const varName = envVar.replace('USER_', '');
+
+    const descriptions: Record<string, string> = {
+      'FIRECRAWL_TOKEN': '웹 스크래핑 및 검색 기능에 필요',
+      'GITHUB_TOKEN': 'GitHub API 접근에 필요',
+      'CONFLUENCE_TOKEN': 'Confluence 문서 및 페이지 관리에 필요',
+      'JIRA_TOKEN': 'Jira 이슈 및 프로젝트 관리에 필요',
+      'JIRA_BASE_URL': 'Jira 인스턴스 URL (예: https://your-domain.atlassian.net)',
+      'JIRA_EMAIL': 'Jira 계정 이메일 주소',
+    };
+
+    return descriptions[varName] || `${serverName} 서버 연결에 필요`;
+  };
+
+  // 환경변수 아이콘 생성
+  const getEnvVarIcon = (envVar: string): React.ReactNode => {
+    const varName = envVar.replace('USER_', '');
+
+    const icons: Record<string, React.ReactNode> = {
+      'FIRECRAWL_TOKEN': <Globe className="w-4 h-4" />,
+      'GITHUB_TOKEN': <Github className="w-4 h-4" />,
+      'CONFLUENCE_TOKEN': <FileText className="w-4 h-4" />,
+      'JIRA_TOKEN': <MessageSquare className="w-4 h-4" />,
+      'JIRA_BASE_URL': <Server className="w-4 h-4" />,
+      'JIRA_EMAIL': <MessageSquare className="w-4 h-4" />,
+    };
+
+    return icons[varName] || <Key className="w-4 h-4" />;
+  };
+
+  // 비밀번호 표시 토글
+  const togglePasswordVisibility = (envVar: string) => {
+    setShowPasswords(prev => ({
       ...prev,
-      bearerAuthKey: value
+      [envVar]: !prev[envVar]
     }));
   };
 
-  const saveBearerAuthKey = async () => {
-    await updateRoutingConfig('bearerAuthKey', tempRoutingConfig.bearerAuthKey);
-  };
-
-  const handleInstallConfigChange = (key: 'pythonIndexUrl' | 'npmRegistry', value: string) => {
-    setInstallConfig({
-      ...installConfig,
-      [key]: value
-    });
-  };
-
-  const saveInstallConfig = async (key: 'pythonIndexUrl' | 'npmRegistry') => {
-    await updateInstallConfig(key, installConfig[key]);
-  };
-
-  const handleSmartRoutingConfigChange = (key: 'dbUrl' | 'openaiApiBaseUrl' | 'openaiApiKey' | 'openaiApiEmbeddingModel', value: string) => {
-    setTempSmartRoutingConfig({
-      ...tempSmartRoutingConfig,
-      [key]: value
-    });
-  };
-
-  const saveSmartRoutingConfig = async (key: 'dbUrl' | 'openaiApiBaseUrl' | 'openaiApiKey' | 'openaiApiEmbeddingModel') => {
-    await updateSmartRoutingConfig(key, tempSmartRoutingConfig[key]);
-  };
-
-  const handleSmartRoutingEnabledChange = async (value: boolean) => {
-    // If enabling Smart Routing, validate required fields and save any unsaved changes
-    if (value) {
-      const currentDbUrl = tempSmartRoutingConfig.dbUrl || smartRoutingConfig.dbUrl;
-      const currentOpenaiApiKey = tempSmartRoutingConfig.openaiApiKey || smartRoutingConfig.openaiApiKey;
-
-      if (!currentDbUrl || !currentOpenaiApiKey) {
-        const missingFields = [];
-        if (!currentDbUrl) missingFields.push(t('settings.dbUrl'));
-        if (!currentOpenaiApiKey) missingFields.push(t('settings.openaiApiKey'));
-
-        showToast(t('settings.smartRoutingValidationError', {
-          fields: missingFields.join(', ')
-        }));
-        return;
-      }
-
-      // Prepare updates object with unsaved changes and enabled status
-      const updates: any = { enabled: value };
-
-      // Check for unsaved changes and include them in the batch update
-      if (tempSmartRoutingConfig.dbUrl !== smartRoutingConfig.dbUrl) {
-        updates.dbUrl = tempSmartRoutingConfig.dbUrl;
-      }
-      if (tempSmartRoutingConfig.openaiApiBaseUrl !== smartRoutingConfig.openaiApiBaseUrl) {
-        updates.openaiApiBaseUrl = tempSmartRoutingConfig.openaiApiBaseUrl;
-      }
-      if (tempSmartRoutingConfig.openaiApiKey !== smartRoutingConfig.openaiApiKey) {
-        updates.openaiApiKey = tempSmartRoutingConfig.openaiApiKey;
-      }
-      if (tempSmartRoutingConfig.openaiApiEmbeddingModel !== smartRoutingConfig.openaiApiEmbeddingModel) {
-        updates.openaiApiEmbeddingModel = tempSmartRoutingConfig.openaiApiEmbeddingModel;
-      }
-
-      // Save all changes in a single batch update
-      await updateSmartRoutingConfigBatch(updates);
-    } else {
-      // If disabling, just update the enabled status
-      await updateSmartRoutingConfig('enabled', value);
+  // 환경변수 그룹별로 정리
+  const groupedEnvVars = envVarConfigs.reduce((groups, config) => {
+    const serverName = config.serverName;
+    if (!groups[serverName]) {
+      groups[serverName] = [];
     }
+    groups[serverName].push(config);
+    return groups;
+  }, {} as Record<string, EnvVarConfig[]>);
+
+  // 섹션 토글 상태
+  const [openSections, setOpenSections] = useState<Record<string, boolean>>({});
+
+  const toggleSection = (section: string) => {
+    setOpenSections(prev => ({
+      ...prev,
+      [section]: !prev[section]
+    }));
   };
 
-  const handlePasswordChangeSuccess = () => {
-    setTimeout(() => {
-      navigate('/');
-    }, 2000);
-  };
-
+  // 언어 변경
   const handleLanguageChange = (lang: string) => {
-    localStorage.setItem('i18nextLng', lang);
-    window.location.reload();
+    i18n.changeLanguage(lang);
   };
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+      </div>
+    );
+  }
 
   return (
-    <div className="container mx-auto">
-      <h1 className="text-2xl font-bold text-gray-900 mb-8">{t('pages.settings.title')}</h1>
+    <div className="space-y-6">
+      <div>
+        <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
+          설정
+        </h1>
+        <p className="text-gray-600 dark:text-gray-400 mt-1">
+          MCP 서버 연결을 위한 환경변수 및 시스템 설정을 관리합니다.
+        </p>
+      </div>
 
-      {/* Language Settings */}
-      <div className="bg-white shadow rounded-lg py-4 px-6 mb-6 page-card">
-        <div className="flex items-center justify-between">
-          <h2 className="font-semibold text-gray-800">{t('pages.settings.language')}</h2>
-          <div className="flex space-x-3">
-            <button
-              className={`px-3 py-1.5 rounded-md transition-all duration-200 text-sm ${currentLanguage.startsWith('en')
-                ? 'bg-blue-500 text-white btn-primary'
-                : 'bg-blue-100 text-blue-800 hover:bg-blue-200 btn-secondary'
-                }`}
-              onClick={() => handleLanguageChange('en')}
-            >
-              English
-            </button>
-            <button
-              className={`px-3 py-1.5 rounded-md transition-all duration-200 text-sm ${currentLanguage.startsWith('zh')
-                ? 'bg-blue-500 text-white btn-primary'
-                : 'bg-blue-100 text-blue-800 hover:bg-blue-200 btn-secondary'
-                }`}
-              onClick={() => handleLanguageChange('zh')}
-            >
-              中文
-            </button>
+      {/* 환경변수 설정 섹션 */}
+      <div className="bg-white dark:bg-gray-800 shadow rounded-lg">
+        <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700">
+          <h2 className="text-lg font-medium text-gray-900 dark:text-white flex items-center">
+            <Key className="w-5 h-5 mr-2" />
+            MCP 서버 환경변수 설정
+          </h2>
+          <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
+            각 MCP 서버에 연결하기 위해 필요한 API 키와 설정값을 입력하세요.
+          </p>
+        </div>
+
+        <div className="p-6 space-y-6">
+          {Object.keys(groupedEnvVars).length === 0 ? (
+            <div className="text-center py-8">
+              <Settings className="w-12 h-12 text-gray-400 mx-auto mb-4" />
+              <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-2">
+                설정할 환경변수가 없습니다
+              </h3>
+              <p className="text-gray-600 dark:text-gray-400">
+                관리자가 MCP 서버를 추가하면 여기에 필요한 환경변수가 표시됩니다.
+              </p>
+            </div>
+          ) : (
+            <>
+              {Object.entries(groupedEnvVars).map(([serverName, configs]) => {
+                const server = mcpServers.find(s => s.name === serverName);
+                const isOpen = openSections[serverName] !== false; // 기본값 true
+
+                return (
+                  <div key={serverName} className="border border-gray-200 dark:border-gray-700 rounded-lg">
+                    <button
+                      onClick={() => toggleSection(serverName)}
+                      className="w-full px-4 py-3 text-left flex items-center justify-between hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
+                    >
+                      <div className="flex items-center">
+                        <Server className="w-5 h-5 mr-3 text-blue-600 dark:text-blue-400" />
+                        <div>
+                          <h3 className="font-medium text-gray-900 dark:text-white">
+                            {server?.displayName || serverName}
+                          </h3>
+                          {server?.description && (
+                            <p className="text-sm text-gray-600 dark:text-gray-400">
+                              {server.description}
+                            </p>
+                          )}
+                        </div>
+                      </div>
+                      <div className="flex items-center space-x-2">
+                        <span className="text-sm text-gray-500 dark:text-gray-400">
+                          {configs.length}개 환경변수
+                        </span>
+                        <div className={`transform transition-transform ${isOpen ? 'rotate-180' : ''}`}>
+                          ▼
+                        </div>
+                      </div>
+                    </button>
+
+                    {isOpen && (
+                      <div className="px-4 pb-4 space-y-4">
+                        {configs.map((config) => (
+                          <div key={config.varName} className="space-y-2">
+                            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                              <div className="flex items-center">
+                                {config.icon}
+                                <span className="ml-2">{config.displayName}</span>
+                                {config.required && (
+                                  <span className="ml-1 text-red-500">*</span>
+                                )}
+                              </div>
+                            </label>
+                            <div className="relative">
+                              <input
+                                type={showPasswords[config.varName] ? 'text' : 'password'}
+                                value={envVars[config.varName] || ''}
+                                onChange={(e) => setEnvVars(prev => ({
+                                  ...prev,
+                                  [config.varName]: e.target.value
+                                }))}
+                                className="w-full px-3 py-2 pr-10 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:text-white"
+                                placeholder={`${config.displayName} 입력`}
+                              />
+                              <button
+                                type="button"
+                                onClick={() => togglePasswordVisibility(config.varName)}
+                                className="absolute inset-y-0 right-0 pr-3 flex items-center text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
+                              >
+                                {showPasswords[config.varName] ? (
+                                  <EyeOff className="w-4 h-4" />
+                                ) : (
+                                  <Eye className="w-4 h-4" />
+                                )}
+                              </button>
+                            </div>
+                            <p className="text-xs text-gray-500 dark:text-gray-400">
+                              {config.description}
+                            </p>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+
+              {/* 저장 버튼 */}
+              <div className="flex justify-end pt-4 border-t border-gray-200 dark:border-gray-700">
+                <button
+                  onClick={handleSaveEnvVars}
+                  disabled={savingEnvVars}
+                  className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  <Save className="w-4 h-4 mr-2" />
+                  {savingEnvVars ? '저장 중...' : '환경변수 저장'}
+                </button>
+              </div>
+            </>
+          )}
+        </div>
+      </div>
+
+      {/* 언어 설정 */}
+      <div className="bg-white dark:bg-gray-800 shadow rounded-lg">
+        <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700">
+          <h2 className="text-lg font-medium text-gray-900 dark:text-white">
+            언어 설정
+          </h2>
+        </div>
+        <div className="p-6">
+          <div className="space-y-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                언어 선택
+              </label>
+              <select
+                value={currentLanguage}
+                onChange={(e) => handleLanguageChange(e.target.value)}
+                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:text-white"
+              >
+                <option value="ko">한국어</option>
+                <option value="en">English</option>
+                <option value="zh">中文</option>
+              </select>
+            </div>
           </div>
         </div>
       </div>
 
-      {/* Smart Routing Configuration Settings */}
-      <div className="bg-white shadow rounded-lg py-4 px-6 mb-6 page-card">
-        <div
-          className="flex justify-between items-center cursor-pointer transition-colors duration-200 hover:text-blue-600"
-          onClick={() => toggleSection('smartRoutingConfig')}
-        >
-          <h2 className="font-semibold text-gray-800">{t('pages.settings.smartRouting')}</h2>
-          <span className="text-gray-500 transition-transform duration-200">
-            {sectionsVisible.smartRoutingConfig ? '▼' : '►'}
-          </span>
-        </div>
 
-        {sectionsVisible.smartRoutingConfig && (
-          <div className="space-y-4 mt-4">
-            <div className="flex items-center justify-between p-3 bg-gray-50 rounded-md">
-              <div>
-                <h3 className="font-medium text-gray-700">{t('settings.enableSmartRouting')}</h3>
-                <p className="text-sm text-gray-500">{t('settings.enableSmartRoutingDescription')}</p>
-              </div>
-              <Switch
-                disabled={loading}
-                checked={smartRoutingConfig.enabled}
-                onCheckedChange={(checked) => handleSmartRoutingEnabledChange(checked)}
-              />
-            </div>
-
-            <div className="p-3 bg-gray-50 rounded-md">
-              <div className="mb-2">
-                <h3 className="font-medium text-gray-700">
-                  <span className="text-red-500 px-1">*</span>{t('settings.dbUrl')}
-                </h3>
-              </div>
-              <div className="flex items-center gap-3">
-                <input
-                  type="text"
-                  value={tempSmartRoutingConfig.dbUrl}
-                  onChange={(e) => handleSmartRoutingConfigChange('dbUrl', e.target.value)}
-                  placeholder={t('settings.dbUrlPlaceholder')}
-                  className="flex-1 mt-1 block w-full py-2 px-3 border rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm border-gray-300 form-input"
-                  disabled={loading}
-                />
-                <button
-                  onClick={() => saveSmartRoutingConfig('dbUrl')}
-                  disabled={loading}
-                  className="mt-1 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-md text-sm font-medium disabled:opacity-50 btn-primary"
-                >
-                  {t('common.save')}
-                </button>
-              </div>
-            </div>
-
-            <div className="p-3 bg-gray-50 rounded-md">
-              <div className="mb-2">
-                <h3 className="font-medium text-gray-700">
-                  <span className="text-red-500 px-1">*</span>{t('settings.openaiApiKey')}
-                </h3>
-              </div>
-              <div className="flex items-center gap-3">
-                <input
-                  type="password"
-                  value={tempSmartRoutingConfig.openaiApiKey}
-                  onChange={(e) => handleSmartRoutingConfigChange('openaiApiKey', e.target.value)}
-                  placeholder={t('settings.openaiApiKeyPlaceholder')}
-                  className="flex-1 mt-1 block w-full py-2 px-3 border rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm border-gray-300"
-                  disabled={loading}
-                />
-                <button
-                  onClick={() => saveSmartRoutingConfig('openaiApiKey')}
-                  disabled={loading}
-                  className="mt-1 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-md text-sm font-medium disabled:opacity-50 btn-primary"
-                >
-                  {t('common.save')}
-                </button>
-              </div>
-            </div>
-
-            <div className="p-3 bg-gray-50 rounded-md">
-              <div className="mb-2">
-                <h3 className="font-medium text-gray-700">{t('settings.openaiApiBaseUrl')}</h3>
-              </div>
-              <div className="flex items-center gap-3">
-                <input
-                  type="text"
-                  value={tempSmartRoutingConfig.openaiApiBaseUrl}
-                  onChange={(e) => handleSmartRoutingConfigChange('openaiApiBaseUrl', e.target.value)}
-                  placeholder={t('settings.openaiApiBaseUrlPlaceholder')}
-                  className="flex-1 mt-1 block w-full py-2 px-3 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm form-input"
-                  disabled={loading}
-                />
-                <button
-                  onClick={() => saveSmartRoutingConfig('openaiApiBaseUrl')}
-                  disabled={loading}
-                  className="mt-1 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-md text-sm font-medium disabled:opacity-50 btn-primary"
-                >
-                  {t('common.save')}
-                </button>
-              </div>
-            </div>
-
-            <div className="p-3 bg-gray-50 rounded-md">
-              <div className="mb-2">
-                <h3 className="font-medium text-gray-700">{t('settings.openaiApiEmbeddingModel')}</h3>
-              </div>
-              <div className="flex items-center gap-3">
-                <input
-                  type="text"
-                  value={tempSmartRoutingConfig.openaiApiEmbeddingModel}
-                  onChange={(e) => handleSmartRoutingConfigChange('openaiApiEmbeddingModel', e.target.value)}
-                  placeholder={t('settings.openaiApiEmbeddingModelPlaceholder')}
-                  className="flex-1 mt-1 block w-full py-2 px-3 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm form-input"
-                  disabled={loading}
-                />
-                <button
-                  onClick={() => saveSmartRoutingConfig('openaiApiEmbeddingModel')}
-                  disabled={loading}
-                  className="mt-1 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-md text-sm font-medium disabled:opacity-50 btn-primary"
-                >
-                  {t('common.save')}
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
-      </div>
-
-      {/* Route Configuration Settings */}
-      <div className="bg-white shadow rounded-lg py-4 px-6 mb-6">
-        <div
-          className="flex justify-between items-center cursor-pointer"
-          onClick={() => toggleSection('routingConfig')}
-        >
-          <h2 className="font-semibold text-gray-800">{t('pages.settings.routeConfig')}</h2>
-          <span className="text-gray-500">
-            {sectionsVisible.routingConfig ? '▼' : '►'}
-          </span>
-        </div>
-
-        {sectionsVisible.routingConfig && (
-          <div className="space-y-4 mt-4">
-            <div className="flex items-center justify-between p-3 bg-gray-50 rounded-md">
-              <div>
-                <h3 className="font-medium text-gray-700">{t('settings.enableBearerAuth')}</h3>
-                <p className="text-sm text-gray-500">{t('settings.enableBearerAuthDescription')}</p>
-              </div>
-              <Switch
-                disabled={loading}
-                checked={routingConfig.enableBearerAuth}
-                onCheckedChange={(checked) => handleRoutingConfigChange('enableBearerAuth', checked)}
-              />
-            </div>
-
-            {routingConfig.enableBearerAuth && (
-              <div className="p-3 bg-gray-50 rounded-md">
-                <div className="mb-2">
-                  <h3 className="font-medium text-gray-700">{t('settings.bearerAuthKey')}</h3>
-                  <p className="text-sm text-gray-500">{t('settings.bearerAuthKeyDescription')}</p>
-                </div>
-                <div className="flex items-center gap-3">
-                  <input
-                    type="text"
-                    value={tempRoutingConfig.bearerAuthKey}
-                    onChange={(e) => handleBearerAuthKeyChange(e.target.value)}
-                    placeholder={t('settings.bearerAuthKeyPlaceholder')}
-                    className="flex-1 mt-1 block w-full py-2 px-3 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm form-input"
-                    disabled={loading || !routingConfig.enableBearerAuth}
-                  />
-                  <button
-                    onClick={saveBearerAuthKey}
-                    disabled={loading || !routingConfig.enableBearerAuth}
-                    className="mt-1 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-md text-sm font-medium disabled:opacity-50 btn-primary"
-                  >
-                    {t('common.save')}
-                  </button>
-                </div>
-              </div>
-            )}
-
-            <div className="flex items-center justify-between p-3 bg-gray-50 rounded-md">
-              <div>
-                <h3 className="font-medium text-gray-700">{t('settings.enableGlobalRoute')}</h3>
-                <p className="text-sm text-gray-500">{t('settings.enableGlobalRouteDescription')}</p>
-              </div>
-              <Switch
-                disabled={loading}
-                checked={routingConfig.enableGlobalRoute}
-                onCheckedChange={(checked) => handleRoutingConfigChange('enableGlobalRoute', checked)}
-              />
-            </div>
-
-            <div className="flex items-center justify-between p-3 bg-gray-50 rounded-md">
-              <div>
-                <h3 className="font-medium text-gray-700">{t('settings.enableGroupNameRoute')}</h3>
-                <p className="text-sm text-gray-500">{t('settings.enableGroupNameRouteDescription')}</p>
-              </div>
-              <Switch
-                disabled={loading}
-                checked={routingConfig.enableGroupNameRoute}
-                onCheckedChange={(checked) => handleRoutingConfigChange('enableGroupNameRoute', checked)}
-              />
-            </div>
-
-            <div className="flex items-center justify-between p-3 bg-gray-50 rounded-md">
-              <div>
-                <h3 className="font-medium text-gray-700">{t('settings.skipAuth')}</h3>
-                <p className="text-sm text-gray-500">{t('settings.skipAuthDescription')}</p>
-              </div>
-              <Switch
-                disabled={loading}
-                checked={routingConfig.skipAuth}
-                onCheckedChange={(checked) => handleRoutingConfigChange('skipAuth', checked)}
-              />
-            </div>
-
-          </div>
-        )}
-      </div>
-
-      {/* Installation Configuration Settings */}
-      <div className="bg-white shadow rounded-lg py-4 px-6 mb-6">
-        <div
-          className="flex justify-between items-center cursor-pointer"
-          onClick={() => toggleSection('installConfig')}
-        >
-          <h2 className="font-semibold text-gray-800">{t('settings.installConfig')}</h2>
-          <span className="text-gray-500">
-            {sectionsVisible.installConfig ? '▼' : '►'}
-          </span>
-        </div>
-
-        {sectionsVisible.installConfig && (
-          <div className="space-y-4 mt-4">
-            <div className="p-3 bg-gray-50 rounded-md">
-              <div className="mb-2">
-                <h3 className="font-medium text-gray-700">{t('settings.pythonIndexUrl')}</h3>
-                <p className="text-sm text-gray-500">{t('settings.pythonIndexUrlDescription')}</p>
-              </div>
-              <div className="flex items-center gap-3">
-                <input
-                  type="text"
-                  value={installConfig.pythonIndexUrl}
-                  onChange={(e) => handleInstallConfigChange('pythonIndexUrl', e.target.value)}
-                  placeholder={t('settings.pythonIndexUrlPlaceholder')}
-                  className="flex-1 mt-1 block w-full py-2 px-3 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm form-input"
-                  disabled={loading}
-                />
-                <button
-                  onClick={() => saveInstallConfig('pythonIndexUrl')}
-                  disabled={loading}
-                  className="mt-1 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-md text-sm font-medium disabled:opacity-50 btn-primary"
-                >
-                  {t('common.save')}
-                </button>
-              </div>
-            </div>
-
-            <div className="p-3 bg-gray-50 rounded-md">
-              <div className="mb-2">
-                <h3 className="font-medium text-gray-700">{t('settings.npmRegistry')}</h3>
-                <p className="text-sm text-gray-500">{t('settings.npmRegistryDescription')}</p>
-              </div>
-              <div className="flex items-center gap-3">
-                <input
-                  type="text"
-                  value={installConfig.npmRegistry}
-                  onChange={(e) => handleInstallConfigChange('npmRegistry', e.target.value)}
-                  placeholder={t('settings.npmRegistryPlaceholder')}
-                  className="flex-1 mt-1 block w-full py-2 px-3 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm form-input"
-                  disabled={loading}
-                />
-                <button
-                  onClick={() => saveInstallConfig('npmRegistry')}
-                  disabled={loading}
-                  className="mt-1 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-md text-sm font-medium disabled:opacity-50 btn-primary"
-                >
-                  {t('common.save')}
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
-      </div>
-
-      {/* Change Password */}
-      <div className="bg-white shadow rounded-lg py-4 px-6 mb-6">
-        <div
-          className="flex justify-between items-center cursor-pointer"
-          onClick={() => toggleSection('password')}
-        >
-          <h2 className="font-semibold text-gray-800">{t('auth.changePassword')}</h2>
-          <span className="text-gray-500">
-            {sectionsVisible.password ? '▼' : '►'}
-          </span>
-        </div>
-
-        {sectionsVisible.password && (
-          <div className="max-w-lg mt-4">
-            <ChangePasswordForm onSuccess={handlePasswordChangeSuccess} />
-          </div>
-        )}
-      </div>
-    </div >
+    </div>
   );
 };
 

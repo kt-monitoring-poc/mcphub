@@ -1,62 +1,44 @@
 {
   "mcpServers": {
-     "firecrawl-mcp": {
+    "context7": {
+      "type": "stdio",
+      "enabled": true,
       "command": "npx",
       "args": [
         "-y",
-        "firecrawl-mcp"
-      ],
-      "env": {
-        "FIRECRAWL_API_KEY": "fc-89c11d9ad6ab4636bbfdfff9731d0972"
+        "@upstash/context7-mcp"
+      ]
+    },
+    "mcp-atlassian-jira": {
+      "type": "streamable-http",
+      "url": "https://mcp-jira-service.livelybeach-90f399a8.koreacentral.azurecontainerapps.io/mcp/",
+      "headers": {
+        "Authorization": "Bearer ${USER_ATLASSIAN_JIRA_TOKEN}",
+        "X-User-Email": "${USER_ATLASSIAN_JIRA_EMAIL}",
+        "X-Jira-URL": "${USER_ATLASSIAN_JIRA_CLOUD_ID}"
       }
     },
-    "Sequential Thinking Tools": {
-      "type": "stdio",
-      "command": "npx",
-      "args": [
-        "-y",
-        "@smithery/cli@latest",
-        "run",
-        "@xinzhongyouhai/mcp-sequentialthinking-tools",
-        "--key",
-        "80d1c482-d213-4a38-a732-fc780af4a2d1"
-      ],
-      "env": {}
+    "mcp-atlassian-confluence": {
+      "type": "streamable-http",
+      "url": "https://mcp-confluence-service.livelybeach-90f399a8.koreacentral.azurecontainerapps.io/mcp/",
+      "headers": {
+        "Authorization": "Bearer ${USER_ATLASSIAN_CONFLUENCE_TOKEN}",
+        "X-User-Email": "${USER_ATLASSIAN_CONFLUENCE_EMAIL}",
+        "X-Jira-URL": "${USER_ATLASSIAN_CONFLUENCE_CLOUD_ID}"
+      }
     },
-    "Context7": {
-      "type": "stdio",
-      "command": "npx",
-      "args": [
-        "-y",
-        "@smithery/cli@latest",
-        "run",
-        "@upstash/context7-mcp",
-        "--key",
-        "80d1c482-d213-4a38-a732-fc780af4a2d1"
-      ],
-      "env": {}
-    },
-    "Github": {
-      "type": "stdio",
-      "command": "npx",
-      "args": [
-        "-y",
-        "@smithery/cli@latest",
-        "run",
-        "@smithery-ai/github",
-        "--key",
-        "80d1c482-d213-4a38-a732-fc780af4a2d1",
-        "--profile",
-        "clear-ox-TgjNs3"
-      ],
-      "env": {}
+    "github-pr-mcp-server": {
+      "type": "streamable-http",
+      "url": "https://github-pr-mcp-server.livelybeach-90f399a8.koreacentral.azurecontainerapps.io/mcp/",
+      "enabled": true,
+      "headers": {
+        "Authorization": "Bearer ${USER_GITHUB_TOKEN}"
+      },
+      "tools": {
+        "GitHub PR MCP (ACA)-create_pull_request": {
+          "enabled": true
+        }
+      }
     }
-  },
-  "users": [
-    {
-      "username": "admin",
-      "password": "$2b$10$Vt7krIvjNgyN67LXqly0uOcTpN0LI55cYRbcKC71pUDAP0nJ7RPa.",
-      "isAdmin": true
-    }
-  ]
+  }
 }

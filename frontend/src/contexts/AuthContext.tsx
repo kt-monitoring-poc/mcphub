@@ -1,10 +1,6 @@
-// React 라이브러리와 필요한 훅들을 가져옵니다
-import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
-
-// 타입 정의와 서비스 함수들을 가져옵니다
-import { AuthState } from '../types';
+import React, { createContext, ReactNode, useContext, useEffect, useState } from 'react';
 import * as authService from '../services/authService';
-import { shouldSkipAuth } from '../services/configService';
+import { AuthState } from '../types';
 
 /**
  * 초기 인증 상태
@@ -13,38 +9,26 @@ import { shouldSkipAuth } from '../services/configService';
  * 사용자가 로그인하지 않은 상태를 나타냅니다.
  */
 const initialState: AuthState = {
-  isAuthenticated: false,  // 인증되지 않은 상태
-  loading: true,           // 초기 로딩 중
-  user: null,              // 사용자 정보 없음
-  error: null,             // 오류 없음
+  isAuthenticated: false,
+  user: null,
+  loading: true,
 };
 
-/**
- * 인증 컨텍스트 생성
- * 
- * React Context API를 사용하여 전역 인증 상태를 관리합니다.
- * 이 컨텍스트는 인증 상태와 인증 관련 함수들을 제공합니다.
- */
+// Auth context
 const AuthContext = createContext<{
-  auth: AuthState;  // 현재 인증 상태
-  login: (username: string, password: string) => Promise<boolean>;  // 로그인 함수
-  register: (username: string, password: string, isAdmin?: boolean) => Promise<boolean>;  // 회원가입 함수
-  logout: () => void;  // 로그아웃 함수
+  auth: AuthState;
+  login: (username: string, password: string) => Promise<boolean>;
+  logout: () => void;
+  refreshUser: () => Promise<void>;
 }>({
   auth: initialState,
   login: async () => false,
-  register: async () => false,
   logout: () => { },
+  refreshUser: async () => { },
 });
 
-/**
- * 인증 제공자 컴포넌트
- * 
- * 이 컴포넌트는 애플리케이션의 모든 하위 컴포넌트들에게
- * 인증 관련 기능을 제공합니다.
- * 
- * @param children - AuthProvider로 감싸진 하위 컴포넌트들
- */
+export const useAuth = () => useContext(AuthContext);
+
 export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   // 인증 상태를 관리하는 state
   const [auth, setAuth] = useState<AuthState>(initialState);
@@ -58,50 +42,60 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
    * 3. 토큰이 있으면 사용자 정보 로드
    */
   useEffect(() => {
-    const loadUser = async () => {
-      // 먼저 인증을 건너뛰어야 하는지 확인
-      const skipAuth = await shouldSkipAuth();
-
-      if (skipAuth) {
-        // 인증이 비활성화된 경우, 게스트 사용자로 인증된 상태로 설정
-        setAuth({
-          isAuthenticated: true,
-          loading: false,
-          user: {
-            username: 'guest',
-            isAdmin: true,
-          },
-          error: null,
-        });
-        return;
-      }
-
-      // 일반적인 인증 플로우
-      const token = authService.getToken();
-
-      if (!token) {
-        // 토큰이 없으면 인증되지 않은 상태로 설정
-        setAuth({
-          ...initialState,
-          loading: false,
-        });
-        return;
-      }
-
+    const initAuth = async () => {
       try {
-        // 토큰을 사용하여 현재 사용자 정보를 가져옴
-        const response = await authService.getCurrentUser();
+        // Check for OAuth token in URL parameters first
+        const urlParams = new URLSearchParams(window.location.search);
+        const urlToken = urlParams.get('token');
 
-        if (response.success && response.user) {
-          // 사용자 정보 로드 성공
+        if (urlToken) {
+          authService.setToken(urlToken);
+          console.log('OAuth 토큰 저장 완료');
+
+          // Clean up URL by removing token parameter
+          urlParams.delete('token');
+          const newUrl = window.location.pathname + (urlParams.toString() ? '?' + urlParams.toString() : '');
+          window.history.replaceState({}, '', newUrl);
+        } else if (!authService.getToken()) {
+          // 토큰이 없을 때만 간단히 로그
           setAuth({
-            isAuthenticated: true,
+            isAuthenticated: false,
+            user: null,
             loading: false,
-            user: response.user,
-            error: null,
           });
-        } else {
-          // 사용자 정보 로드 실패 - 토큰 제거
+          return;
+        }
+
+        // JWT 토큰 기반 인증만 사용
+
+        if (!authService.getToken()) {
+          setAuth({
+            ...initialState,
+            loading: false,
+          });
+          return;
+        }
+
+        try {
+          const response = await authService.getCurrentUser();
+
+          if (response.success && (response.user || response.data)) {
+            // OAuth는 response.data에, 일반 로그인은 response.user에 사용자 정보가 있음
+            const userData = response.user || response.data;
+            setAuth({
+              isAuthenticated: true,
+              user: userData,
+              loading: false,
+            });
+          } else {
+            authService.removeToken();
+            setAuth({
+              ...initialState,
+              loading: false,
+            });
+          }
+        } catch (error) {
+          console.error('사용자 인증 실패:', error);
           authService.removeToken();
           setAuth({
             ...initialState,
@@ -109,8 +103,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           });
         }
       } catch (error) {
-        // 오류 발생 - 토큰 제거
-        authService.removeToken();
+        console.error('인증 초기화 실패:', error);
         setAuth({
           ...initialState,
           loading: false,
@@ -118,124 +111,58 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       }
     };
 
-    loadUser();
+    initAuth();
   }, []);
 
-  /**
-   * 로그인 함수
-   * 
-   * 사용자명과 비밀번호를 사용하여 로그인을 시도합니다.
-   * 
-   * @param username - 사용자명
-   * @param password - 비밀번호
-   * @returns Promise<boolean> - 로그인 성공 여부
-   */
   const login = async (username: string, password: string): Promise<boolean> => {
     try {
       const response = await authService.login({ username, password });
-
-      if (response.success && response.token && response.user) {
-        // 로그인 성공 - 인증 상태 업데이트
+      if (response.success && response.user) {
         setAuth({
           isAuthenticated: true,
-          loading: false,
           user: response.user,
-          error: null,
+          loading: false,
         });
         return true;
-      } else {
-        // 로그인 실패 - 오류 메시지 설정
-        setAuth({
-          ...initialState,
-          loading: false,
-          error: response.message || 'Authentication failed',
-        });
-        return false;
       }
     } catch (error) {
-      // 예외 발생 - 오류 메시지 설정
-      setAuth({
-        ...initialState,
-        loading: false,
-        error: 'Authentication failed',
-      });
-      return false;
+      console.error('로그인 실패:', error);
     }
+    return false;
   };
 
-  /**
-   * 회원가입 함수
-   * 
-   * 새로운 사용자를 등록합니다.
-   * 
-   * @param username - 사용자명
-   * @param password - 비밀번호
-   * @param isAdmin - 관리자 권한 여부 (기본값: false)
-   * @returns Promise<boolean> - 회원가입 성공 여부
-   */
-  const register = async (
-    username: string,
-    password: string,
-    isAdmin = false
-  ): Promise<boolean> => {
-    try {
-      const response = await authService.register({ username, password, isAdmin });
-
-      if (response.success && response.token && response.user) {
-        // 회원가입 성공 - 인증 상태 업데이트
-        setAuth({
-          isAuthenticated: true,
-          loading: false,
-          user: response.user,
-          error: null,
-        });
-        return true;
-      } else {
-        // 회원가입 실패 - 오류 메시지 설정
-        setAuth({
-          ...initialState,
-          loading: false,
-          error: response.message || 'Registration failed',
-        });
-        return false;
-      }
-    } catch (error) {
-      // 예외 발생 - 오류 메시지 설정
-      setAuth({
-        ...initialState,
-        loading: false,
-        error: 'Registration failed',
-      });
-      return false;
-    }
-  };
-
-  /**
-   * 로그아웃 함수
-   * 
-   * 현재 사용자를 로그아웃시키고 인증 상태를 초기화합니다.
-   */
-  const logout = (): void => {
-    authService.logout();
+  const logout = () => {
+    authService.removeToken();
     setAuth({
       ...initialState,
       loading: false,
     });
   };
 
+  const refreshUser = async (): Promise<void> => {
+    try {
+      const response = await authService.getCurrentUser();
+
+      if (response.success && (response.user || response.data)) {
+        const userData = response.user || response.data;
+        setAuth({
+          isAuthenticated: true,
+          user: userData,
+          loading: false,
+        });
+      } else {
+        logout();
+      }
+    } catch (error) {
+      console.error('사용자 정보 새로고침 실패:', error);
+      logout();
+    }
+  };
+
   // 컨텍스트 제공자로 하위 컴포넌트들에게 인증 관련 값들을 제공
   return (
-    <AuthContext.Provider value={{ auth, login, register, logout }}>
+    <AuthContext.Provider value={{ auth, login, logout, refreshUser }}>
       {children}
     </AuthContext.Provider>
   );
 };
-
-/**
- * 인증 컨텍스트를 사용하기 위한 커스텀 훅
- * 
- * 이 훅을 사용하면 어떤 컴포넌트에서든 인증 상태와 인증 관련 함수들에 접근할 수 있습니다.
- * 
- * @returns 인증 컨텍스트 값들 (auth, login, register, logout)
- */
-export const useAuth = () => useContext(AuthContext);

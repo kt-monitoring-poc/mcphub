@@ -1,6 +1,6 @@
-import { useState, useEffect, useCallback } from 'react';
+import { ApiResponse, MarketServer, ServerConfig } from '@/types';
+import { useCallback, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { MarketServer, ApiResponse, ServerConfig } from '@/types';
 import { getApiUrl } from '../utils/runtime';
 
 export const useMarketData = () => {
@@ -27,7 +27,7 @@ export const useMarketData = () => {
     try {
       setLoading(true);
       const token = localStorage.getItem('mcphub_token');
-      const response = await fetch(getApiUrl('/market/servers'), {
+      const response = await fetch(getApiUrl('/market'), {
         headers: {
           'x-auth-token': token || '',
         },
@@ -142,7 +142,7 @@ export const useMarketData = () => {
       try {
         setLoading(true);
         const token = localStorage.getItem('mcphub_token');
-        const response = await fetch(getApiUrl(`/market/servers/${name}`), {
+        const response = await fetch(getApiUrl(`/market/${name}`), {
           headers: {
             'x-auth-token': token || '',
           },
@@ -188,7 +188,7 @@ export const useMarketData = () => {
 
         const token = localStorage.getItem('mcphub_token');
         const response = await fetch(
-          getApiUrl(`/market/servers/search?query=${encodeURIComponent(query)}`),
+          getApiUrl(`/market/search?query=${encodeURIComponent(query)}`),
           {
             headers: {
               'x-auth-token': token || '',

@@ -8,13 +8,13 @@
  * - 사용자 로그인 및 JWT 토큰 발급
  * - 새 사용자 등록
  * - 현재 사용자 정보 조회
- * - 비밀번호 변경
+
  */
 
 import { Request, Response } from 'express';
 import jwt from 'jsonwebtoken';
 import { validationResult } from 'express-validator';
-import { findUserByUsername, verifyPassword, createUser, updateUserPassword } from '../models/User.js';
+import { findUserByUsername, verifyPassword, createUser } from '../models/User.js';
 
 /**
  * JWT 시크릿 키
@@ -47,10 +47,16 @@ export const login = async (req: Request, res: Response): Promise<void> => {
   const { username, password } = req.body;
 
   try {
-    // 사용자명으로 사용자 찾기
-    const user = findUserByUsername(username);
+    // 사용자명으로 사용자 찾기 (비동기)
+    const user = await findUserByUsername(username);
     
     if (!user) {
+      res.status(401).json({ success: false, message: 'Invalid credentials' });
+      return;
+    }
+
+    // 로컬 계정 여부 확인 (비밀번호가 있는 경우)
+    if (!user.password) {
       res.status(401).json({ success: false, message: 'Invalid credentials' });
       return;
     }
@@ -180,54 +186,3 @@ export const getCurrentUser = (req: Request, res: Response): void => {
   }
 };
 
-/**
- * 사용자 비밀번호 변경 처리
- * 
- * 현재 비밀번호를 확인한 후 새로운 비밀번호로 변경합니다.
- * 
- * @param {Request} req - Express 요청 객체 (currentPassword, newPassword 포함)
- * @param {Response} res - Express 응답 객체
- * @returns {Promise<void>} 비밀번호 변경 결과 또는 오류
- */
-export const changePassword = async (req: Request, res: Response): Promise<void> => {
-  // 요청 유효성 검사
-  const errors = validationResult(req);
-  if (!errors.isEmpty()) {
-    res.status(400).json({ success: false, errors: errors.array() });
-    return;
-  }
-
-  const { currentPassword, newPassword } = req.body;
-  const username = (req as any).user.username;
-
-  try {
-    // 사용자명으로 사용자 찾기
-    const user = findUserByUsername(username);
-    
-    if (!user) {
-      res.status(404).json({ success: false, message: 'User not found' });
-      return;
-    }
-
-    // 현재 비밀번호 검증
-    const isPasswordValid = await verifyPassword(currentPassword, user.password);
-    
-    if (!isPasswordValid) {
-      res.status(401).json({ success: false, message: 'Current password is incorrect' });
-      return;
-    }
-
-    // 새 비밀번호로 업데이트
-    const updated = await updateUserPassword(username, newPassword);
-    
-    if (!updated) {
-      res.status(500).json({ success: false, message: 'Failed to update password' });
-      return;
-    }
-
-    res.json({ success: true, message: 'Password updated successfully' });
-  } catch (error) {
-    console.error('Change password error:', error);
-    res.status(500).json({ success: false, message: 'Server error' });
-  }
-};

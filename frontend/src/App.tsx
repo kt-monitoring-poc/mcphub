@@ -1,37 +1,22 @@
-// React 라이브러리를 가져옵니다
-import React from 'react';
-
-// React Router DOM: 웹 애플리케이션의 페이지 간 이동을 관리하는 라이브러리
-// BrowserRouter: 브라우저의 URL을 사용한 라우팅
-// Route: 개별 페이지 경로 정의
-// Routes: 여러 Route를 그룹화
-// Navigate: 다른 페이지로 리다이렉트
-import { BrowserRouter as Router, Route, Routes, Navigate } from 'react-router-dom';
-
-// Context Provider들: 애플리케이션 전체에서 사용할 상태와 기능을 제공
-// AuthProvider: 사용자 인증 상태 관리 (로그인/로그아웃)
-// ToastProvider: 알림 메시지 표시 기능
-// ThemeProvider: 다크/라이트 테마 관리
-import { AuthProvider } from './contexts/AuthContext';
-import { ToastProvider } from './contexts/ToastContext';
-import { ThemeProvider } from './contexts/ThemeContext';
-
-// 레이아웃 컴포넌트: 모든 페이지에 공통으로 적용될 UI 구조
-import MainLayout from './layouts/MainLayout';
-
-// 보호된 라우트 컴포넌트: 로그인이 필요한 페이지를 보호
+import { Navigate, Route, BrowserRouter as Router, Routes } from 'react-router-dom';
 import ProtectedRoute from './components/ProtectedRoute';
-
-// 페이지 컴포넌트들: 각각의 페이지를 담당하는 컴포넌트
-import LoginPage from './pages/LoginPage';
+import { AuthProvider } from './contexts/AuthContext';
+import { ThemeProvider } from './contexts/ThemeContext';
+import { ToastProvider } from './contexts/ToastContext';
+import MainLayout from './layouts/MainLayout';
 import DashboardPage from './pages/Dashboard';
-import ServersPage from './pages/ServersPage';
-import GroupsPage from './pages/GroupsPage';
-import SettingsPage from './pages/SettingsPage';
-import MarketPage from './pages/MarketPage';
-import LogsPage from './pages/LogsPage';
 
-// 유틸리티 함수: 기본 경로를 가져오는 함수
+import KeyManagementPage from './pages/KeyManagementPage';
+import LoginPage from './pages/LoginPage';
+import LogsPage from './pages/LogsPage';
+import ServersPage from './pages/ServersPage';
+import SettingsPage from './pages/SettingsPage';
+import UserGroupsPage from './pages/UserGroupsPage';
+import AdminDashboard from './pages/admin/AdminDashboard';
+import AdminSettingsPage from './pages/admin/AdminSettingsPage';
+import KeyStatusPage from './pages/admin/KeyStatusPage';
+import { McpServersPage } from './pages/admin/McpServersPage';
+import UsersPage from './pages/admin/UsersPage';
 import { getBasePath } from './utils/runtime';
 
 /**
@@ -57,38 +42,38 @@ function App() {
           <Router basename={basename}>
             {/* Routes: 여러 Route들을 그룹화 */}
             <Routes>
-              {/* 공개 라우트: 로그인 없이도 접근 가능한 페이지 */}
+              {/* 공개 라우트 */}
               <Route path="/login" element={<LoginPage />} />
 
-              {/* 보호된 라우트: 로그인이 필요한 페이지들 */}
+              {/* 보호된 라우트 */}
               <Route element={<ProtectedRoute />}>
-                {/* MainLayout: 모든 보호된 페이지에 공통으로 적용될 레이아웃 */}
+                {/* 일반 사용자 라우트 */}
                 <Route element={<MainLayout />}>
                   {/* 홈페이지: 대시보드 */}
                   <Route path="/" element={<DashboardPage />} />
-                  
-                  {/* 서버 관리 페이지 */}
-                  <Route path="/servers" element={<ServersPage />} />
-                  
-                  {/* 그룹 관리 페이지 */}
-                  <Route path="/groups" element={<GroupsPage />} />
-                  
-                  {/* 마켓플레이스 페이지 */}
-                  <Route path="/market" element={<MarketPage />} />
-                  
-                  {/* 특정 서버 상세 페이지 (:serverName은 동적 파라미터) */}
-                  <Route path="/market/:serverName" element={<MarketPage />} />
-                  
-                  {/* 로그 확인 페이지 */}
-                  <Route path="/logs" element={<LogsPage />} />
-                  
-                  {/* 설정 페이지 */}
+
+                  <Route path="/user-groups" element={<UserGroupsPage />} />
+                  <Route path="/api-keys" element={<KeyManagementPage />} />
                   <Route path="/settings" element={<SettingsPage />} />
                 </Route>
               </Route>
 
-              {/* 매칭되지 않는 라우트는 홈페이지로 리다이렉트 */}
-              {/* path="*"는 위의 모든 경로와 매칭되지 않는 URL을 의미합니다 */}
+              {/* 관리자 전용 보호된 라우트 */}
+              <Route element={<ProtectedRoute requireAdmin={true} />}>
+                <Route element={<MainLayout />}>
+                  <Route path="/admin/dashboard" element={<AdminDashboard />} />
+                  <Route path="/admin/servers" element={<ServersPage />} />
+                  <Route path="/admin/mcp-servers" element={<McpServersPage />} />
+                  <Route path="/admin/keys" element={<KeyStatusPage />} />
+                  <Route path="/admin/users" element={<UsersPage />} />
+                  <Route path="/admin/logs" element={<LogsPage />} />
+                  <Route path="/admin/settings" element={<AdminSettingsPage />} />
+                  {/* 기존 /admin 경로는 /admin/dashboard로 리디렉션 */}
+                  <Route path="/admin" element={<Navigate to="/admin/dashboard" />} />
+                </Route>
+              </Route>
+
+              {/* 매칭되지 않는 라우트는 홈으로 리다이렉트 */}
               <Route path="*" element={<Navigate to="/" />} />
             </Routes>
           </Router>

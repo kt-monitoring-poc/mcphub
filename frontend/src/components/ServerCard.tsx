@@ -13,6 +13,7 @@ import { StatusBadge } from '@/components/ui/Badge'
 import ToolCard from '@/components/ui/ToolCard'
 import DeleteDialog from '@/components/ui/DeleteDialog'
 import { useToast } from '@/contexts/ToastContext'
+import { useAuth } from '@/contexts/AuthContext'
 
 /**
  * 서버 카드 속성 인터페이스
@@ -53,15 +54,12 @@ const ServerCard = ({ server, onRemove, onEdit, onToggle, onRefresh }: ServerCar
   
   // 토스트 알림 훅 사용
   const { showToast } = useToast()
-  
-  // 컴포넌트 상태 관리
-  const [isExpanded, setIsExpanded] = useState(false)  // 도구 목록 확장 여부
-  const [showDeleteDialog, setShowDeleteDialog] = useState(false)  // 삭제 확인 다이얼로그 표시 여부
-  const [isToggling, setIsToggling] = useState(false)  // 활성화/비활성화 처리 중 상태
-  const [showErrorPopover, setShowErrorPopover] = useState(false)  // 오류 팝오버 표시 여부
-  const [copied, setCopied] = useState(false)  // 오류 복사 완료 상태
-  
-  // 오류 팝오버 참조 (외부 클릭 감지용)
+  const { user } = useAuth()
+  const [isExpanded, setIsExpanded] = useState(false)
+  const [showDeleteDialog, setShowDeleteDialog] = useState(false)
+  const [isToggling, setIsToggling] = useState(false)
+  const [showErrorPopover, setShowErrorPopover] = useState(false)
+  const [copied, setCopied] = useState(false)
   const errorPopoverRef = useRef<HTMLDivElement>(null)
 
   /**
@@ -312,44 +310,42 @@ const ServerCard = ({ server, onRemove, onEdit, onToggle, onRefresh }: ServerCar
           
           {/* 오른쪽 영역 - 액션 버튼들 */}
           <div className="flex space-x-2">
-            {/* 편집 버튼 */}
-            <button
-              onClick={handleEdit}
-              className="px-3 py-1 bg-blue-100 text-blue-800 rounded hover:bg-blue-200 text-sm btn-primary"
-            >
-              {t('server.edit')}
-            </button>
-            
-            {/* 활성화/비활성화 버튼 */}
-            <div className="flex items-center">
-              <button
-                onClick={handleToggle}
-                className={`px-3 py-1 text-sm rounded transition-colors ${isToggling
-                  ? 'bg-gray-200 text-gray-500'
-                  : server.enabled !== false
-                    ? 'bg-green-100 text-green-800 hover:bg-green-200 btn-secondary'
-                    : 'bg-gray-100 text-gray-800 hover:bg-gray-200 btn-primary'
-                  }`}
-                disabled={isToggling}
-              >
-                {isToggling
-                  ? t('common.processing')
-                  : server.enabled !== false
-                    ? t('server.disable')
-                    : t('server.enable')
-                }
-              </button>
-            </div>
-            
-            {/* 삭제 버튼 */}
-            <button
-              onClick={handleRemove}
-              className="px-3 py-1 bg-red-100 text-red-800 rounded hover:bg-red-200 text-sm btn-danger"
-            >
-              {t('server.delete')}
-            </button>
-            
-            {/* 확장/축소 버튼 */}
+            {/* 관리자만 접근 가능한 버튼들 */}
+            {user?.isAdmin && (
+              <>
+                <button
+                  onClick={handleEdit}
+                  className="px-3 py-1 bg-blue-100 text-blue-800 rounded hover:bg-blue-200 text-sm btn-primary"
+                >
+                  {t('server.edit')}
+                </button>
+                <div className="flex items-center">
+                  <button
+                    onClick={handleToggle}
+                    className={`px-3 py-1 text-sm rounded transition-colors ${isToggling
+                      ? 'bg-gray-200 text-gray-500'
+                      : server.enabled !== false
+                        ? 'bg-green-100 text-green-800 hover:bg-green-200 btn-secondary'
+                        : 'bg-gray-100 text-gray-800 hover:bg-gray-200 btn-primary'
+                      }`}
+                    disabled={isToggling}
+                  >
+                    {isToggling
+                      ? t('common.processing')
+                      : server.enabled !== false
+                        ? t('server.disable')
+                        : t('server.enable')
+                    }
+                  </button>
+                </div>
+                <button
+                  onClick={handleRemove}
+                  className="px-3 py-1 bg-red-100 text-red-800 rounded hover:bg-red-200 text-sm btn-danger"
+                >
+                  {t('server.delete')}
+                </button>
+              </>
+            )}
             <button className="text-gray-400 hover:text-gray-600 btn-secondary">
               {isExpanded ? <ChevronDown size={18} /> : <ChevronRight size={18} />}
             </button>

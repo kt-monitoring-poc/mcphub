@@ -1,4 +1,4 @@
-import { initializeDatabase, closeDatabase, isDatabaseConnected } from './connection.js';
+import { closeDatabase, getDataSource, initializeDatabase, isDatabaseConnected } from './connection.js';
 import * as repositories from './repositories/index.js';
 
 /**
@@ -30,4 +30,5 @@ export function getRepositoryFactory(entityType: 'vectorEmbeddings') {
 }
 
 // Re-export everything from the database module
-export { initializeDatabase, closeDatabase, isDatabaseConnected, repositories };
+export { closeDatabase, getDataSource, initializeDatabase, isDatabaseConnected, repositories };
+

@@ -10,20 +10,12 @@ import { initReactI18next } from 'react-i18next';
 // 사용자의 브라우저 설정, localStorage, 쿠키 등을 확인하여 적절한 언어를 선택합니다
 import LanguageDetector from 'i18next-browser-languagedetector';
 
-// 번역 파일들을 가져옵니다
-// 각 언어별로 JSON 파일에 번역 키와 값들이 저장되어 있습니다
-import enTranslation from './locales/en.json';  // 영어 번역
-import zhTranslation from './locales/zh.json';  // 중국어 번역
+// Import translations
+import enTranslation from './locales/en.json';
+import koTranslation from './locales/ko.json';
 
-/**
- * i18n 설정 및 초기화
- * 
- * 이 설정은 애플리케이션의 다국어 지원을 위한 핵심 설정입니다.
- * 사용자의 언어를 자동으로 감지하고, 적절한 번역을 제공합니다.
- */
 i18n
-  // 1. 사용자 언어 자동 감지 플러그인 활성화
-  // 브라우저 설정, localStorage, 쿠키 등을 확인하여 사용자의 선호 언어를 감지합니다
+  // Detect user language
   .use(LanguageDetector)
   
   // 2. React 애플리케이션에서 사용할 수 있도록 React 바인딩 추가
@@ -38,8 +30,8 @@ i18n
       en: {
         translation: enTranslation  // 영어 번역 데이터
       },
-      zh: {
-        translation: zhTranslation  // 중국어 번역 데이터
+      ko: {
+        translation: koTranslation
       }
     },
     

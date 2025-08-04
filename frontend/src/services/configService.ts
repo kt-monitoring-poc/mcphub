@@ -11,11 +11,10 @@ import { getApiUrl, getBasePath } from '../utils/runtime';
 export interface SystemConfig {
   // 라우팅 관련 설정
   routing?: {
-    enableGlobalRoute?: boolean;      // 글로벌 라우트 활성화 여부
-    enableGroupNameRoute?: boolean;   // 그룹명 라우트 활성화 여부
-    enableBearerAuth?: boolean;       // Bearer 인증 활성화 여부
-    bearerAuthKey?: string;           // Bearer 인증 키
-    skipAuth?: boolean;               // 인증 건너뛰기 여부
+    enableGlobalRoute?: boolean;
+    enableGroupNameRoute?: boolean;
+    enableBearerAuth?: boolean;
+    bearerAuthKey?: string;
   };
   
   // 설치 관련 설정
@@ -42,7 +41,7 @@ export interface SystemConfig {
 export interface PublicConfigResponse {
   success: boolean;                   // 요청 성공 여부
   data?: {
-    skipAuth?: boolean;               // 인증 건너뛰기 설정
+    // Reserved for future public configuration
   };
   message?: string;                   // 응답 메시지
 }
@@ -61,14 +60,9 @@ export interface SystemConfigResponse {
 }
 
 /**
- * 공개 설정을 가져오는 함수 (인증 없이)
- * 
- * 이 함수는 인증이 필요하지 않은 공개 설정을 가져옵니다.
- * 주로 인증 건너뛰기 설정을 확인하는 데 사용됩니다.
- * 
- * @returns Promise<{ skipAuth: boolean }> - 인증 건너뛰기 설정
+ * Get public configuration without authentication
  */
-export const getPublicConfig = async (): Promise<{ skipAuth: boolean }> => {
+export const getPublicConfig = async (): Promise<PublicConfigResponse> => {
   try {
     // 기본 경로를 가져와서 공개 설정 엔드포인트 구성
     const basePath = getBasePath();
@@ -82,15 +76,14 @@ export const getPublicConfig = async (): Promise<{ skipAuth: boolean }> => {
     // 응답이 성공적이면 설정 데이터 반환
     if (response.ok) {
       const data: PublicConfigResponse = await response.json();
-      return { skipAuth: data.data?.skipAuth === true };
+      return data;
     }
 
-    // 응답이 실패하면 기본값 반환
-    return { skipAuth: false };
+    return { success: false, message: 'Failed to fetch public config' };
   } catch (error) {
     // 오류 발생 시 기본값 반환
     console.debug('Failed to get public config:', error);
-    return { skipAuth: false };
+    return { success: false, message: 'Network error' };
   }
 };
 
@@ -129,21 +122,10 @@ export const getSystemConfigPublic = async (): Promise<SystemConfig | null> => {
 };
 
 /**
- * 인증을 건너뛰어야 하는지 확인하는 함수
- * 
- * 시스템 설정에서 인증 건너뛰기 설정을 확인합니다.
- * 이 함수는 애플리케이션 시작 시 인증 플로우를 결정하는 데 사용됩니다.
- * 
- * @returns Promise<boolean> - 인증을 건너뛰어야 하면 true, 아니면 false
+ * Check if authentication should be skipped based on system configuration
+ * @deprecated skipAuth feature has been removed for security reasons
  */
 export const shouldSkipAuth = async (): Promise<boolean> => {
-  try {
-    // 공개 설정에서 인증 건너뛰기 설정 확인
-    const config = await getPublicConfig();
-    return config.skipAuth;
-  } catch (error) {
-    // 오류 발생 시 기본적으로 인증을 건너뛰지 않음
-    console.debug('Failed to check skipAuth setting:', error);
-    return false;
-  }
+  // Always require authentication for security
+  return false;
 };

@@ -1,15 +1,10 @@
-// React 라이브러리와 상태 관리 훅을 가져옵니다
-import React, { useState } from 'react';
-
-// React Router의 페이지 이동 기능을 가져옵니다
-import { useNavigate } from 'react-router-dom';
-
-// 다국어 지원을 위한 react-i18next 훅을 가져옵니다
-import { useTranslation } from 'react-i18next';
-
-// 인증 관련 컨텍스트와 UI 컴포넌트를 가져옵니다
-import { useAuth } from '../contexts/AuthContext';
 import ThemeSwitch from '@/components/ui/ThemeSwitch';
+import { useAuth } from '@/contexts/AuthContext';
+import React, { useState } from 'react';
+import { useTranslation } from 'react-i18next';
+import { useNavigate } from 'react-router-dom';
+import { GitHubIcon } from '../components/icons/GitHubIcon';
+import * as authService from '../services/authService';
 
 /**
  * 로그인 페이지 컴포넌트
@@ -57,7 +52,7 @@ const LoginPage: React.FC = () => {
     try {
       // 입력 필드 유효성 검사
       if (!username || !password) {
-        setError(t('auth.emptyFields'));
+        setError('사용자명과 비밀번호를 입력해주세요.');
         setLoading(false);
         return;
       }
@@ -66,18 +61,26 @@ const LoginPage: React.FC = () => {
       const success = await login(username, password);
 
       if (success) {
-        // 로그인 성공 시 메인 페이지로 이동
-        navigate('/');
+        // 로그인 성공 후 사용자 정보를 가져와서 관리자 여부 확인
+        const userInfo = await authService.getCurrentUser();
+        if (userInfo.success && userInfo.user?.isAdmin) {
+          navigate('/admin/dashboard');
+        } else {
+          navigate('/');
+        }
       } else {
-        // 로그인 실패 시 오류 메시지 표시
-        setError(t('auth.loginFailed'));
+        setError('로그인에 실패했습니다. 사용자명과 비밀번호를 확인해주세요.');
       }
     } catch (err) {
-      // 예외 발생 시 오류 메시지 표시
-      setError(t('auth.loginError'));
+      setError('로그인 중 오류가 발생했습니다.');
     } finally {
       setLoading(false);  // 로딩 상태 종료
     }
+  };
+
+  const handleGitHubLogin = () => {
+    // GitHub OAuth 로그인 시작
+    window.location.href = '/api/auth/github';
   };
 
   return (
@@ -92,18 +95,20 @@ const LoginPage: React.FC = () => {
         {/* 페이지 제목 */}
         <div>
           <h2 className="mt-6 text-center text-3xl font-extrabold text-gray-900 dark:text-white">
-            {t('auth.loginTitle')}
+            관리자 로그인
           </h2>
+          <p className="mt-2 text-center text-sm text-gray-600 dark:text-gray-400">
+            시스템 관리자만 접근 가능합니다
+          </p>
         </div>
-        
-        {/* 로그인 폼 */}
+
         <form className="mt-8 space-y-6" onSubmit={handleSubmit}>
           {/* 입력 필드들 */}
           <div className="rounded-md -space-y-px">
             {/* 사용자명 입력 필드 */}
             <div>
               <label htmlFor="username" className="sr-only">
-                {t('auth.username')}
+                사용자명
               </label>
               <input
                 id="username"
@@ -112,7 +117,7 @@ const LoginPage: React.FC = () => {
                 autoComplete="username"
                 required
                 className="appearance-none rounded-none relative block w-full px-3 py-2 border border-gray-200 dark:border-gray-700 placeholder-gray-500 dark:placeholder-gray-400 text-gray-900 dark:text-white dark:bg-gray-800 rounded-t-md focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 focus:z-10 sm:text-sm transition-all duration-200 form-input"
-                placeholder={t('auth.username')}
+                placeholder="사용자명"
                 value={username}
                 onChange={(e) => setUsername(e.target.value)}
               />
@@ -121,7 +126,7 @@ const LoginPage: React.FC = () => {
             {/* 비밀번호 입력 필드 */}
             <div>
               <label htmlFor="password" className="sr-only">
-                {t('auth.password')}
+                비밀번호
               </label>
               <input
                 id="password"
@@ -130,7 +135,7 @@ const LoginPage: React.FC = () => {
                 autoComplete="current-password"
                 required
                 className="appearance-none rounded-none relative block w-full px-3 py-2 border border-gray-300 dark:border-gray-700 placeholder-gray-500 dark:placeholder-gray-400 text-gray-900 dark:text-white dark:bg-gray-800 rounded-b-md focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 focus:z-10 sm:text-sm login-input transition-all duration-200 form-input"
-                placeholder={t('auth.password')}
+                placeholder="비밀번호"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
               />
@@ -149,11 +154,44 @@ const LoginPage: React.FC = () => {
               disabled={loading}
               className="group relative w-full flex justify-center py-2 px-4 border border-transparent text-sm font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 login-button transition-all duration-200 btn-primary"
             >
-              {/* 로딩 중일 때와 일반 상태일 때 다른 텍스트 표시 */}
-              {loading ? t('auth.loggingIn') : t('auth.login')}
+              {loading ? '로그인 중...' : '로그인'}
             </button>
           </div>
+
+          {/* 구분선 */}
+          <div className="relative">
+            <div className="absolute inset-0 flex items-center">
+              <div className="w-full border-t border-gray-300 dark:border-gray-600" />
+            </div>
+            <div className="relative flex justify-center text-sm">
+              <span className="px-2 bg-gray-50 dark:bg-gray-900 text-gray-500 dark:text-gray-400">
+                일반 사용자
+              </span>
+            </div>
+          </div>
+
+          {/* GitHub OAuth 로그인 버튼 */}
+          <div>
+            <button
+              type="button"
+              onClick={handleGitHubLogin}
+              className="group relative w-full flex justify-center py-2 px-4 border border-gray-300 dark:border-gray-600 text-sm font-medium rounded-md text-gray-700 dark:text-gray-200 bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500 transition-all duration-200"
+            >
+              <GitHubIcon className="w-5 h-5 mr-2" />
+              GitHub OAuth로 로그인하기
+            </button>
+
+            <p className="mt-3 text-sm text-center text-gray-500 dark:text-gray-400">
+              일반 사용자는 GitHub OAuth로만 로그인 가능합니다
+            </p>
+          </div>
         </form>
+
+        <div className="text-center">
+          <p className="text-xs text-gray-500 dark:text-gray-400">
+            로그인하면 MCPHub의 이용약관 및 개인정보처리방침에 동의하는 것으로 간주됩니다.
+          </p>
+        </div>
       </div>
     </div>
   );

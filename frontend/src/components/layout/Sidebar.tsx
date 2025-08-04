@@ -2,20 +2,20 @@
  * 사이드바 컴포넌트
  * 
  * 애플리케이션의 주요 네비게이션을 담당하는 사이드바 컴포넌트입니다.
- * 접을 수 있는 네비게이션 메뉴와 사용자 프로필 메뉴를 제공합니다.
+ * 접을 수 있는 네비게이션 메뉴를 제공합니다.
  * 
  * 주요 기능:
  * - 접을 수 있는 네비게이션 메뉴
  * - 대시보드, 서버, 그룹, 마켓, 로그 페이지 링크
  * - 활성 페이지 하이라이트
- * - 사용자 프로필 메뉴
- * - 버전 정보 표시
  */
 
+
+import { useAuth } from '@/contexts/AuthContext';
+import { useToast } from '@/contexts/ToastContext';
 import React from 'react';
 import { useTranslation } from 'react-i18next';
-import { NavLink } from 'react-router-dom';
-import UserProfileMenu from '@/components/ui/UserProfileMenu';
+import { NavLink, useNavigate } from 'react-router-dom';
 
 /**
  * Sidebar 컴포넌트의 Props 인터페이스
@@ -35,6 +35,8 @@ interface MenuItem {
   label: string;
   /** 메뉴 아이콘 */
   icon: React.ReactNode;
+  /** 관리자 전용 여부 */
+  adminOnly?: boolean;
 }
 
 /**
@@ -49,12 +51,79 @@ interface MenuItem {
  */
 const Sidebar: React.FC<SidebarProps> = ({ collapsed }) => {
   const { t } = useTranslation();
+  const { auth } = useAuth();
+  const navigate = useNavigate();
+  const { showToast } = useToast();
 
-  // package.json에서 가져온 애플리케이션 버전 (Vite 환경 변수를 통해 접근)
-  const appVersion = import.meta.env.PACKAGE_VERSION as string;
-
-  // 메뉴 아이템 구성
-  const menuItems: MenuItem[] = [
+  // 메뉴 아이템 구성 (관리자/일반 사용자 구분)
+  const allMenuItems: MenuItem[] = auth.user?.isAdmin ? [
+    // 관리자 전용 통합 메뉴
+    {
+      path: '/admin/dashboard',
+      label: '관리자 대시보드',
+      icon: (
+        <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+          <path d="M2 10a8 8 0 018-8v8h8a8 8 0 11-16 0z" />
+          <path d="M12 2.252A8.014 8.014 0 0117.748 8H12V2.252z" />
+        </svg>
+      ),
+    },
+    {
+      path: '/admin/servers',
+      label: '서버 관리',
+      icon: (
+        <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+          <path fillRule="evenodd" d="M2 5a2 2 0 012-2h12a2 2 0 012 2v2a2 2 0 01-2 2H4a2 2 0 01-2-2V5zm14 1a1 1 0 11-2 0 1 1 0 012 0zM2 13a2 2 0 012-2h12a2 2 0 012 2v2a2 2 0 01-2 2H4a2 2 0 01-2-2v-2zm14 1a1 1 0 11-2 0 1 1 0 012 0z" clipRule="evenodd" />
+        </svg>
+      ),
+    },
+    {
+      path: '/admin/mcp-servers',
+      label: 'MCP 서버 관리',
+      icon: (
+        <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+          <path fillRule="evenodd" d="M2 5a2 2 0 012-2h12a2 2 0 012 2v2a2 2 0 01-2 2H4a2 2 0 01-2-2V5zm14 1a1 1 0 11-2 0 1 1 0 012 0zM2 13a2 2 0 012-2h12a2 2 0 012 2v2a2 2 0 01-2 2H4a2 2 0 01-2-2v-2zm14 1a1 1 0 11-2 0 1 1 0 012 0z" clipRule="evenodd" />
+        </svg>
+      ),
+    },
+    {
+      path: '/admin/keys',
+      label: 'MCPHub Keys 관리',
+      icon: (
+        <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+          <path fillRule="evenodd" d="M18 8a6 6 0 01-7.743 5.743L10 14l-1 1-1 1H6v2H2v-4l4.257-4.257A6 6 0 1118 8zm-6-4a1 1 0 100 2 2 2 0 012 2 1 1 0 102 0 4 4 0 00-4-4z" clipRule="evenodd" />
+        </svg>
+      ),
+    },
+    {
+      path: '/admin/users',
+      label: '사용자 관리',
+      icon: (
+        <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+          <path d="M13 6a3 3 0 11-6 0 3 3 0 016 0zM18 8a2 2 0 11-4 0 2 2 0 014 0zM14 15a4 4 0 00-8 0v3h8v-3zM6 8a2 2 0 11-4 0 2 2 0 014 0zM16 18v-3a5.972 5.972 0 00-.75-2.906A3.005 3.005 0 0119 15v3h-3zM4.75 12.094A5.973 5.973 0 004 15v3H1v-3a3 3 0 013.75-2.906z" />
+        </svg>
+      ),
+    },
+    {
+      path: '/admin/logs',
+      label: '시스템 로그',
+      icon: (
+        <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+          <path fillRule="evenodd" d="M4 4a2 2 0 012-2h4.586A2 2 0 0112 2.586L15.414 6A2 2 0 0116 7.414V16a2 2 0 01-2 2H6a2 2 0 01-2-2V4zm2 6a1 1 0 011-1h6a1 1 0 110 2H7a1 1 0 01-1-1zm1 3a1 1 0 100 2h6a1 1 0 100-2H7z" clipRule="evenodd" />
+        </svg>
+      ),
+    },
+    {
+      path: '/admin/settings',
+      label: '시스템 설정',
+      icon: (
+        <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+          <path fillRule="evenodd" d="M11.49 3.17c-.38-1.56-2.6-1.56-2.98 0a1.532 1.532 0 01-2.286.948c-1.372-.836-2.942.734-2.106 2.106.54.886.061 2.042-.947 2.287-1.561.379-1.561 2.6 0 2.978a1.532 1.532 0 01.947 2.287c-.836 1.372.734 2.942 2.106 2.106a1.532 1.532 0 012.287.947c.379 1.561 2.6 1.561 2.978 0a1.533 1.533 0 012.287-.947c1.372.836 2.942-.734 2.106-2.106a1.533 1.533 0 01.947-2.287c1.561-.379 1.561-2.6 0-2.978a1.532 1.532 0 01-.947-2.287c.836-1.372-.734-2.942-2.106-2.106a1.532 1.532 0 01-2.287-.947zM10 13a3 3 0 100-6 3 3 0 000 6z" clipRule="evenodd" />
+        </svg>
+      ),
+    },
+  ] : [
+    // 일반 사용자 메뉴
     {
       path: '/',
       label: t('nav.dashboard'),
@@ -65,47 +134,42 @@ const Sidebar: React.FC<SidebarProps> = ({ collapsed }) => {
         </svg>
       ),
     },
+
     {
-      path: '/servers',
-      label: t('nav.servers'),
+      path: '/user-groups',
+      label: 'MCP 서버 그룹',
       icon: (
         <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-          <path fillRule="evenodd" d="M2 5a2 2 0 012-2h12a2 2 0 012 2v2a2 2 0 01-2 2H4a2 2 0 01-2-2V5zm14 1a1 1 0 11-2 0 1 1 0 012 0zM2 13a2 2 0 012-2h12a2 2 0 012 2v2a2 2 0 01-2 2H4a2 2 0 01-2-2v-2zm14 1a1 1 0 11-2 0 1 1 0 012 0z" clipRule="evenodd" />
+          <path fillRule="evenodd" d="M5 4a3 3 0 00-3 3v6a3 3 0 003 3h10a3 3 0 003-3V7a3 3 0 00-3-3H5zm-1 9v-1h5v2H5a1 1 0 01-1-1zm7 1h4a1 1 0 001-1v-1h-5v2zm0-4h5V8h-5v2zM9 8H4v2h5V8z" clipRule="evenodd" />
         </svg>
       ),
     },
     {
-      path: '/groups',
-      label: t('nav.groups'),
+      path: '/api-keys',
+      label: t('nav.apiKeys'),
       icon: (
         <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-          <path d="M13 6a3 3 0 11-6 0 3 3 0 016 0zM18 8a2 2 0 11-4 0 2 2 0 014 0zM14 15a4 4 0 00-8 0v3h8v-3zM6 8a2 2 0 11-4 0 2 2 0 014 0zM16 18v-3a5.972 5.972 0 00-.75-2.906A3.005 3.005 0 0119 15v3h-3zM4.75 12.094A5.973 5.973 0 004 15v3H1v-3a3 3 0 013.75-2.906z" />
+          <path fillRule="evenodd" d="M18 8a6 6 0 01-7.743 5.743L10 14l-1 1-1 1H6v2H2v-4l4.257-4.257A6 6 0 1118 8zm-6-4a1 1 0 100 2 2 2 0 012 2 1 1 0 102 0 4 4 0 00-4-4z" clipRule="evenodd" />
         </svg>
       ),
     },
     {
-      path: '/market',
-      label: t('nav.market'),
+      path: '/settings',
+      label: t('nav.settings'),
       icon: (
         <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-          <path d="M3 1a1 1 0 000 2h1.22l.305 1.222a.997.997 0 00.01.042l1.358 5.43-.893.892C3.74 11.846 4.632 14 6.414 14H15a1 1 0 000-2H6.414l1-1H14a1 1 0 00.894-.553l3-6A1 1 0 0017 3H6.28l-.31-1.243A1 1 0 005 1H3zM16 16.5a1.5 1.5 0 11-3 0 1.5 1.5 0 013 0zM6.5 18a1.5 1.5 0 100-3 1.5 1.5 0 000 3z" />
-        </svg>
-      ),
-    },
-    {
-      path: '/logs',
-      label: t('nav.logs'),
-      icon: (
-        <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-          <path fillRule="evenodd" d="M4 4a2 2 0 012-2h4.586A2 2 0 0112 2.586L15.414 6A2 2 0 0116 7.414V16a2 2 0 01-2 2H6a2 2 0 01-2-2V4zm2 6a1 1 0 011-1h6a1 1 0 110 2H7a1 1 0 01-1-1zm1 3a1 1 0 100 2h6a1 1 0 100-2H7z" clipRule="evenodd" />
+          <path fillRule="evenodd" d="M11.49 3.17c-.38-1.56-2.6-1.56-2.98 0a1.532 1.532 0 01-2.286.948c-1.372-.836-2.942.734-2.106 2.106.54.886.061 2.042-.947 2.287-1.561.379-1.561 2.6 0 2.978a1.532 1.532 0 01.947 2.287c-.836 1.372.734 2.942 2.106 2.106a1.532 1.532 0 012.287.947c.379 1.561 2.6 1.561 2.978 0a1.533 1.533 0 012.287-.947c1.372.836 2.942-.734 2.106-2.106a1.533 1.533 0 01.947-2.287c1.561-.379 1.561-2.6 0-2.978a1.532 1.532 0 01-.947-2.287c.836-1.372-.734-2.942-2.106-2.106a1.532 1.532 0 01-2.287-.947zM10 13a3 3 0 100-6 3 3 0 000 6z" clipRule="evenodd" />
         </svg>
       ),
     },
   ];
 
+  // 사용자 권한에 따라 메뉴 필터링 (기존 복잡한 로직 제거)
+  const menuItems = allMenuItems;
+
   return (
     <aside
-      className={`bg-white dark:bg-gray-800 shadow-sm transition-all duration-300 ease-in-out flex flex-col h-full relative ${collapsed ? 'w-16' : 'w-64'
+      className={`bg-white dark:bg-gray-800 shadow-sm border-r border-gray-200 dark:border-gray-700 transition-all duration-300 ease-in-out flex flex-col h-full relative ${collapsed ? 'w-16' : 'w-64'
         }`}
     >
       {/* 스크롤 가능한 네비게이션 영역 */}
@@ -130,10 +194,7 @@ const Sidebar: React.FC<SidebarProps> = ({ collapsed }) => {
         </nav>
       </div>
 
-      {/* 하단에 고정된 사용자 프로필 메뉴 */}
-      <div className="p-3 bg-white dark:bg-gray-800">
-        <UserProfileMenu collapsed={collapsed} version={appVersion} />
-      </div>
+
     </aside>
   );
 };

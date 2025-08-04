@@ -1,16 +1,9 @@
-// React 훅을 가져옵니다
-import { useState } from 'react'
-
-// 다국어 지원을 위한 react-i18next 훅을 가져옵니다
-import { useTranslation } from 'react-i18next'
-
-// 타입 정의와 아이콘 컴포넌트들을 가져옵니다
-import { Group, Server } from '@/types'
-import { Edit, Trash, Copy, Check } from '@/components/icons/LucideIcons'
-
-// UI 컴포넌트와 컨텍스트를 가져옵니다
+import { Check, Copy, Edit, Trash } from '@/components/icons/LucideIcons'
 import DeleteDialog from '@/components/ui/DeleteDialog'
 import { useToast } from '@/contexts/ToastContext'
+import { Group, Server } from '@/types'
+import { useState } from 'react'
+import { useTranslation } from 'react-i18next'
 
 /**
  * 그룹 카드 속성 인터페이스
@@ -155,7 +148,7 @@ const GroupCard = ({
         <div className="flex items-center space-x-3">
           {/* 서버 수 표시 */}
           <div className="bg-blue-50 text-blue-700 px-3 py-1 rounded-full text-sm btn-secondary">
-            {t('groups.serverCount', { count: group.servers.length })}
+            {t('groups.serverCount', { count: group.servers?.length || 0 })}
           </div>
           {/* 편집 버튼 */}
           <button
