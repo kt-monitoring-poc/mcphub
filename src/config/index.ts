@@ -57,6 +57,7 @@ export const saveSettings = (settings: McpSettings): boolean => {
     // Update cache after successful save
     settingsCache = settings;
 
+    console.log(`Settings saved to ${settingsPath}`);
     return true;
   } catch (error) {
     console.error(`Failed to save settings to ${settingsPath}:`, error);

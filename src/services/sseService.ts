@@ -666,9 +666,7 @@ export const handleMcpPostRequest = async (req: Request, res: Response): Promise
 
         const mcpResponse = {
           jsonrpc: '2.0',
-          result: {
-            tools: toolsResult || []
-          },
+          result: toolsResult || { tools: [] },
           id: body.id
         };
 

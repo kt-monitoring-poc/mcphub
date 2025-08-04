@@ -23,6 +23,7 @@ x-auth-token: <JWT_TOKEN>
 ### 4. API 키 관리 (API Key Management)
 ### 5. 관리자 기능 (Admin Functions)
 ### 6. 시스템 모니터링 (System Monitoring)
+### 7. 설정 관리 (Configuration Management)
 
 ---
 
@@ -794,6 +795,52 @@ DELETE /api/keys/:id
 | 403 | Forbidden | 권한 부족 |
 | 404 | Not Found | 리소스를 찾을 수 없음 |
 | 500 | Internal Server Error | 서버 내부 오류 |
+
+---
+
+## 7. 설정 관리 (Configuration Management)
+
+### 7.1 런타임 설정 조회
+**파일**: `src/controllers/configController.ts` (라인 27-50)
+
+```http
+GET /config
+```
+
+**인증**: 불필요
+
+**응답**:
+```json
+{
+  "success": true,
+  "data": {
+    "basePath": "",
+    "version": "3.0.0",
+    "name": "mcphub"
+  }
+}
+```
+
+**설명**: 프론트엔드에서 필요한 기본 런타임 설정 정보를 반환합니다.
+
+### 7.2 로그인 페이지 설정 조회
+**파일**: `src/controllers/configController.ts` (라인 62-84)
+
+```http
+GET /login/config
+```
+
+**인증**: 불필요
+
+**응답**:
+```json
+{
+  "success": true,
+  "data": {}
+}
+```
+
+**설명**: 로그인 페이지에서 필요한 공개 설정 정보를 반환합니다. 현재는 빈 객체를 반환하며, 향후 공개 설정이 추가될 수 있습니다.
 
 ---
 

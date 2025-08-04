@@ -5,7 +5,7 @@
  * 사용자별 격리와 권한 제어를 가능하게 합니다.
  */
 
-import { requestTracker } from './requestTracker.js';
+// import { requestTracker } from './requestTracker.js'; // 제거됨: 불필요한 디버깅 코드
 
 /**
  * 업스트림 전달 사용자 컨텍스트
@@ -119,13 +119,16 @@ export class UpstreamContextPropagator {
         userGroups?: string[]
     ): {
         context: UpstreamUserContext;
-        trackingInfo: { requestId: string; promise: Promise<any> };
+        trackingInfo: { requestId: string; startTime: number };
     } {
         // 사용자별 세션 ID 생성
-        const userSessionId = requestTracker.generateUserSessionId(sessionId, userId);
+        const userSessionId = `${userId.substring(0, 8)}-${sessionId.substring(0, 8)}`;
 
-        // 요청 추적 시작
-        const trackingInfo = requestTracker.trackRequest(sessionId, method, userId, userServiceTokens);
+        // 요청 추적 시작 (간단 버전)
+        const trackingInfo = {
+            requestId: `${userId.substring(0, 8)}-${sessionId}-${method}-${Date.now()}-${Math.random().toString(36).substr(2, 6)}`,
+            startTime: Date.now()
+        };
 
         const context: UpstreamUserContext = {
             userId,
@@ -152,10 +155,8 @@ export class UpstreamContextPropagator {
     handleUpstreamResponse(requestId: string, response?: any, error?: any): void {
         if (error) {
             console.log(`❌ 업스트림 응답 에러: ${requestId} - ${error.message}`);
-            requestTracker.failRequest(requestId, error);
         } else {
             console.log(`✅ 업스트림 응답 완료: ${requestId}`);
-            requestTracker.completeRequest(requestId, response);
         }
     }
 

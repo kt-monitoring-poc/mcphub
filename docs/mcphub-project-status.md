@@ -4,8 +4,8 @@
 
 MCPHub는 Model Context Protocol (MCP) 서버들을 중앙 집중식으로 관리하는 허브 플랫폼입니다. 사용자들이 다양한 MCP 서버에 접근할 수 있도록 하는 통합 게이트웨이 역할을 합니다.
 
-**문서 버전**: 2.6.0  
-**최종 업데이트**: 2025-08-01
+**문서 버전**: 3.0.1  
+**최종 업데이트**: 2025-08-03
 
 ## 🎯 핵심 완성 기능
 
@@ -47,6 +47,35 @@ mcphub_keys.serviceTokens DB 저장
 - 벡터 검색 지원 (pgvector)
 - 사용자별 API 키 암호화 저장
 - 자동 스키마 동기화
+
+### ✅ **Frontend/Backend 완전 분리 (2025-08-03 완성)**
+**개발 및 운영 환경 개선**:
+- 백엔드: Express.js API 서버 (포트 3000)
+- 프론트엔드: Vite 개발 서버 (포트 5173)
+- 독립적인 package.json 관리
+- CORS 설정으로 안전한 통신
+- 개발 효율성 및 배포 유연성 확보
+
+**해결된 문제들**:
+- 포트 충돌 문제 해결
+- Config 엔드포인트 500 에러 해결 (`/config`, `/login/config`)
+- 벡터 인덱스 오류 자동 복구
+- 프론트엔드 프록시 오류 해결
+
+### ✅ **Docker 컨테이너화 완료 (2025-08-03 완성)**
+**분리된 컨테이너 아키텍처**:
+- 백엔드 Dockerfile: Node.js + Python MCP 서버 지원
+- 프론트엔드 Dockerfile: React 빌드 + Nginx 정적 서빙
+- Docker Compose: 개발/운영 환경 분리 설정
+- PostgreSQL + pgvector 데이터베이스 컨테이너
+
+**Docker 기능**:
+- 멀티스테이지 빌드로 이미지 크기 최적화
+- Hot Reload 지원 개발 환경 (`docker-compose.dev.yml`)
+- Nginx 프록시를 통한 API 라우팅
+- 헬스체크 및 자동 재시작 설정
+- **최적화된 패키지 설치**: 실제 사용하는 MCP 서버만 설치 (Context7만)
+- **Azure Container Apps 최적화**: amd64 플랫폼 명시, 이미지 빌드 시점 설정 적용
 
 ## 🏗 시스템 아키텍처
 
@@ -598,6 +627,25 @@ sequenceDiagram
 
 ---
 
-**최종 업데이트**: 2025-08-01  
+**최종 업데이트**: 2025-08-03  
 **작성자**: MCPHub 개발팀  
-**문서 버전**: 2.6.0 (다중 사용자 세션 격리 시스템 추가) 
+**문서 버전**: 3.0.1 (Frontend/Backend 분리 + 데이터베이스 마이그레이션 가이드 추가)
+
+---
+
+## 📚 관련 문서
+
+### 핵심 기술 문서
+- `docs/database-schema.md` - 데이터베이스 스키마 정의
+- `docs/database-migration-guide.md` - **NEW** 데이터베이스 마이그레이션 가이드 (Azure/AWS/GCP)
+- `docs/api-reference.md` - API 엔드포인트 문서
+- `docs/docker-setup.md` - Docker 컨테이너 설정
+
+### 시스템 가이드
+- `MCPHUB_MULTIUSER_SESSION_COMPLETE_GUIDE.md` - 다중 사용자 세션 시스템 완전 가이드
+- `CURSOR_IDE_SETUP_GUIDE.md` - Cursor IDE 연동 설정 가이드
+- `docs/mcphub-env-var-system.md` - 환경변수 자동화 시스템
+
+### 릴리즈 노트
+- `docs/release-notes/v3.0.1-frontend-backend-separation-2025-08-03.md` - v3.0.1 릴리즈 노트
+- `docs/release-notes/v1.0.0-release-2025-07-30.md` - v1.0.0 릴리즈 노트 

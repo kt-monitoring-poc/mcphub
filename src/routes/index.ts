@@ -14,6 +14,10 @@ import {
 import userGroupRoutes from './userGroupRoutes.js';
 
 import {
+  getPublicConfig,
+  getRuntimeConfig
+} from '../controllers/configController.js';
+import {
   getAllMarketCategories,
   getAllMarketServers,
   getAllMarketTags,
@@ -468,7 +472,7 @@ export const initRoutes = (app: express.Application): void => {
         AND "isActive" = true
         ORDER BY "createdAt" DESC
         LIMIT 1
-      `, [user.username]);
+      `, [user.githubUsername]);
 
       await pool.end();
 
@@ -481,12 +485,22 @@ export const initRoutes = (app: express.Application): void => {
         // 기존 API 키들을 서버별로 매핑
         const serverMapping: Record<string, string> = {
           'FIRECRAWL_TOKEN': 'firecrawl-mcp',
-          'GITHUB_TOKEN': 'github',
+          'GITHUB_TOKEN': 'github-pr-mcp-server',
           'CONFLUENCE_TOKEN': 'confluence',
           'JIRA_TOKEN': 'jira',
-          'JIRA_BASE_URL': 'jira-emoket',
-          'JIRA_EMAIL': 'jira-emoket',
-          'JIRA_API_TOKEN': 'jira-emoket'
+          'JIRA_BASE_URL': 'jira-azure',
+          'JIRA_EMAIL': 'jira-azure',
+          'JIRA_API_TOKEN': 'jira-azure',
+          'ATLASSIAN_TOKEN': 'mcp-atlassian',
+          'ATLASSIAN_EMAIL': 'mcp-atlassian',
+          'ATLASSIAN_CLOUD_ID': 'mcp-atlassian',
+          // 새로 추가된 Atlassian 서버 키들
+          'ATLASSIAN_JIRA_TOKEN': 'mcp-atlassian-jira',
+          'ATLASSIAN_JIRA_EMAIL': 'mcp-atlassian-jira',
+          'ATLASSIAN_JIRA_CLOUD_ID': 'mcp-atlassian-jira',
+          'ATLASSIAN_CONFLUENCE_TOKEN': 'mcp-atlassian-confluence',
+          'ATLASSIAN_CONFLUENCE_EMAIL': 'mcp-atlassian-confluence',
+          'ATLASSIAN_CONFLUENCE_CLOUD_ID': 'mcp-atlassian-confluence'
         };
 
         Object.entries(serviceTokens).forEach(([varName, value]) => {
@@ -605,6 +619,10 @@ export const initRoutes = (app: express.Application): void => {
   // Add API routes to express app
   const basePath = config.basePath;
   app.use(`${basePath}/api`, router);
+
+  // Config 라우트 (인증 없이 접근 가능)
+  app.get(`${basePath}/config`, getRuntimeConfig);
+  app.get(`${basePath}/login/config`, getPublicConfig);
 
   // 사용자 그룹 관리 라우트
   app.use(`${basePath}/api/user/groups`, userGroupRoutes);

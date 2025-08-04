@@ -9,35 +9,22 @@
         "@upstash/context7-mcp"
       ]
     },
-    "test": {
+    "mcp-atlassian-jira": {
       "type": "streamable-http",
-      "url": "https://streamable-http-test-mcp.livelybeach-90f399a8.koreacentral.azurecontainerapps.io/mcp",
-      "name": "Test Streamable HTTP Server",
-      "description": "로컬 테스트용 StreamableHTTP MCP 서버",
-      "enabled": false,
+      "url": "https://mcp-jira-service.livelybeach-90f399a8.koreacentral.azurecontainerapps.io/mcp/",
       "headers": {
-        "Content-Type": "application/json",
-        "Accept": "application/json"
+        "Authorization": "Bearer ${USER_ATLASSIAN_JIRA_TOKEN}",
+        "X-User-Email": "${USER_ATLASSIAN_JIRA_EMAIL}",
+        "X-Jira-URL": "${USER_ATLASSIAN_JIRA_CLOUD_ID}"
       }
     },
-    "mcp-atlassian": {
+    "mcp-atlassian-confluence": {
       "type": "streamable-http",
-      "url": "https://mcp-atlassian.livelybeach-90f399a8.koreacentral.azurecontainerapps.io/mcp/",
-      "enabled": true,
+      "url": "https://mcp-confluence-service.livelybeach-90f399a8.koreacentral.azurecontainerapps.io/mcp/",
       "headers": {
-        "Authorization": "Bearer ${USER_ATLASSIAN_TOKEN}",
-        "X-User-Email": "${USER_ATLASSIAN_EMAIL}",
-        "X-Atlassian-Cloud-Id": "${USER_ATLASSIAN_CLOUD_ID}"
-      }
-    },
-    "jira-azure": {
-      "type": "streamable-http",
-      "url": "https://streamable-jira-mcp-server-kt.greentree-fe6d930a.koreacentral.azurecontainerapps.io/mcp",
-      "enabled": false,
-      "headers": {
-        "X-Jira-Base-Url": "${USER_JIRA_BASE_URL}",
-        "X-Jira-Email": "${USER_JIRA_EMAIL}",
-        "X-Jira-Api-Token": "${USER_JIRA_API_TOKEN}"
+        "Authorization": "Bearer ${USER_ATLASSIAN_CONFLUENCE_TOKEN}",
+        "X-User-Email": "${USER_ATLASSIAN_CONFLUENCE_EMAIL}",
+        "X-Jira-URL": "${USER_ATLASSIAN_CONFLUENCE_CLOUD_ID}"
       }
     },
     "github-pr-mcp-server": {
