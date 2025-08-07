@@ -61,7 +61,7 @@ const validateMcpHubKey = async (req: Request): Promise<boolean> => {
   } catch (error) {
     console.error('MCPHub Key 인증 오류:', error);
     if (DEBUG_MODE && requestId) {
-      DebugLogger.logAuth(requestId, 'MCPHub Key', { error: error.message }, false);
+      DebugLogger.logAuth(requestId, 'MCPHub Key', { error: error instanceof Error ? error.message : String(error) }, false);
     }
   }
 

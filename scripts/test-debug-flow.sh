@@ -30,9 +30,11 @@ curl -s http://localhost:3000/api/health | jq .
 
 # 2. 로그인 (JWT 토큰 획득)
 test_step "2. Login to get JWT Token"
-TOKEN=$(curl -s -X POST http://localhost:3000/api/auth/login \
+LOGIN_RESPONSE=$(curl -s -X POST http://localhost:3000/api/auth/login \
   -H "Content-Type: application/json" \
-  -d '{"username": "admin", "password": "admin123"}' | jq -r '.token')
+  -d '{"username": "admin", "password": "New1234!"}')
+
+TOKEN=$(echo "$LOGIN_RESPONSE" | jq -r '.token')
 
 if [ "$TOKEN" = "null" ] || [ -z "$TOKEN" ]; then
     echo -e "${RED}❌ 로그인 실패${NC}"
