@@ -19,6 +19,7 @@ import { randomUUID } from 'crypto';
 import { Request, Response } from 'express';
 import config, { loadSettings } from '../config/index.js';
 import { getMcpServer } from './mcpService.js';
+import { DEBUG_MODE, DebugLogger } from '../utils/debugLogger.js';
 
 /**
  * 전송 계층 정보를 저장하는 인터페이스
@@ -357,6 +358,8 @@ export const handleSseMessage = async (req: Request, res: Response): Promise<voi
  * @returns {Promise<void>}
  */
 export const handleMcpOtherRequest = async (req: Request, res: Response): Promise<void> => {
+  const requestId = (req as any).requestId || 'unknown';
+  
   // 세션 ID 헤더 가져오기 (대소문자 무관)
   let sessionId: string | undefined;
   const headerKeys = Object.keys(req.headers);
@@ -366,8 +369,27 @@ export const handleMcpOtherRequest = async (req: Request, res: Response): Promis
       break;
     }
   }
-  const group = req.params.group;
-  const userKey = req.query.key as string; // 쿼리 파라미터 기반 사용자 키
+  const _group = req.params.group;
+  const userKey = req.query.key as string; // 쿼리 파라미터 기간 사용자 키
+
+  if (DEBUG_MODE && requestId) {
+    DebugLogger.logMCPConnection(requestId, 'handleMcpOtherRequest', 'http', 'connecting');
+    console.log(`@sseService.ts - MCP Other Request:`, {
+      method: req.method,
+      url: req.url,
+      sessionId,
+      userKey: userKey ? `${userKey.substring(0, 10)}...` : 'none',
+      headers: {
+        ...req.headers,
+        authorization: req.headers.authorization ? 
+          req.headers.authorization.startsWith('Bearer ') ? 
+            `Bearer ${req.headers.authorization.substring(7, 17)}...` : 
+            req.headers.authorization : 'none'
+      },
+      query: req.query,
+      bodyMethod: req.body?.method || 'none'
+    });
+  }
 
   console.log(`Handling MCP other request - Method: ${req.method}, SessionID: ${sessionId}`);
   console.log('🔍 GET /mcp 요청 상세:', {

@@ -18,12 +18,11 @@ import { Server } from '@modelcontextprotocol/sdk/server/index.js';
 import { CallToolRequestSchema, ListToolsRequestSchema } from '@modelcontextprotocol/sdk/types.js';
 import { OpenAPIClient } from '../clients/openapi.js';
 import config, { expandEnvVars, loadSettings, replaceEnvVars, saveSettings } from '../config/index.js';
+import { DEBUG_MODE, DebugLogger } from '../utils/debugLogger.js';
 import { MCPHubKeyService } from '../services/mcpHubKeyService.js';
 import { ServerConfig, ServerInfo, ToolInfo } from '../types/index.js';
 import { upstreamContextPropagator } from '../utils/upstreamContext.js';
 import { extractUserEnvVars } from '../utils/variableDetection.js';
-
-import { DEBUG_MODE, DebugLogger } from '../utils/debugLogger.js';
 import { getGroup } from './sseService.js';
 import { UserGroupService } from './userGroupService.js';
 import { saveToolsAsVectorEmbeddings, searchToolsByVector } from './vectorSearchService.js';
@@ -193,6 +192,7 @@ const createTransportFromConfig = (
   userApiKeys?: Record<string, string>,
   userContext?: { userId: string; userSessionId: string; mcpHubSessionId: string; requestId: string }
 ): any => {
+  const requestId = userContext?.requestId || 'unknown';
   let transport;
 
   // type 필드가 없는 경우 예외 처리
@@ -223,12 +223,30 @@ const createTransportFromConfig = (
 
       Object.assign(headers, upstreamHeaders);
       console.log(`🔄 업스트림 헤더 추가 (${name}): ${Object.keys(upstreamHeaders).length}개`);
+      
+      if (DEBUG_MODE && requestId) {
+        console.log(`@mcpService.ts - Upstream headers for ${name}:`, {
+          headers: Object.keys(upstreamHeaders),
+          userId: userContext.userId,
+          sessionId: userContext.userSessionId,
+          requestId: userContext.requestId
+        });
+      }
     }
 
     if (Object.keys(headers).length > 0) {
       options.requestInit = {
         headers,
       };
+      
+      if (DEBUG_MODE && requestId) {
+        DebugLogger.logNetworkRequest(requestId, 'StreamableHTTP', conf.url!, headers, options);
+        console.log(`@mcpService.ts - StreamableHTTP Transport created for ${name}:`, {
+          url: conf.url,
+          headersCount: Object.keys(headers).length,
+          headers: Object.keys(headers)
+        });
+      }
     }
     transport = new StreamableHTTPClientTransport(new URL(conf.url || ''), options);
   } else if (conf.type === 'stdio' && conf.command && conf.args) {
@@ -324,7 +342,7 @@ const createTransportFromConfig = (
  * @returns {Promise<any>} 도구 호출 결과
  * @throws {Error} 호출 실패 시
  */
-const callToolWithReconnect = async (
+const _callToolWithReconnect = async (
   serverInfo: ServerInfo,
   toolParams: any,
   options?: any,
@@ -1282,7 +1300,7 @@ export const handleListToolsRequest = async (_: any, extra: any, group?: string,
 
   // 사용자별 컨텍스트 생성 및 요청 추적
   let userContext;
-  let trackingInfo;
+  let _trackingInfo;
 
   if (userId && userServiceTokens) {
     const result = upstreamContextPropagator.createUserContext(
@@ -1512,6 +1530,17 @@ export const handleCallToolRequest = async (request: any, extra: any, group?: st
   console.log(`Handling CallToolRequest for tool: ${JSON.stringify(request.params)}`);
 
   const requestId = extra?.requestId;
+  
+  if (DEBUG_MODE && requestId) {
+    DebugLogger.logToolCall(requestId, request.params?.name || 'unknown', request.params?.arguments || {}, 'MCPHub');
+    console.log(`@mcpService.ts - Tool Call Request:`, {
+      tool: request.params?.name,
+      arguments: request.params?.arguments,
+      group: group || 'global',
+      hasUserTokens: userServiceTokens ? Object.keys(userServiceTokens).length > 0 : false,
+      mcpHubKey: extra?.mcpHubKey ? `${extra.mcpHubKey.substring(0, 10)}...` : 'none'
+    });
+  }
 
   // 사용자 API 키 주입 로직 (기존 방식과 새로운 방식 모두 지원)
   let userApiKeys: Record<string, string> = userServiceTokens || {};
@@ -1769,6 +1798,7 @@ export const handleCallToolRequest = async (request: any, extra: any, group?: st
 
       // Use tool name as-is (no prefix processing needed)
       // toolName = toolName;
+
       const result = await client.callTool(
         {
           name: toolName,
@@ -1780,9 +1810,16 @@ export const handleCallToolRequest = async (request: any, extra: any, group?: st
 
       const duration = Date.now() - startTime;
       console.log(`Tool invocation result: ${JSON.stringify(result)}`);
-
+      
       if (DEBUG_MODE && requestId) {
         DebugLogger.logToolResponse(requestId, toolName, result, duration);
+        console.log(`@mcpService.ts - Tool Response:`, {
+          tool: toolName,
+          server: targetServerInfo.name,
+          duration: `${duration}ms`,
+          success: result.isError ? false : true,
+          resultType: result.content && Array.isArray(result.content) && result.content.length > 0 ? result.content[0]?.type : 'unknown'
+        });
       }
 
       return result;
