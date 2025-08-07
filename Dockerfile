@@ -47,6 +47,24 @@ ENV REQUEST_TIMEOUT=$REQUEST_TIMEOUT
 ARG BASE_PATH=""
 ENV BASE_PATH=$BASE_PATH
 
+# v3.1.0 환경변수 스케줄러 설정 (Azure Container Apps용)
+# Azure Container Apps는 런타임 환경변수 주입이 제한적이므로 빌드 시점에 설정
+ARG ENV_SCHEDULER_ENABLED=true
+ENV ENV_SCHEDULER_ENABLED=$ENV_SCHEDULER_ENABLED
+
+ARG ENV_SCHEDULER_INTERVAL_HOURS=24
+ENV ENV_SCHEDULER_INTERVAL_HOURS=$ENV_SCHEDULER_INTERVAL_HOURS
+
+ARG ENV_SCHEDULER_AUTO_CLEANUP=true
+ENV ENV_SCHEDULER_AUTO_CLEANUP=$ENV_SCHEDULER_AUTO_CLEANUP
+
+ARG ENV_SCHEDULER_MAX_ORPHANED_KEYS=10
+ENV ENV_SCHEDULER_MAX_ORPHANED_KEYS=$ENV_SCHEDULER_MAX_ORPHANED_KEYS
+
+# 스케줄러 특정 시간 실행 설정 (00:00 기본값)
+ARG ENV_SCHEDULER_SCHEDULED_TIME="00:00"
+ENV ENV_SCHEDULER_SCHEDULED_TIME=$ENV_SCHEDULER_SCHEDULED_TIME
+
 # 전역 MCP 서버 패키지 설치
 # 현재 mcp_settings.json에서 실제 사용하는 패키지만 설치
 ENV PNPM_HOME=/usr/local/share/pnpm
@@ -94,6 +112,8 @@ ARG BUILD_ENV=development
 COPY .env* ./
 RUN if [ "$BUILD_ENV" = "production" ]; then \
       cp .env.production .env; \
+    elif [ "$BUILD_ENV" = "docker" ]; then \
+      cp .env.docker .env; \
     else \
       cp .env.development .env; \
     fi

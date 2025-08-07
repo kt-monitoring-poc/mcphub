@@ -23,6 +23,7 @@ import { ServerConfig, ServerInfo, ToolInfo } from '../types/index.js';
 import { upstreamContextPropagator } from '../utils/upstreamContext.js';
 import { extractUserEnvVars } from '../utils/variableDetection.js';
 
+import { DEBUG_MODE, DebugLogger } from '../utils/debugLogger.js';
 import { getGroup } from './sseService.js';
 import { UserGroupService } from './userGroupService.js';
 import { saveToolsAsVectorEmbeddings, searchToolsByVector } from './vectorSearchService.js';
@@ -1510,6 +1511,8 @@ Available servers: ${serversList}`;
 export const handleCallToolRequest = async (request: any, extra: any, group?: string, userServiceTokens?: Record<string, string>) => {
   console.log(`Handling CallToolRequest for tool: ${JSON.stringify(request.params)}`);
 
+  const requestId = extra?.requestId;
+
   // 사용자 API 키 주입 로직 (기존 방식과 새로운 방식 모두 지원)
   let userApiKeys: Record<string, string> = userServiceTokens || {};
 
@@ -1529,6 +1532,10 @@ export const handleCallToolRequest = async (request: any, extra: any, group?: st
     console.log(`🔑 사용자 API 키 사용: ${Object.keys(userApiKeys).length}개 키`);
     console.log('🔍 사용자 API 키 목록:', Object.keys(userApiKeys));
     console.log('🔍 ATLASSIAN_JIRA_CLOUD_ID 확인:', userApiKeys['ATLASSIAN_JIRA_CLOUD_ID']);
+
+    if (DEBUG_MODE && requestId) {
+      DebugLogger.logTokenApplication(requestId, 'All Servers', userApiKeys);
+    }
   }
 
   try {
@@ -1733,8 +1740,16 @@ export const handleCallToolRequest = async (request: any, extra: any, group?: st
             },
           );
 
+          if (DEBUG_MODE && requestId) {
+            DebugLogger.logMCPConnection(requestId, targetServerInfo.name, configWithKeys.type || 'unknown', 'connecting');
+          }
+
           await client.connect(transport);
           console.log(`✅ ${targetServerInfo.name} 서버 동적 연결 완료`);
+
+          if (DEBUG_MODE && requestId) {
+            DebugLogger.logMCPConnection(requestId, targetServerInfo.name, configWithKeys.type || 'unknown', 'connected');
+          }
         }
       }
 
@@ -1745,6 +1760,12 @@ export const handleCallToolRequest = async (request: any, extra: any, group?: st
       console.log(
         `Invoking tool '${toolName}' on server '${targetServerInfo.name}' with arguments: ${JSON.stringify(finalArgs)}`,
       );
+
+      if (DEBUG_MODE && requestId) {
+        DebugLogger.logToolCall(requestId, toolName, finalArgs, targetServerInfo.name);
+      }
+
+      const startTime = Date.now();
 
       // Use tool name as-is (no prefix processing needed)
       // toolName = toolName;
@@ -1757,7 +1778,13 @@ export const handleCallToolRequest = async (request: any, extra: any, group?: st
         targetServerInfo.options || {},
       );
 
+      const duration = Date.now() - startTime;
       console.log(`Tool invocation result: ${JSON.stringify(result)}`);
+
+      if (DEBUG_MODE && requestId) {
+        DebugLogger.logToolResponse(requestId, toolName, result, duration);
+      }
+
       return result;
     }
 

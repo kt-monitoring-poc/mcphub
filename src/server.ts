@@ -29,6 +29,7 @@ import {
   handleSseConnection,
   handleSseMessage,
 } from './services/sseService.js';
+import { DEBUG_MODE, DebugLogger } from './utils/debugLogger.js';
 import { quickValidation } from './utils/envVarValidation.js';
 
 // ESM 환경에서 __dirname 구하기
@@ -103,14 +104,38 @@ export class AppServer {
       // Express 미들웨어 초기화 (CORS, 바디 파서 등)
       initMiddlewares(this.app);
 
-      // 기본 요청 로깅 (필수 정보만)
-      this.app.use((req, res, next) => {
-        // API 요청만 간단히 로깅
-        if (req.path.startsWith('/api/') || req.path.startsWith('/mcp')) {
-          console.log(`${req.method} ${req.path}`);
-        }
-        next();
-      });
+      // 디버그 로깅 미들웨어
+      if (DEBUG_MODE) {
+        this.app.use((req, res, next) => {
+          const requestId = DebugLogger.createContext(req);
+          (req as any).requestId = requestId;
+
+          // 응답 완료 시 로깅
+          const originalSend = res.send;
+          const originalJson = res.json;
+
+          res.send = function (data: any) {
+            DebugLogger.endRequest(requestId, res.statusCode, data);
+            return originalSend.call(this, data);
+          };
+
+          res.json = function (data: any) {
+            DebugLogger.endRequest(requestId, res.statusCode, data);
+            return originalJson.call(this, data);
+          };
+
+          next();
+        });
+      } else {
+        // 기본 요청 로깅 (필수 정보만)
+        this.app.use((req, res, next) => {
+          // API 요청만 간단히 로깅
+          if (req.path.startsWith('/api/') || req.path.startsWith('/mcp')) {
+            console.log(`${req.method} ${req.path}`);
+          }
+          next();
+        });
+      }
 
       // MCP 서버 관리 라우트 추가 (initRoutes 이전에 등록)
       // TODO: DB 시스템 오류 해결 후 활성화

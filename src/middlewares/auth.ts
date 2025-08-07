@@ -2,6 +2,7 @@ import { NextFunction, Request, Response } from 'express';
 import jwt from 'jsonwebtoken';
 import { loadSettings } from '../config/index.js';
 import { MCPHubKeyService } from '../services/mcpHubKeyService.js';
+import { DEBUG_MODE, DebugLogger } from '../utils/debugLogger.js';
 
 // Default secret key - in production, use an environment variable
 const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key-change-this';
@@ -25,6 +26,7 @@ const validateBearerAuth = (req: Request, routingConfig: any): boolean => {
 // MCPHub Key 인증 함수
 const validateMcpHubKey = async (req: Request): Promise<boolean> => {
   const authHeader = req.headers.authorization;
+  const requestId = (req as any).requestId;
 
   if (!authHeader || !authHeader.startsWith('Bearer ')) {
     return false;
@@ -44,10 +46,23 @@ const validateMcpHubKey = async (req: Request): Promise<boolean> => {
       (req as any).user = authResult.user;
       (req as any).mcpHubKey = authResult.key;
       (req as any).serviceTokens = authResult.serviceTokens;
+
+      if (DEBUG_MODE && requestId) {
+        DebugLogger.logAuth(requestId, 'MCPHub Key', {
+          userId: authResult.user.id,
+          username: authResult.user.username,
+          mcphubKey: keyValue,
+          serviceTokenCount: Object.keys(authResult.serviceTokens || {}).length
+        }, true);
+      }
+
       return true;
     }
   } catch (error) {
     console.error('MCPHub Key 인증 오류:', error);
+    if (DEBUG_MODE && requestId) {
+      DebugLogger.logAuth(requestId, 'MCPHub Key', { error: error.message }, false);
+    }
   }
 
   return false;
