@@ -1,5 +1,7 @@
 # MCPHub 서비스별 디버그 로깅 시스템
 
+> **📝 최신 문서**: 전체 시스템 개요는 [`debug-logging-system-final.md`](./debug-logging-system-final.md)를 참조하세요.
+
 ## 📋 개요
 
 MCPHub는 서비스별 상세한 디버그 로깅을 제공하여 개발자가 각 서비스의 동작을 세밀하게 모니터링할 수 있습니다.

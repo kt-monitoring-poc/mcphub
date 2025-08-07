@@ -1,5 +1,7 @@
 # MCPHub 디버그 로깅 시스템 구현 문서
 
+> **📝 최신 문서**: 전체 시스템 개요는 [`debug-logging-system-final.md`](./debug-logging-system-final.md)를 참조하세요.
+
 ## 📋 개요
 
 **목적**: MCPHub의 End-to-End 요청 플로우를 완벽히 추적하고 디버깅할 수 있는 상세 로깅 시스템 구현
