@@ -18,9 +18,9 @@ import { Server } from '@modelcontextprotocol/sdk/server/index.js';
 import { CallToolRequestSchema, ListToolsRequestSchema } from '@modelcontextprotocol/sdk/types.js';
 import { OpenAPIClient } from '../clients/openapi.js';
 import config, { expandEnvVars, loadSettings, replaceEnvVars, saveSettings } from '../config/index.js';
-import { DEBUG_MODE, DebugLogger } from '../utils/debugLogger.js';
 import { MCPHubKeyService } from '../services/mcpHubKeyService.js';
 import { ServerConfig, ServerInfo, ToolInfo } from '../types/index.js';
+import { DEBUG_MODE, DebugLogger } from '../utils/debugLogger.js';
 import { upstreamContextPropagator } from '../utils/upstreamContext.js';
 import { extractUserEnvVars } from '../utils/variableDetection.js';
 import { getGroup } from './sseService.js';
@@ -223,7 +223,7 @@ const createTransportFromConfig = (
 
       Object.assign(headers, upstreamHeaders);
       console.log(`🔄 업스트림 헤더 추가 (${name}): ${Object.keys(upstreamHeaders).length}개`);
-      
+
       if (DEBUG_MODE && requestId) {
         console.log(`@mcpService.ts - Upstream headers for ${name}:`, {
           headers: Object.keys(upstreamHeaders),
@@ -238,7 +238,7 @@ const createTransportFromConfig = (
       options.requestInit = {
         headers,
       };
-      
+
       if (DEBUG_MODE && requestId) {
         DebugLogger.logNetworkRequest(requestId, 'StreamableHTTP', conf.url!, headers, options);
         console.log(`@mcpService.ts - StreamableHTTP Transport created for ${name}:`, {
@@ -1530,7 +1530,7 @@ export const handleCallToolRequest = async (request: any, extra: any, group?: st
   console.log(`Handling CallToolRequest for tool: ${JSON.stringify(request.params)}`);
 
   const requestId = extra?.requestId;
-  
+
   if (DEBUG_MODE && requestId) {
     DebugLogger.logToolCall(requestId, request.params?.name || 'unknown', request.params?.arguments || {}, 'MCPHub');
     console.log(`@mcpService.ts - Tool Call Request:`, {
@@ -1810,7 +1810,7 @@ export const handleCallToolRequest = async (request: any, extra: any, group?: st
 
       const duration = Date.now() - startTime;
       console.log(`Tool invocation result: ${JSON.stringify(result)}`);
-      
+
       if (DEBUG_MODE && requestId) {
         DebugLogger.logToolResponse(requestId, toolName, result, duration);
         console.log(`@mcpService.ts - Tool Response:`, {

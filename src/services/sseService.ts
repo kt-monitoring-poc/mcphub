@@ -18,8 +18,8 @@ import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/
 import { randomUUID } from 'crypto';
 import { Request, Response } from 'express';
 import config, { loadSettings } from '../config/index.js';
-import { getMcpServer } from './mcpService.js';
 import { DEBUG_MODE, DebugLogger } from '../utils/debugLogger.js';
+import { getMcpServer } from './mcpService.js';
 
 /**
  * 전송 계층 정보를 저장하는 인터페이스
@@ -359,7 +359,7 @@ export const handleSseMessage = async (req: Request, res: Response): Promise<voi
  */
 export const handleMcpOtherRequest = async (req: Request, res: Response): Promise<void> => {
   const requestId = (req as any).requestId || 'unknown';
-  
+
   // 세션 ID 헤더 가져오기 (대소문자 무관)
   let sessionId: string | undefined;
   const headerKeys = Object.keys(req.headers);
@@ -381,9 +381,9 @@ export const handleMcpOtherRequest = async (req: Request, res: Response): Promis
       userKey: userKey ? `${userKey.substring(0, 10)}...` : 'none',
       headers: {
         ...req.headers,
-        authorization: req.headers.authorization ? 
-          req.headers.authorization.startsWith('Bearer ') ? 
-            `Bearer ${req.headers.authorization.substring(7, 17)}...` : 
+        authorization: req.headers.authorization ?
+          req.headers.authorization.startsWith('Bearer ') ?
+            `Bearer ${req.headers.authorization.substring(7, 17)}...` :
             req.headers.authorization : 'none'
       },
       query: req.query,
