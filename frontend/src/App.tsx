@@ -14,6 +14,7 @@ import SettingsPage from './pages/SettingsPage';
 import UserGroupsPage from './pages/UserGroupsPage';
 import AdminDashboard from './pages/admin/AdminDashboard';
 import AdminSettingsPage from './pages/admin/AdminSettingsPage';
+import EnvVarManagementPage from './pages/admin/EnvVarManagementPage';
 import KeyStatusPage from './pages/admin/KeyStatusPage';
 import { McpServersPage } from './pages/admin/McpServersPage';
 import UsersPage from './pages/admin/UsersPage';
@@ -52,6 +53,7 @@ function App() {
                   <Route path="/admin/users" element={<UsersPage />} />
                   <Route path="/admin/logs" element={<LogsPage />} />
                   <Route path="/admin/settings" element={<AdminSettingsPage />} />
+                  <Route path="/admin/env-vars" element={<EnvVarManagementPage />} />
                   {/* 기존 /admin 경로는 /admin/dashboard로 리디렉션 */}
                   <Route path="/admin" element={<Navigate to="/admin/dashboard" />} />
                 </Route>

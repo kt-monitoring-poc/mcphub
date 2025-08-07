@@ -2,6 +2,7 @@ import ThemeSwitch from '@/components/ui/ThemeSwitch';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/contexts/ToastContext';
 import {
+  Database,
   FileText,
   Key,
   LayoutDashboard,
@@ -63,6 +64,11 @@ const AdminLayout: React.FC<AdminLayoutProps> = () => {
       path: '/admin/settings',
       label: '시스템 설정',
       icon: <Settings className="h-5 w-5" />
+    },
+    {
+      path: '/admin/env-vars',
+      label: '환경변수 관리',
+      icon: <Database className="h-5 w-5" />
     }
   ];
 

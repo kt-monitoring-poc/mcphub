@@ -11,7 +11,6 @@
 import cors from 'cors';
 import express from 'express';
 import session from 'express-session';
-import fs from 'fs';
 import http from 'http';
 import passport from 'passport';
 import path from 'path';
@@ -22,6 +21,7 @@ import { initializeDatabase } from './db/connection.js';
 import { initMiddlewares } from './middlewares/index.js';
 import { initializeDefaultUser } from './models/User.js';
 import { initRoutes } from './routes/index.js';
+import { initializeScheduler } from './services/envVarScheduler.js';
 import { getServersInfo, initUpstreamServers } from './services/mcpService.js';
 import {
   handleMcpOtherRequest,
@@ -29,6 +29,7 @@ import {
   handleSseConnection,
   handleSseMessage,
 } from './services/sseService.js';
+import { quickValidation } from './utils/envVarValidation.js';
 
 // ESM 환경에서 __dirname 구하기
 const __filename = fileURLToPath(import.meta.url);
@@ -131,7 +132,7 @@ export class AppServer {
       // Routes 초기화 (API 라우트를 먼저 등록)
       initRoutes(this.app);
 
-            // MCP 요청 처리 엔드포인트 (MCP 표준 준수 - /mcp만 사용)
+      // MCP 요청 처리 엔드포인트 (MCP 표준 준수 - /mcp만 사용)
       this.app.post(`${this.basePath}/mcp`, handleMcpPostRequest);
       this.app.get(`${this.basePath}/mcp`, handleMcpOtherRequest);
       this.app.delete(`${this.basePath}/mcp`, handleMcpOtherRequest);
@@ -160,75 +161,105 @@ export class AppServer {
     }
   }
 
-    /**
-   * 프론트엔드/백엔드 분리로 인해 제거됨
-   * 백엔드는 API와 MCP endpoint만 제공
-   */
+  /**
+ * 프론트엔드/백엔드 분리로 인해 제거됨
+ * 백엔드는 API와 MCP endpoint만 제공
+ */
   // private findAndServeFrontend(): void { ... } // 제거됨
 
-/**
- * HTTP 서버 시작
- * 
- * 설정된 포트에서 Express 서버를 시작하고 접속 정보를 출력합니다.
- * HTTP/1.1을 사용하여 SSE 호환성을 보장합니다.
- */
-start(): void {
-  // HTTP/1.1 서버 생성 (SSE 호환성을 위해)
-  const server = http.createServer(this.app);
+  /**
+   * HTTP 서버 시작
+   * 
+   * 설정된 포트에서 Express 서버를 시작하고 접속 정보를 출력합니다.
+   * HTTP/1.1을 사용하여 SSE 호환성을 보장합니다.
+   */
+  async start(): Promise<void> {
+    // 시작 전 환경변수 검증
+    console.log('🔍 환경변수 매핑 검증 중...');
+    try {
+      await quickValidation();
+    } catch (error) {
+      console.warn(`⚠️  환경변수 검증 실패: ${error}`);
+    }
 
-  // Keep-alive 설정
-  server.keepAliveTimeout = 65000; // 65초
-  server.headersTimeout = 66000;   // keepAliveTimeout보다 약간 크게
+    // 환경변수 자동 관리 스케줄러 시작
+    const schedulerConfig = {
+      enabled: process.env.NODE_ENV === 'production', // 프로덕션에서만 기본 활성화
+      intervalHours: 24, // 24시간마다
+      autoCleanup: false, // 기본적으로 자동 정리 비활성화
+      maxOrphanedKeys: 10
+    };
 
-  server.listen(this.port, () => {
-    console.log(`\n🚀 MCPHub Server is running on port ${this.port} (HTTP/1.1)`);
+    if (process.env.ENV_SCHEDULER_ENABLED === 'true') {
+      schedulerConfig.enabled = true;
+    }
 
-    // MCP 서버 상태 요약
-    setTimeout(() => {
-      const serverInfos = getServersInfo();
-      const connectedServers = serverInfos.filter((s: any) => s.status === 'connected');
-      const disconnectedServers = serverInfos.filter((s: any) => s.status === 'disconnected');
-      const disabledServers = serverInfos.filter((s: any) => s.enabled === false);
+    if (process.env.ENV_AUTO_CLEANUP === 'true') {
+      schedulerConfig.autoCleanup = true;
+    }
 
-      console.log(`\n📊 MCP Server Status Summary:`);
-      console.log(`   ✅ Connected: ${connectedServers.length} servers`);
-      if (connectedServers.length > 0) {
-        connectedServers.forEach((s: any) => {
-          console.log(`      - ${s.name} (${s.tools.length} tools)`);
-        });
-      }
+    initializeScheduler(schedulerConfig);
 
-      if (disconnectedServers.length > 0) {
-        console.log(`   ⚠️  Disconnected: ${disconnectedServers.length} servers`);
-        disconnectedServers.forEach((s: any) => {
-          console.log(`      - ${s.name}`);
-        });
-      }
+    if (schedulerConfig.enabled) {
+      console.log('🕐 환경변수 자동 관리 스케줄러가 활성화되었습니다.');
+    }
 
-      if (disabledServers.length > 0) {
-        console.log(`   🔴 Disabled: ${disabledServers.length} servers`);
-        disabledServers.forEach((s: any) => {
-          console.log(`      - ${s.name}`);
-        });
-      }
+    // HTTP/1.1 서버 생성 (SSE 호환성을 위해)
+    const server = http.createServer(this.app);
 
-      console.log(`\n💡 MCPHub is ready!`);
-      console.log(`   API is available at http://localhost:${this.port}`);
-      console.log('');
-    }, 1000); // 1초 후에 상태 출력 (서버들이 연결될 시간 확보)
-  });
-}
+    // Keep-alive 설정
+    server.keepAliveTimeout = 65000; // 65초
+    server.headersTimeout = 66000;   // keepAliveTimeout보다 약간 크게
 
-/**
- * Express 앱 인스턴스 반환
- * 
- * 테스트나 다른 모듈에서 Express 앱에 접근할 수 있도록 합니다.
- * 
- * @returns {express.Application} Express 애플리케이션 인스턴스
- */
-getApp(): express.Application {
-  return this.app;
-}
+    server.listen(this.port, () => {
+      console.log(`\n🚀 MCPHub Server is running on port ${this.port} (HTTP/1.1)`);
+
+      // MCP 서버 상태 요약
+      setTimeout(() => {
+        const serverInfos = getServersInfo();
+        const connectedServers = serverInfos.filter((s: any) => s.status === 'connected');
+        const disconnectedServers = serverInfos.filter((s: any) => s.status === 'disconnected');
+        const disabledServers = serverInfos.filter((s: any) => s.enabled === false);
+
+        console.log(`\n📊 MCP Server Status Summary:`);
+        console.log(`   ✅ Connected: ${connectedServers.length} servers`);
+        if (connectedServers.length > 0) {
+          connectedServers.forEach((s: any) => {
+            console.log(`      - ${s.name} (${s.tools.length} tools)`);
+          });
+        }
+
+        if (disconnectedServers.length > 0) {
+          console.log(`   ⚠️  Disconnected: ${disconnectedServers.length} servers`);
+          disconnectedServers.forEach((s: any) => {
+            console.log(`      - ${s.name}`);
+          });
+        }
+
+        if (disabledServers.length > 0) {
+          console.log(`   🔴 Disabled: ${disabledServers.length} servers`);
+          disabledServers.forEach((s: any) => {
+            console.log(`      - ${s.name}`);
+          });
+        }
+
+        console.log(`\n💡 MCPHub is ready!`);
+        console.log(`   API is available at http://localhost:${this.port}`);
+        console.log('');
+      }, 1000); // 1초 후에 상태 출력 (서버들이 연결될 시간 확보)
+    });
+  }
+
+  /**
+   * Express 앱 인스턴스 반환
+   * 
+   * 테스트나 다른 모듈에서 Express 앱에 접근할 수 있도록 합니다.
+   * 
+   * @returns {express.Application} Express 애플리케이션 인스턴스
+   */
+  getApp(): express.Application {
+    return this.app;
+  }
 
   // 프론트엔드 관련 메서드들 제거됨 (프론트엔드/백엔드 분리)
 }

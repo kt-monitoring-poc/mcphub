@@ -13,18 +13,19 @@
  */
 
 import { Request, Response } from 'express';
-import { ApiResponse, AddServerRequest } from '../types/index.js';
+import { loadSettings, saveSettings } from '../config/index.js';
 import {
-  getServersInfo,
-  addServer,
   addOrUpdateServer,
-  removeServer,
+  addServer,
+  getServersInfo,
   notifyToolChanged,
+  removeServer,
   syncToolEmbedding,
   toggleServerStatus,
 } from '../services/mcpService.js';
-import { loadSettings, saveSettings } from '../config/index.js';
 import { syncAllServerToolsEmbeddings } from '../services/vectorSearchService.js';
+import { AddServerRequest, ApiResponse } from '../types/index.js';
+import { cleanupServerEnvVars } from '../utils/envVarCleanup.js';
 
 /**
  * 모든 서버 정보 조회
@@ -89,7 +90,7 @@ export const getAllSettings = (_: Request, res: Response): void => {
 export const createServer = async (req: Request, res: Response): Promise<void> => {
   try {
     const { name, config } = req.body as AddServerRequest;
-    
+
     // 서버 이름 유효성 검사
     if (!name || typeof name !== 'string') {
       res.status(400).json({
@@ -215,8 +216,28 @@ export const deleteServer = async (req: Request, res: Response): Promise<void> =
       return;
     }
 
+    // 삭제 전에 서버 설정 정보 저장 (환경변수 정리용)
+    const settings = loadSettings();
+    const serverConfig = settings.mcpServers?.[name];
+
     const result = removeServer(name);
     if (result.success) {
+      // 서버 제거 후 관련 환경변수들 정리
+      if (serverConfig) {
+        try {
+          const cleanupResult = await cleanupServerEnvVars(name, serverConfig, false);
+          console.log(`🧹 환경변수 정리 완료: ${cleanupResult.message}`);
+
+          if (cleanupResult.affectedUsers > 0) {
+            console.log(`   - 영향받은 사용자: ${cleanupResult.affectedUsers}명`);
+            console.log(`   - 제거된 변수: ${cleanupResult.removedVars.join(', ')}`);
+          }
+        } catch (cleanupError) {
+          console.warn(`⚠️  환경변수 정리 실패: ${cleanupError}`);
+          // 환경변수 정리 실패해도 서버 삭제는 성공으로 처리
+        }
+      }
+
       // 도구 목록 변경 알림
       notifyToolChanged();
       res.json({
@@ -250,7 +271,7 @@ export const updateServer = async (req: Request, res: Response): Promise<void> =
   try {
     const { name } = req.params;
     const { config } = req.body;
-    
+
     if (!name) {
       res.status(400).json({
         success: false,
@@ -367,7 +388,7 @@ export const getServerConfig = (req: Request, res: Response): void => {
   try {
     const { name } = req.params;
     const settings = loadSettings();
-    
+
     if (!settings.mcpServers || !settings.mcpServers[name]) {
       res.status(404).json({
         success: false,
@@ -410,7 +431,7 @@ export const toggleServer = async (req: Request, res: Response): Promise<void> =
   try {
     const { name } = req.params;
     const { enabled } = req.body;
-    
+
     if (!name) {
       res.status(400).json({
         success: false,
@@ -752,11 +773,11 @@ export const updateSystemConfig = (req: Request, res: Response): void => {
       const hasConfigChanged =
         previousSmartRoutingConfig.dbUrl !== settings.systemConfig.smartRouting.dbUrl ||
         previousSmartRoutingConfig.openaiApiBaseUrl !==
-          settings.systemConfig.smartRouting.openaiApiBaseUrl ||
+        settings.systemConfig.smartRouting.openaiApiBaseUrl ||
         previousSmartRoutingConfig.openaiApiKey !==
-          settings.systemConfig.smartRouting.openaiApiKey ||
+        settings.systemConfig.smartRouting.openaiApiKey ||
         previousSmartRoutingConfig.openaiApiEmbeddingModel !==
-          settings.systemConfig.smartRouting.openaiApiEmbeddingModel;
+        settings.systemConfig.smartRouting.openaiApiEmbeddingModel;
 
       // Sync if: first time enabling OR smart routing is enabled and any config changed
       needsSync = (!wasSmartRoutingEnabled && isNowEnabled) || (isNowEnabled && hasConfigChanged);

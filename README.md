@@ -86,6 +86,77 @@ pnpm backend:dev    # 백엔드만 (포트 3000)
 pnpm frontend:dev   # 프론트엔드만 (포트 5173)
 ```
 
+### 🔧 환경변수 관리 (v3.1 신규 - 자동화 시스템)
+
+#### 🤖 자동 관리 시스템
+```bash
+# 개발 환경에서 스케줄러 활성화
+ENV_SCHEDULER_ENABLED=true pnpm start:dev
+
+# 자동 정리 활성화 (신중하게 사용)
+ENV_AUTO_CLEANUP=true pnpm start:dev
+```
+
+#### 📱 웹 UI 관리 도구
+- **관리자 페이지**: `http://localhost:3000/admin/env-vars`
+- **실시간 모니터링**: 서버 수, 환경변수 수, 고아 키 수
+- **스케줄러 제어**: 활성화/비활성화, 주기 설정
+- **원클릭 작업**: 즉시 검증, 정리 시뮬레이션, 실제 정리
+
+#### 🛠️ CLI 도구
+```bash
+# 환경변수 매핑 검증
+npm run env:validate
+
+# 사용 현황 보고서
+npm run env:report
+npm run env:report:detailed  # 사용자별 상세 정보
+
+# 고아 키 정리 (시뮬레이션)
+npm run env:cleanup:dry-run
+
+# 고아 키 정리 (실제 실행)
+npm run env:cleanup
+```
+
+#### 🔌 API 엔드포인트
+```bash
+# 스케줄러 상태 조회
+curl http://localhost:3000/api/admin/env-scheduler/status
+
+# 수동 검증 실행
+curl -X POST http://localhost:3000/api/admin/env-scheduler/run
+
+# 환경변수 정리 (시뮬레이션)
+curl -X POST http://localhost:3000/api/env-vars/cleanup \
+  -d '{"dryRun": true}'
+```
+
+#### 📊 보고서 예시
+```
+📊 MCPHub 환경변수 사용 현황 보고서
+========================================
+📊 전체 요약
+   - 총 MCP 서버: 4개
+   - 총 환경변수: 7개  
+   - 총 사용자: 3명
+   - 고아 키: 1개 ⚠️
+
+🖥️ 서버별 환경변수 사용률
+   github-pr-mcp-server: 66.7% (2/3명)
+   mcp-atlassian-jira: 33.3% (1/3명)
+   context7: 0.0% (0/3명)
+
+🤖 자동 관리 상태
+   - 스케줄러: 활성화 ✅
+   - 다음 실행: 12시간 후
+   - 자동 정리: 비활성화 (안전모드)
+
+💡 권장사항
+   - USER_GITHUB_TOKEN 키가 사용되지 않습니다
+   - npm run env:cleanup:dry-run으로 정리 시뮬레이션 가능
+```
+
 ### 🎮 즉시 체험하기
 
 1. **http://localhost:5173** 접속 (프론트엔드)

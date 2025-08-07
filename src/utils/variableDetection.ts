@@ -83,17 +83,14 @@ export const detectVariables = (payload: any): string[] => {
 export const extractUserEnvVars = (serverConfig: any): string[] => {
     const variables = new Set<string>();
 
-    // 1. ${USER_...} 패턴 감지
+    // 1. ${변수명} 패턴 감지 - 모든 환경변수 포함
     const templateVars = detectVariables(serverConfig);
-    templateVars.filter(varName => varName.startsWith('USER_')).forEach(varName => variables.add(varName));
+    templateVars.forEach(varName => variables.add(varName));
 
     // 2. env 필드에 직접 정의된 환경변수 감지
     if (serverConfig.env && typeof serverConfig.env === 'object') {
         Object.keys(serverConfig.env).forEach(key => {
-            // USER_로 시작하는 환경변수만 추가
-            if (key.startsWith('USER_')) {
-                variables.add(key);
-            }
+            variables.add(key);
         });
     }
 

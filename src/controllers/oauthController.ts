@@ -61,6 +61,7 @@ export const handleGithubCallback = (req: Request, res: Response) => {
         user: {
           id: user.id,
           username: user.githubUsername,
+          githubUsername: user.githubUsername, // 명시적으로 githubUsername 추가
           isAdmin: user.isAdmin || false,
           githubId: user.githubId,
           email: user.email

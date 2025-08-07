@@ -13,18 +13,18 @@
       "type": "streamable-http",
       "url": "https://mcp-jira-service.livelybeach-90f399a8.koreacentral.azurecontainerapps.io/mcp/",
       "headers": {
-        "Authorization": "Bearer ${USER_ATLASSIAN_JIRA_TOKEN}",
-        "X-User-Email": "${USER_ATLASSIAN_JIRA_EMAIL}",
-        "X-Jira-URL": "${USER_ATLASSIAN_JIRA_CLOUD_ID}"
+        "Authorization": "Bearer ${ATLASSIAN_JIRA_TOKEN}",
+        "X-User-Email": "${ATLASSIAN_JIRA_EMAIL}",
+        "X-Jira-URL": "${ATLASSIAN_JIRA_URL}"
       }
     },
     "mcp-atlassian-confluence": {
       "type": "streamable-http",
       "url": "https://mcp-confluence-service.livelybeach-90f399a8.koreacentral.azurecontainerapps.io/mcp/",
       "headers": {
-        "Authorization": "Bearer ${USER_ATLASSIAN_CONFLUENCE_TOKEN}",
-        "X-User-Email": "${USER_ATLASSIAN_CONFLUENCE_EMAIL}",
-        "X-Jira-URL": "${USER_ATLASSIAN_CONFLUENCE_CLOUD_ID}"
+        "Authorization": "Bearer ${ATLASSIAN_CONFLUENCE_TOKEN}",
+        "X-User-Email": "${ATLASSIAN_CONFLUENCE_EMAIL}",
+        "X-Jira-URL": "${ATLASSIAN_CONFLUENCE_URL}"
       }
     },
     "github-pr-mcp-server": {
@@ -32,12 +32,7 @@
       "url": "https://github-pr-mcp-server.livelybeach-90f399a8.koreacentral.azurecontainerapps.io/mcp/",
       "enabled": true,
       "headers": {
-        "Authorization": "Bearer ${USER_GITHUB_TOKEN}"
-      },
-      "tools": {
-        "GitHub PR MCP (ACA)-create_pull_request": {
-          "enabled": true
-        }
+        "Authorization": "Bearer ${GITHUB_TOKEN}"
       }
     }
   }

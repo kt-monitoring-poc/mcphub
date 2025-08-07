@@ -339,7 +339,7 @@ const callToolWithReconnect = async (
       return result;
     } catch (error: any) {
       // HTTP 40x 오류 감지
-      const isHttp40xError = error?.message?.startsWith?.('Error POSTing to endpoint (HTTP 40');
+      const isHttp40xError = error?.message && typeof error.message === 'string' && error.message.startsWith('Error POSTing to endpoint (HTTP 40');
       // StreamableHTTP 전송 계층에서만 재시도
       const isStreamableHttp = serverInfo.transport instanceof StreamableHTTPClientTransport;
 
@@ -456,6 +456,9 @@ function applyUserApiKeysToConfig(
     userApiKeysValues: userApiKeys
   });
 
+  console.log('🔧 디버깅 - 실제 키 확인:', Object.keys(userApiKeys));
+  console.log('🔧 디버깅 - ATLASSIAN_JIRA_CLOUD_ID 값:', userApiKeys['ATLASSIAN_JIRA_CLOUD_ID']);
+
   const updatedConfig = JSON.parse(JSON.stringify(serverConfig));
 
   // URL의 ${USER_*} 템플릿 치환
@@ -464,17 +467,21 @@ function applyUserApiKeysToConfig(
     console.log('🔧 원본 URL:', processedUrl);
 
     Object.keys(userApiKeys).forEach(tokenKey => {
-      const templatePattern = `\${USER_${tokenKey}}`;
-      console.log('🔧 템플릿 패턴 검색:', templatePattern, '값:', userApiKeys[tokenKey]);
+      // USER_ 접두사 있는 패턴과 없는 패턴 모두 지원
+      const userTemplatePattern = `\${USER_${tokenKey}}`;
+      const directTemplatePattern = `\${${tokenKey}}`;
+      console.log('🔧 템플릿 패턴 검색:', userTemplatePattern, '/', directTemplatePattern, '값:', userApiKeys[tokenKey]);
 
-      if (processedUrl.includes(templatePattern)) {
-        const tokenValue = userApiKeys[tokenKey];
-        console.log('🔧 템플릿 발견! 치환 중:', templatePattern, '->', tokenValue ? `${tokenValue.substring(0, 10)}...` : 'null');
-        processedUrl = processedUrl.replace(
-          new RegExp(templatePattern.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'g'),
-          tokenValue
-        );
-      }
+      [userTemplatePattern, directTemplatePattern].forEach(templatePattern => {
+        if (processedUrl.includes(templatePattern)) {
+          const tokenValue = userApiKeys[tokenKey];
+          console.log('🔧 템플릿 발견! 치환 중:', templatePattern, '->', tokenValue ? `${tokenValue.substring(0, 10)}...` : 'null');
+          processedUrl = processedUrl.replace(
+            new RegExp(templatePattern.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'g'),
+            tokenValue
+          );
+        }
+      });
     });
 
     console.log('🔧 처리된 URL:', processedUrl);
@@ -485,18 +492,22 @@ function applyUserApiKeysToConfig(
   if (updatedConfig.env) {
     Object.keys(updatedConfig.env).forEach(envKey => {
       const envValue = updatedConfig.env[envKey];
-      if (typeof envValue === 'string' && envValue.includes('${USER_')) {
+      if (typeof envValue === 'string' && (envValue.includes('${USER_') || envValue.includes('${') && !envValue.includes('${NODE_') && !envValue.includes('${PORT'))) {
         let replacedValue = envValue;
         Object.keys(userApiKeys).forEach(tokenKey => {
-          const templatePattern = `\${USER_${tokenKey}}`;
-          if (replacedValue.includes(templatePattern)) {
-            const tokenValue = userApiKeys[tokenKey];
-            console.log('🔧 환경변수 템플릿 치환:', templatePattern, '->', tokenValue ? `${tokenValue.substring(0, 10)}...` : 'null');
-            replacedValue = replacedValue.replace(
-              new RegExp(templatePattern.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'g'),
-              tokenValue
-            );
-          }
+          const userTemplatePattern = `\${USER_${tokenKey}}`;
+          const directTemplatePattern = `\${${tokenKey}}`;
+
+          [userTemplatePattern, directTemplatePattern].forEach(templatePattern => {
+            if (replacedValue.includes(templatePattern)) {
+              const tokenValue = userApiKeys[tokenKey];
+              console.log('🔧 환경변수 템플릿 치환:', templatePattern, '->', tokenValue ? `${tokenValue.substring(0, 10)}...` : 'null');
+              replacedValue = replacedValue.replace(
+                new RegExp(templatePattern.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'g'),
+                tokenValue
+              );
+            }
+          });
         });
         updatedConfig.env[envKey] = replacedValue;
       }
@@ -507,18 +518,22 @@ function applyUserApiKeysToConfig(
   if (updatedConfig.headers) {
     Object.keys(updatedConfig.headers).forEach(headerKey => {
       const headerValue = updatedConfig.headers[headerKey];
-      if (typeof headerValue === 'string' && headerValue.includes('${USER_')) {
+      if (typeof headerValue === 'string' && (headerValue.includes('${USER_') || headerValue.includes('${'))) {
         let replacedValue = headerValue;
         Object.keys(userApiKeys).forEach(tokenKey => {
-          const templatePattern = `\${USER_${tokenKey}}`;
-          if (replacedValue.includes(templatePattern)) {
-            const tokenValue = userApiKeys[tokenKey];
-            console.log('🔧 헤더 템플릿 치환:', templatePattern, '->', tokenValue ? `${tokenValue.substring(0, 10)}...` : 'null');
-            replacedValue = replacedValue.replace(
-              new RegExp(templatePattern.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'g'),
-              tokenValue
-            );
-          }
+          const userTemplatePattern = `\${USER_${tokenKey}}`;
+          const directTemplatePattern = `\${${tokenKey}}`;
+
+          [userTemplatePattern, directTemplatePattern].forEach(templatePattern => {
+            if (replacedValue.includes(templatePattern)) {
+              const tokenValue = userApiKeys[tokenKey];
+              console.log('🔧 헤더 템플릿 치환:', templatePattern, '->', tokenValue ? `${tokenValue.substring(0, 10)}...` : 'null');
+              replacedValue = replacedValue.replace(
+                new RegExp(templatePattern.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'g'),
+                tokenValue
+              );
+            }
+          });
         });
         updatedConfig.headers[headerKey] = replacedValue;
       }
@@ -630,7 +645,7 @@ export const ensureServerConnected = async (
         return false;
       }
       const toolsList: ToolInfo[] = tools.tools?.map(tool => ({
-        name: `${serverName}-${tool.name}`, // 서버 접두사 유지 (main 브랜치 방식)
+        name: tool.name, // 원본 이름 그대로 사용 (접두사 제거)
         description: tool.description || '',
         inputSchema: tool.inputSchema || {},
       })) || [];
@@ -953,7 +968,7 @@ export const initializeClientsFromSettings = async (isInit: boolean): Promise<Se
             console.log(`Successfully listed ${tools.tools.length} tools for server: ${name}`);
 
             serverInfo.tools = tools.tools.map((tool) => ({
-              name: `${name}-${tool.name}`, // 서버 접두사 유지 (main 브랜치 방식)
+              name: tool.name, // 원본 이름 그대로 사용 (접두사 제거)
               description: tool.description || '',
               inputSchema: tool.inputSchema || {},
             }));
@@ -1276,7 +1291,6 @@ export const handleListToolsRequest = async (_: any, extra: any, group?: string,
       'tools/list'
     );
     userContext = result.context;
-    trackingInfo = result.trackingInfo;
 
     console.log(`🔄 업스트림 컨텍스트 생성: ${upstreamContextPropagator.generateDebugInfo(userContext, 'tools/list')}`);
   }
@@ -1468,35 +1482,8 @@ Available servers: ${serversList}`;
 
   const allTools = [];
 
-  // Add server-based grouping tools (one per connected server)
-  for (const serverInfo of allServerInfos) {
-    if (serverInfo.tools && serverInfo.tools.length > 0 && serverInfo.status === 'connected') {
-      const enabledTools = filterToolsByConfig(serverInfo.name, serverInfo.tools);
-
-      if (enabledTools.length > 0) {
-        // Create a server-level tool that represents all tools in this server
-        allTools.push({
-          name: `server_${serverInfo.name}`,
-          description: `Access to ${serverInfo.name} MCP server with ${enabledTools.length} tools: ${enabledTools.map(t => t.name.replace(`${serverInfo.name}-`, '')).join(', ')}`,
-          inputSchema: {
-            type: 'object',
-            properties: {
-              tool_name: {
-                type: 'string',
-                description: `Tool to execute. Available tools: ${enabledTools.map(t => t.name.replace(`${serverInfo.name}-`, '')).join(', ')}`,
-                enum: enabledTools.map(t => t.name.replace(`${serverInfo.name}-`, ''))
-              },
-              arguments: {
-                type: 'object',
-                description: 'Arguments to pass to the selected tool'
-              }
-            },
-            required: ['tool_name']
-          }
-        });
-      }
-    }
-  }
+  // Server-based grouping tools are disabled - only individual tools are exposed
+  // This prevents duplicate tool listings and keeps the interface clean
 
   // 개별 툴 노출 활성화 (Cursor IDE 호환성을 위해)
   for (const serverInfo of allServerInfos) {
@@ -1540,6 +1527,8 @@ export const handleCallToolRequest = async (request: any, extra: any, group?: st
     }
   } else if (Object.keys(userApiKeys).length > 0) {
     console.log(`🔑 사용자 API 키 사용: ${Object.keys(userApiKeys).length}개 키`);
+    console.log('🔍 사용자 API 키 목록:', Object.keys(userApiKeys));
+    console.log('🔍 ATLASSIAN_JIRA_CLOUD_ID 확인:', userApiKeys['ATLASSIAN_JIRA_CLOUD_ID']);
   }
 
   try {
@@ -1652,7 +1641,7 @@ export const handleCallToolRequest = async (request: any, extra: any, group?: st
 
     // Special handling for call_tool
     if (request.params.name === 'call_tool') {
-      let { toolName } = request.params.arguments || {};
+      const { toolName } = request.params.arguments || {};
       if (!toolName) {
         throw new Error('toolName parameter is required');
       }
@@ -1694,10 +1683,8 @@ export const handleCallToolRequest = async (request: any, extra: any, group?: st
           `Invoking OpenAPI tool '${toolName}' on server '${targetServerInfo.name}' with arguments: ${JSON.stringify(finalArgs)}`,
         );
 
-        // Remove server prefix from tool name if present
-        const cleanToolName = toolName.startsWith(`${targetServerInfo.name}-`)
-          ? toolName.replace(`${targetServerInfo.name}-`, '')
-          : toolName;
+        // Use tool name as-is (no prefix processing needed)
+        const cleanToolName = toolName;
 
         const result = await openApiClient.callTool(cleanToolName, finalArgs);
 
@@ -1713,9 +1700,42 @@ export const handleCallToolRequest = async (request: any, extra: any, group?: st
       }
 
       // Call the tool on the target server (MCP servers)
-      const client = targetServerInfo.client;
+      let client = targetServerInfo.client;
       if (!client) {
         throw new Error(`Client not found for server: ${targetServerInfo.name}`);
+      }
+
+      // 사용자 환경변수가 있으면 동적으로 새 클라이언트 생성
+      console.log(`🔧 디버깅 - userApiKeys 개수: ${Object.keys(userApiKeys).length}, 서버: ${targetServerInfo.name}`);
+      if (Object.keys(userApiKeys).length > 0) {
+        console.log(`🔧 사용자 환경변수로 ${targetServerInfo.name} 서버 동적 연결 중...`);
+
+        // 서버 설정에 사용자 API Keys 적용
+        const settings = loadSettings();
+        const serverConfig = settings.mcpServers[targetServerInfo.name];
+        if (serverConfig) {
+          const configWithKeys = applyUserApiKeysToConfig(serverConfig, userApiKeys);
+
+          // 새로운 transport와 client 생성
+          const transport = createTransportFromConfig(targetServerInfo.name, configWithKeys, userApiKeys);
+          client = new Client(
+            {
+              name: `MCPHub-${targetServerInfo.name}`,
+              version: '1.0.0',
+            },
+            {
+              capabilities: {
+                tools: {},
+                prompts: {},
+                resources: {},
+                logging: {},
+              },
+            },
+          );
+
+          await client.connect(transport);
+          console.log(`✅ ${targetServerInfo.name} 서버 동적 연결 완료`);
+        }
       }
 
       // Use toolArgs if it has properties, otherwise fallback to request.params.arguments
@@ -1726,15 +1746,14 @@ export const handleCallToolRequest = async (request: any, extra: any, group?: st
         `Invoking tool '${toolName}' on server '${targetServerInfo.name}' with arguments: ${JSON.stringify(finalArgs)}`,
       );
 
-      toolName = toolName.startsWith(`${targetServerInfo.name}-`)
-        ? toolName.replace(`${targetServerInfo.name}-`, '')
-        : toolName;
-      const result = await callToolWithReconnect(
-        targetServerInfo,
+      // Use tool name as-is (no prefix processing needed)
+      // toolName = toolName;
+      const result = await client.callTool(
         {
           name: toolName,
           arguments: finalArgs,
         },
+        undefined,
         targetServerInfo.options || {},
       );
 
@@ -1742,83 +1761,13 @@ export const handleCallToolRequest = async (request: any, extra: any, group?: st
       return result;
     }
 
-    // Handle server-based tool calls (new format: server_<servername>)
-    const toolName = request.params.name;
-
-    if (toolName.startsWith('server_')) {
-      const serverName = toolName.replace('server_', '');
-      const serverInfo = getServerByName(serverName);
-
-      if (!serverInfo) {
-        throw new Error(`Server not found: ${serverName}`);
-      }
-
-      if (serverInfo.status !== 'connected') {
-        throw new Error(`Server ${serverName} is not connected (status: ${serverInfo.status})`);
-      }
-
-      const { tool_name, arguments: toolArgs = {} } = request.params.arguments || {};
-
-      if (!tool_name) {
-        throw new Error('tool_name parameter is required for server-based tool calls');
-      }
-
-      // Find the actual tool in the server
-      const fullToolName = `${serverName}-${tool_name}`;
-      const toolExists = serverInfo.tools.some((tool) => tool.name === fullToolName);
-
-      if (!toolExists) {
-        const availableTools = serverInfo.tools.map(t => t.name.replace(`${serverName}-`, '')).join(', ');
-        throw new Error(`Tool '${tool_name}' not found on server '${serverName}'. Available tools: ${availableTools}`);
-      }
-
-      // Handle OpenAPI servers
-      if (serverInfo.openApiClient) {
-        console.log(
-          `Invoking OpenAPI tool '${tool_name}' on server '${serverName}' with arguments: ${JSON.stringify(toolArgs)}`,
-        );
-
-        const result = await serverInfo.openApiClient.callTool(tool_name, toolArgs);
-
-        console.log(`OpenAPI tool invocation result: ${JSON.stringify(result)}`);
-        return {
-          content: [
-            {
-              type: 'text',
-              text: JSON.stringify(result),
-            },
-          ],
-        };
-      }
-
-      // Handle MCP servers
-      const client = serverInfo.client;
-      if (!client) {
-        throw new Error(`Client not found for server: ${serverName}`);
-      }
-
-      console.log(
-        `Invoking MCP tool '${tool_name}' on server '${serverName}' with arguments: ${JSON.stringify(toolArgs)}`,
-      );
-
-      const result = await callToolWithReconnect(
-        serverInfo,
-        {
-          name: tool_name,
-          arguments: toolArgs,
-        },
-        serverInfo.options || {},
-      );
-
-      console.log(`Tool call result: ${JSON.stringify(result)}`);
-      return result;
-    }
+    // Server-based tool calls (server_*) have been removed for cleaner interface
 
     // Regular tool handling (backward compatibility)
     let serverInfo = getServerByTool(request.params.name);
     if (!serverInfo) {
       // 도구 이름에서 서버 이름 추출 시도
-      const toolParts = request.params.name.split('-');
+      const toolParts = request.params.name ? request.params.name.split('-') : [];
       if (toolParts.length >= 2) {
         const possibleServerName = `${toolParts[0]}-${toolParts[1]}`;
 
@@ -1846,10 +1795,8 @@ export const handleCallToolRequest = async (request: any, extra: any, group?: st
       // For OpenAPI servers, use the OpenAPI client
       const openApiClient = serverInfo.openApiClient;
 
-      // Remove server prefix from tool name if present
-      const cleanToolName = request.params.name.startsWith(`${serverInfo.name}-`)
-        ? request.params.name.replace(`${serverInfo.name}-`, '')
-        : request.params.name;
+      // Use tool name as-is (no prefix processing needed)
+      const cleanToolName = request.params.name;
 
       console.log(
         `Invoking OpenAPI tool '${cleanToolName}' on server '${serverInfo.name}' with arguments: ${JSON.stringify(request.params.arguments)}`,
@@ -1869,17 +1816,49 @@ export const handleCallToolRequest = async (request: any, extra: any, group?: st
     }
 
     // Handle MCP servers
-    const client = serverInfo.client;
+    let client = serverInfo.client;
     if (!client) {
       throw new Error(`Client not found for server: ${serverInfo.name}`);
     }
 
-    request.params.name = request.params.name.startsWith(`${serverInfo.name}-`)
-      ? request.params.name.replace(`${serverInfo.name}-`, '')
-      : request.params.name;
-    const result = await callToolWithReconnect(
-      serverInfo,
+    // 사용자 환경변수가 있으면 동적으로 새 클라이언트 생성
+    console.log(`🔧 디버깅2 - userApiKeys 개수: ${Object.keys(userApiKeys).length}, 서버: ${serverInfo.name}`);
+    if (Object.keys(userApiKeys).length > 0) {
+      console.log(`🔧 사용자 환경변수로 ${serverInfo.name} 서버 동적 연결 중 (경로2)...`);
+
+      // 서버 설정에 사용자 API Keys 적용
+      const settings = loadSettings();
+      const serverConfig = settings.mcpServers[serverInfo.name];
+      if (serverConfig) {
+        const configWithKeys = applyUserApiKeysToConfig(serverConfig, userApiKeys);
+
+        // 새로운 transport와 client 생성
+        const transport = createTransportFromConfig(serverInfo.name, configWithKeys, userApiKeys);
+        client = new Client(
+          {
+            name: `MCPHub-${serverInfo.name}`,
+            version: '1.0.0',
+          },
+          {
+            capabilities: {
+              tools: {},
+              prompts: {},
+              resources: {},
+              logging: {},
+            },
+          },
+        );
+
+        await client.connect(transport);
+        console.log(`✅ ${serverInfo.name} 서버 동적 연결 완료 (경로2)`);
+      }
+    }
+
+    // Use tool name as-is (no prefix processing needed)
+    // request.params.name = request.params.name;
+    const result = await client.callTool(
       request.params,
+      undefined,
       serverInfo.options || {},
     );
     console.log(`Tool call result: ${JSON.stringify(result)}`);

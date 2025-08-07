@@ -465,6 +465,8 @@ export const initRoutes = (app: express.Application): void => {
       });
 
       // 사용자의 MCPHub 키에서 serviceTokens 조회 (기존 방식)
+      // JWT payload에서는 githubUsername이 username으로 저장됨
+      const githubUsername = user.githubUsername || user.username;
       const result = await pool.query(`
         SELECT "serviceTokens"
         FROM mcphub_keys 
@@ -472,7 +474,7 @@ export const initRoutes = (app: express.Application): void => {
         AND "isActive" = true
         ORDER BY "createdAt" DESC
         LIMIT 1
-      `, [user.githubUsername]);
+      `, [githubUsername]);
 
       await pool.end();
 
@@ -551,7 +553,9 @@ export const initRoutes = (app: express.Application): void => {
       });
 
       // 사용자 ID 조회
-      const userResult = await pool.query('SELECT id FROM users WHERE "githubUsername" = $1', [user.username]);
+      // JWT payload에서는 githubUsername이 username으로 저장됨
+      const githubUsername = user.githubUsername || user.username;
+      const userResult = await pool.query('SELECT id FROM users WHERE "githubUsername" = $1', [githubUsername]);
       if (userResult.rows.length === 0) {
         await pool.end();
         return res.status(404).json({
@@ -612,6 +616,274 @@ export const initRoutes = (app: express.Application): void => {
       res.status(500).json({
         success: false,
         message: '사용자 환경변수 저장에 실패했습니다.'
+      });
+    }
+  });
+
+  // 환경변수 매핑 검증 API
+  router.get('/env-vars/validate', requireAuth, async (req, res) => {
+    try {
+      const { validateEnvVarMapping } = await import('../utils/envVarValidation.js');
+      const result = await validateEnvVarMapping();
+
+      res.json({
+        success: true,
+        data: result
+      });
+    } catch (error) {
+      console.error('환경변수 검증 실패:', error);
+      res.status(500).json({
+        success: false,
+        message: '환경변수 검증에 실패했습니다.'
+      });
+    }
+  });
+
+  // 사용되지 않는 환경변수 정리 API
+  router.post('/env-vars/cleanup', requireAuth, async (req, res) => {
+    try {
+      const { dryRun = false } = req.body;
+      const { getCurrentEnvVars, cleanupObsoleteEnvVars } = await import('../utils/envVarCleanup.js');
+      const { loadSettings } = await import('../config/index.js');
+
+      // 현재 사용 중인 환경변수들 가져오기
+      const settings = loadSettings();
+      const currentEnvVars = getCurrentEnvVars(settings);
+
+      // 정리 실행
+      const result = await cleanupObsoleteEnvVars(currentEnvVars, dryRun);
+
+      res.json({
+        success: result.success,
+        message: result.message,
+        data: {
+          affectedUsers: result.affectedUsers,
+          removedVars: result.removedVars,
+          dryRun
+        }
+      });
+    } catch (error) {
+      console.error('환경변수 정리 실패:', error);
+      res.status(500).json({
+        success: false,
+        message: '환경변수 정리에 실패했습니다.'
+      });
+    }
+  });
+
+  // 환경변수 스케줄러 상태 조회 API (관리자 전용)
+  router.get('/admin/env-scheduler/status', requireAuth, async (req, res) => {
+    try {
+      const { getScheduler } = await import('../services/envVarScheduler.js');
+      const scheduler = getScheduler();
+
+      if (!scheduler) {
+        return res.json({
+          success: true,
+          data: {
+            isRunning: false,
+            config: null,
+            nextRunTime: null
+          }
+        });
+      }
+
+      res.json({
+        success: true,
+        data: scheduler.getStatus()
+      });
+    } catch (error) {
+      console.error('스케줄러 상태 조회 실패:', error);
+      res.status(500).json({
+        success: false,
+        message: '스케줄러 상태 조회에 실패했습니다.'
+      });
+    }
+  });
+
+  // 환경변수 스케줄러 설정 업데이트 API (관리자 전용)
+  router.post('/admin/env-scheduler/config', requireAuth, async (req, res) => {
+    try {
+      const { getScheduler } = await import('../services/envVarScheduler.js');
+      const scheduler = getScheduler();
+
+      if (!scheduler) {
+        return res.status(404).json({
+          success: false,
+          message: 'Scheduler not initialized'
+        });
+      }
+
+      const { enabled, intervalHours, autoCleanup, maxOrphanedKeys, scheduledTime } = req.body;
+
+      scheduler.updateConfig({
+        enabled: enabled !== undefined ? enabled : undefined,
+        intervalHours: intervalHours !== undefined ? intervalHours : undefined,
+        autoCleanup: autoCleanup !== undefined ? autoCleanup : undefined,
+        maxOrphanedKeys: maxOrphanedKeys !== undefined ? maxOrphanedKeys : undefined,
+        scheduledTime: scheduledTime !== undefined ? scheduledTime : undefined
+      });
+
+      const updatedConfig = scheduler.getConfig();
+      res.json({
+        success: true,
+        message: '스케줄러 설정이 업데이트되었습니다.',
+        data: updatedConfig
+      });
+    } catch (error) {
+      console.error('스케줄러 설정 업데이트 실패:', error);
+      res.status(500).json({
+        success: false,
+        message: '스케줄러 설정 업데이트에 실패했습니다.'
+      });
+    }
+  });
+
+  // 환경변수 검증 수동 실행 API (관리자 전용)
+  router.post('/admin/env-scheduler/run', requireAuth, async (req, res) => {
+    try {
+      const { getScheduler } = await import('../services/envVarScheduler.js');
+      const scheduler = getScheduler();
+
+      if (!scheduler) {
+        return res.status(404).json({
+          success: false,
+          message: 'Scheduler not initialized'
+        });
+      }
+
+      await scheduler.runManually();
+      res.json({
+        success: true,
+        message: '환경변수 검증이 수동으로 실행되었습니다.'
+      });
+    } catch (error) {
+      console.error('수동 검증 실행 실패:', error);
+      res.status(500).json({
+        success: false,
+        message: '수동 검증 실행에 실패했습니다.'
+      });
+    }
+  });
+
+  // 환경변수 사용 현황 보고서 API
+  router.get('/env-vars/report', requireAuth, async (req, res) => {
+    try {
+      const { Pool } = await import('pg');
+      const { extractUserEnvVars } = await import('../utils/variableDetection.js');
+      const { loadSettings } = await import('../config/index.js');
+
+      // 서버별 환경변수 추출
+      const settings = loadSettings();
+      const serverStats: any[] = [];
+      const allEnvVars = new Map<string, string[]>();
+
+      if (settings?.mcpServers) {
+        Object.entries(settings.mcpServers).forEach(([serverName, serverConfig]) => {
+          const envVars = extractUserEnvVars(serverConfig);
+
+          serverStats.push({
+            serverName,
+            envVars,
+            usersWithValues: 0,
+            totalUsers: 0,
+            usagePercentage: 0
+          });
+
+          envVars.forEach(varName => {
+            if (!allEnvVars.has(varName)) {
+              allEnvVars.set(varName, []);
+            }
+            allEnvVars.get(varName)!.push(serverName);
+          });
+        });
+      }
+
+      // DB에서 사용자 데이터 조회
+      const pool = new Pool({
+        connectionString: process.env.DATABASE_URL || 'postgresql://localhost:5432/mcphub'
+      });
+
+      const result = await pool.query(`
+        SELECT 
+          mk.id,
+          mk."userId", 
+          mk."serviceTokens",
+          u."githubUsername",
+          u."isActive" as user_active
+        FROM mcphub_keys mk
+        JOIN users u ON mk."userId" = u.id
+        WHERE mk."isActive" = true
+        ORDER BY u."githubUsername"
+      `);
+
+      const totalUsers = result.rows.length;
+
+      // 환경변수별 사용 통계 계산
+      const envVarStats: any[] = [];
+
+      allEnvVars.forEach((associatedServers, varName) => {
+        let usersWithValues = 0;
+
+        result.rows.forEach(row => {
+          const serviceTokens = row.serviceTokens || {};
+          const hasValue = serviceTokens[varName] &&
+            serviceTokens[varName].trim() !== '';
+          if (hasValue) {
+            usersWithValues++;
+          }
+        });
+
+        envVarStats.push({
+          varName,
+          usersWithValues,
+          totalUsers,
+          usagePercentage: totalUsers > 0 ? (usersWithValues / totalUsers) * 100 : 0,
+          associatedServers
+        });
+      });
+
+      // 서버별 통계 계산
+      serverStats.forEach(serverStat => {
+        let serverUsersWithAnyValue = 0;
+
+        result.rows.forEach(row => {
+          const serviceTokens = row.serviceTokens || {};
+          const hasAnyServerValue = serverStat.envVars.some((varName: string) =>
+            serviceTokens[varName] && serviceTokens[varName].trim() !== ''
+          );
+
+          if (hasAnyServerValue) {
+            serverUsersWithAnyValue++;
+          }
+        });
+
+        serverStat.usersWithValues = serverUsersWithAnyValue;
+        serverStat.totalUsers = totalUsers;
+        serverStat.usagePercentage = totalUsers > 0 ? (serverUsersWithAnyValue / totalUsers) * 100 : 0;
+      });
+
+      await pool.end();
+
+      res.json({
+        success: true,
+        data: {
+          summary: {
+            totalServers: serverStats.length,
+            totalEnvVars: envVarStats.length,
+            totalUsers
+          },
+          serverStats: serverStats.sort((a, b) => b.usagePercentage - a.usagePercentage),
+          envVarStats: envVarStats.sort((a, b) => b.usagePercentage - a.usagePercentage),
+          unusedVars: envVarStats.filter(v => v.usagePercentage === 0)
+        }
+      });
+
+    } catch (error) {
+      console.error('환경변수 보고서 생성 실패:', error);
+      res.status(500).json({
+        success: false,
+        message: '환경변수 보고서 생성에 실패했습니다.'
       });
     }
   });

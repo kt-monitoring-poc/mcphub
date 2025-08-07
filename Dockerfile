@@ -90,7 +90,13 @@ COPY mcp_settings.json ./
 COPY servers.json ./
 
 # 환경변수 파일 복사
+ARG BUILD_ENV=development
 COPY .env* ./
+RUN if [ "$BUILD_ENV" = "production" ]; then \
+      cp .env.production .env; \
+    else \
+      cp .env.development .env; \
+    fi
 
 # 최신 MCP 서버 목록 다운로드
 RUN curl -s -f --connect-timeout 10 https://mcpm.sh/api/servers.json -o servers.json || echo "Failed to download servers.json, using bundled version"

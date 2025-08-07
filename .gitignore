@@ -25,4 +25,9 @@ yarn-error.log*
 *.log
 coverage/
 
+# sensitive deployment files
+.env.development
+.env.production
+build-for-azure.sh
+
 data/

@@ -304,8 +304,460 @@ mcphub_keys.serviceTokens DB 암호화 저장
 3. **사용자별 격리**: 각 사용자의 환경변수 완전 분리
 4. **실시간 보안**: 토큰 노출 시 즉시 Git 커밋 차단
 
+## 🧹 환경변수 생명주기 관리 (v3.0 신규)
+
+### **1. 자동 정리 시스템**
+
+#### **서버 제거 시 자동 정리**
+MCP 서버가 `mcp_settings.json`에서 제거되면, 관련된 모든 사용자 환경변수가 자동으로 정리됩니다.
+
+```typescript
+// 서버 삭제 시 자동 실행
+export const deleteServer = async (req: Request, res: Response) => {
+  const serverConfig = settings.mcpServers?.[name];
+  const result = removeServer(name);
+  
+  if (result.success && serverConfig) {
+    // 🧹 관련 환경변수 자동 정리
+    const cleanupResult = await cleanupServerEnvVars(name, serverConfig, false);
+    console.log(`환경변수 정리: ${cleanupResult.affectedUsers}명 처리`);
+  }
+}
+```
+
+#### **고아 키 자동 감지 및 정리**
+- 더 이상 사용되지 않는 `USER_*` 키들을 자동으로 감지
+- 사용자별로 불필요한 환경변수 일괄 제거
+- 정리 전 시뮬레이션 모드 지원
+
+### **2. 검증 및 모니터링**
+
+#### **시작 시 자동 검증**
+서버 시작 시 환경변수 매핑 무결성을 자동으로 검증합니다.
+
+```bash
+🔍 환경변수 매핑 검증 중...
+✅ 검증 성공: 환경변수 매핑이 올바릅니다.
+💡 3개의 사용되지 않는 환경변수가 있습니다.
+```
+
+#### **실시간 검증 API**
+```bash
+GET /api/env-vars/validate    # 전체 매핑 검증
+GET /api/env-vars/report      # 사용 현황 보고서
+POST /api/env-vars/cleanup    # 고아 키 정리
+```
+
+### **3. CLI 관리 도구**
+
+새로운 npm 스크립트로 환경변수를 체계적으로 관리할 수 있습니다.
+
+```bash
+# 환경변수 검증
+npm run env:validate
+
+# 정리 시뮬레이션
+npm run env:cleanup:dry-run
+
+# 실제 정리 실행
+npm run env:cleanup
+
+# 사용 현황 보고서
+npm run env:report
+
+# 상세 보고서 (사용자별 정보 포함)
+npm run env:report:detailed
+```
+
+#### **보고서 예시**
+```
+📊 MCPHub 환경변수 사용 현황 보고서
+========================================
+
+📊 전체 요약
+   - 총 MCP 서버: 4개
+   - 총 환경변수: 7개  
+   - 총 사용자: 12명
+
+🖥️ 서버별 환경변수 사용률
+   github: 85.0% (10/12명)
+      필요 환경변수: USER_GITHUB_TOKEN
+   jira: 42.0% (5/12명)
+      필요 환경변수: USER_ATLASSIAN_JIRA_TOKEN, USER_ATLASSIAN_JIRA_EMAIL, USER_ATLASSIAN_JIRA_URL
+
+🔑 환경변수별 사용률
+   USER_GITHUB_TOKEN: 85.0% (10/12명)
+      사용 서버: github
+   USER_ATLASSIAN_JIRA_TOKEN: 42.0% (5/12명)
+      사용 서버: jira
+
+💡 권장사항
+   - 높은 사용률의 환경변수들은 잘 설정되어 있습니다:
+     USER_GITHUB_TOKEN (85.0%)
+```
+
+## 🔧 고급 관리 기능
+
+### **1. 환경변수 마이그레이션**
+
+서버 설정 변경 시 기존 환경변수를 새로운 형식으로 자동 마이그레이션합니다.
+
+```typescript
+// 예: GITHUB_TOKEN → USER_GITHUB_TOKEN 자동 변환
+const migrationResult = await migrateEnvVarKeys({
+  'GITHUB_TOKEN': 'USER_GITHUB_TOKEN',
+  'JIRA_TOKEN': 'USER_ATLASSIAN_JIRA_TOKEN'
+});
+```
+
+### **2. 배치 환경변수 관리**
+
+관리자가 여러 사용자의 환경변수를 일괄 관리할 수 있습니다.
+
+```bash
+# 모든 사용자의 특정 환경변수 상태 확인
+GET /api/admin/env-vars?varName=USER_GITHUB_TOKEN
+
+# 배치 업데이트 (관리자 전용)
+POST /api/admin/env-vars/batch-update
+{
+  "varName": "USER_GITHUB_TOKEN",
+  "users": ["user1", "user2"],
+  "action": "clear" | "migrate" | "validate"
+}
+```
+
+### **3. 환경변수 템플릿 검증**
+
+`mcp_settings.json` 파일의 환경변수 템플릿 문법을 검증합니다.
+
+```typescript
+// 잘못된 템플릿 예시
+{
+  "env": {
+    "GITHUB_TOKEN": "${USER_GITHUB}"  // ❌ USER_ 접두사 불완전
+  }
+}
+
+// 올바른 템플릿 예시
+{
+  "env": {
+    "GITHUB_TOKEN": "${USER_GITHUB_TOKEN}"  // ✅ 올바른 형식
+  }
+}
+```
+
+## 📋 베스트 프랙티스
+
+### **1. 환경변수 네이밍 규칙**
+
+```bash
+# ✅ 올바른 네이밍
+USER_GITHUB_TOKEN          # GitHub API 토큰
+USER_ATLASSIAN_JIRA_EMAIL  # Jira 이메일
+USER_ATLASSIAN_JIRA_URL    # Jira 인스턴스 URL
+USER_OPENAI_API_KEY        # OpenAI API 키
+
+# ❌ 잘못된 네이밍
+GITHUB_TOKEN               # USER_ 접두사 누락
+USER_TOKEN                 # 서비스명 불명확
+user_github_token          # 소문자 사용
+```
+
+### **2. 서버 설정 시 주의사항**
+
+```json
+{
+  "github": {
+    "command": "npx",
+    "args": ["@modelcontextprotocol/server-github"],
+    "env": {
+      "GITHUB_PERSONAL_ACCESS_TOKEN": "${USER_GITHUB_TOKEN}"
+    }
+  }
+}
+```
+
+**주의점:**
+- 외부 MCP 서버가 요구하는 환경변수명 (`GITHUB_PERSONAL_ACCESS_TOKEN`)과 
+- MCPHub 내부 환경변수명 (`USER_GITHUB_TOKEN`)을 정확히 매핑
+- `${USER_*}` 템플릿 문법 준수
+
+### **3. 정기적인 유지보수**
+
+```bash
+# 월간 환경변수 정리 (추천)
+npm run env:report
+npm run env:cleanup:dry-run
+npm run env:cleanup  # 문제 없을 시 실행
+
+# 서버 추가/제거 후 검증
+npm run env:validate
+```
+
+### **4. 프로덕션 환경에서의 주의사항**
+
+1. **검증 우선**: 프로덕션 배포 전 `env:validate` 필수 실행
+2. **백업**: 환경변수 정리 전 DB 백업 수행
+3. **단계적 적용**: `dry-run` 모드로 영향도 먼저 확인
+4. **모니터링**: 정리 후 서비스 정상 작동 확인
+
+## 🚨 문제 해결
+
+### **1. 일반적인 문제들**
+
+#### **환경변수가 인식되지 않는 경우**
+```bash
+# 1. 템플릿 검증
+npm run env:validate
+
+# 2. 서버 재시작
+npm run build
+npm start
+
+# 3. 브라우저 캐시 초기화
+```
+
+#### **고아 키가 계속 생성되는 경우**
+```bash
+# mcp_settings.json의 환경변수 템플릿 확인
+npm run env:report
+
+# 서버 설정과 실제 DB 키 매핑 비교
+npm run env:validate
+```
+
+### **2. 디버깅 도구**
+
+#### **환경변수 추적**
+```bash
+# 특정 사용자의 환경변수 상태 확인
+curl -X GET "http://localhost:3000/api/env-vars/report" \
+  -H "Authorization: Bearer <token>"
+
+# 서버별 환경변수 요구사항 확인  
+cat mcp_settings.json | jq '.mcpServers | to_entries[] | {name: .key, envVars: [.value | .. | strings? | select(test("\\$\\{USER_[^}]+\\}")) | capture("\\$\\{(?<var>[^}]+)\\}").var] | unique}'
+```
+
+## 🔮 향후 개발 계획
+
+### **Phase 1: 완료 (v3.0)**
+- ✅ 자동 환경변수 정리
+- ✅ 매핑 검증 시스템
+- ✅ CLI 관리 도구
+- ✅ 실시간 보고서
+
+### **Phase 2: 예정 (v3.1)**
+- 🔄 환경변수 암호화 강화
+- 🔄 GraphQL API 지원
+- 🔄 환경변수 버전 관리
+- 🔄 자동 마이그레이션 도구
+
+### **Phase 3: 계획 (v3.2)**
+- 📋 환경변수 템플릿 UI 편집기
+- 📋 다중 환경 지원 (dev/staging/prod)
+- 📋 환경변수 사용량 분석
+- 📋 보안 감사 로그
+
 ---
 
 **작성일**: 2025-07-31  
+**업데이트**: 2025-07-31 (v3.0 생명주기 관리 추가)  
 **작성자**: MCPHub 개발팀  
-**버전**: 2.1.0 (v2.0 완전 환경변수화 완료) 
+**버전**: 3.1.0 (자동 관리 시스템 완료)
+
+---
+
+## 🤖 자동 관리 시스템 (v3.1 신규)
+
+### 📅 주기적 자동 정리 스케줄러
+
+MCPHub는 이제 **백그라운드 스케줄러**를 통해 환경변수를 자동으로 관리합니다.
+
+#### ⚙️ 스케줄러 설정
+
+```typescript
+interface SchedulerConfig {
+  enabled: boolean;          // 스케줄러 활성화 여부
+  intervalHours: number;     // 검증 주기 (시간)
+  autoCleanup: boolean;      // 자동 정리 활성화 (기본: false)
+  maxOrphanedKeys: number;   // 알림 임계값 (고아 키 개수)
+}
+```
+
+#### 🎮 환경변수로 제어
+
+```bash
+# 개발 환경에서 스케줄러 활성화
+ENV_SCHEDULER_ENABLED=true pnpm start:dev
+
+# 자동 정리 활성화 (위험 - 프로덕션에서 신중하게)
+ENV_AUTO_CLEANUP=true pnpm start:dev
+```
+
+#### 🔄 자동 실행 작업
+
+1. **환경변수 매핑 검증**
+   - `mcp_settings.json`과 DB 데이터 일치성 확인
+   - 오류 및 경고 감지
+
+2. **고아 환경변수 탐지**
+   - 더 이상 사용되지 않는 환경변수 식별
+   - 임계값 초과시 알림
+
+3. **자동 정리 (선택사항)**
+   - `autoCleanup: true`인 경우 고아 키 자동 제거
+   - 안전성을 위해 기본적으로 비활성화
+
+### 🖥️ 웹 UI 관리 도구
+
+관리자는 **`/admin/env-vars`** 페이지에서 환경변수를 시각적으로 관리할 수 있습니다.
+
+#### 📊 실시간 모니터링
+
+- **MCP 서버 수**: 현재 등록된 서버 개수
+- **환경변수 수**: 전체 환경변수 개수  
+- **총 사용자 수**: 등록된 사용자 수
+- **고아 키 수**: 사용되지 않는 환경변수 개수
+
+#### ⚙️ 스케줄러 제어
+
+- **실행 상태**: 스케줄러 활성화/비활성화 상태
+- **다음 실행 시간**: 자동 검증 예정 시간
+- **설정 변경**: 주기, 임계값, 자동 정리 옵션 실시간 변경
+
+#### 🔧 수동 작업
+
+- **검증 실행**: 즉시 환경변수 검증 수행
+- **정리 시뮬레이션**: 실제 제거 전 미리보기
+- **실제 정리 실행**: 고아 환경변수 즉시 제거
+
+### 🛡️ API 엔드포인트
+
+#### 스케줄러 관리 (관리자 전용)
+
+```bash
+# 스케줄러 상태 조회
+GET /api/admin/env-scheduler/status
+
+# 스케줄러 설정 업데이트
+POST /api/admin/env-scheduler/config
+{
+  "enabled": true,
+  "intervalHours": 12,
+  "autoCleanup": false,
+  "maxOrphanedKeys": 5
+}
+
+# 수동 검증 실행
+POST /api/admin/env-scheduler/run
+```
+
+#### 환경변수 관리
+
+```bash
+# 검증 실행
+GET /api/env-vars/validate
+
+# 정리 실행 (시뮬레이션)
+POST /api/env-vars/cleanup
+{ "dryRun": true }
+
+# 실제 정리 실행
+POST /api/env-vars/cleanup
+{ "dryRun": false }
+
+# 사용 현황 보고서
+GET /api/env-vars/report
+```
+
+### 📋 CLI 도구
+
+자동 관리 시스템과 별도로 CLI 도구도 제공됩니다:
+
+```bash
+# 환경변수 검증
+npm run env:validate
+
+# 사용 현황 보고서
+npm run env:report
+npm run env:report:detailed
+
+# 정리 (시뮬레이션)
+npm run env:cleanup:dry-run
+
+# 실제 정리
+npm run env:cleanup
+```
+
+### ⚠️ 안전 장치
+
+1. **기본값 보수적 설정**
+   - `autoCleanup: false` (기본적으로 자동 정리 비활성화)
+   - 관리자가 명시적으로 활성화해야 함
+
+2. **시뮬레이션 모드**
+   - 모든 정리 작업은 먼저 시뮬레이션으로 실행 가능
+   - 실제 제거 전 영향도 확인
+
+3. **상세 로깅**
+   - 모든 자동 작업은 콘솔에 상세 로그 출력
+   - 정리된 키와 영향받은 사용자 수 기록
+
+4. **관리자 권한 필요**
+   - 스케줄러 설정 변경은 관리자만 가능
+   - 실제 정리 실행도 관리자 권한 필요
+
+### 📈 모니터링 및 알림
+
+#### 자동 알림 조건
+
+- **오류 발생**: 환경변수 매핑 오류 감지시
+- **임계값 초과**: 고아 키가 설정된 개수 이상 발견시
+- **정리 완료**: 자동 정리 실행 완료시
+
+#### 로그 예시
+
+```
+🔍 환경변수 자동 검증 시작...
+📊 검증 결과: 오류 0개, 경고 2개, 고아 키 3개
+⚠️  3개의 사용되지 않는 환경변수가 있습니다!
+✅ 환경변수 자동 검증 완료
+```
+
+### 🔧 문제 해결
+
+#### 스케줄러가 실행되지 않는 경우
+
+1. **개발 환경에서 활성화**:
+   ```bash
+   ENV_SCHEDULER_ENABLED=true pnpm start:dev
+   ```
+
+2. **프로덕션 환경에서는 기본 활성화**:
+   - `NODE_ENV=production`에서 자동 활성화
+
+3. **스케줄러 상태 확인**:
+   ```bash
+   curl http://localhost:3000/api/admin/env-scheduler/status
+   ```
+
+#### 자동 정리가 작동하지 않는 경우
+
+1. **설정 확인**:
+   - `autoCleanup: true`로 설정되어 있는지 확인
+
+2. **고아 키 임계값 확인**:
+   - 현재 고아 키 수가 `maxOrphanedKeys` 미만인지 확인
+
+3. **수동 정리로 테스트**:
+   ```bash
+   npm run env:cleanup:dry-run
+   ```
+
+### 🚀 향후 계획
+
+- **이메일 알림**: 관리자에게 환경변수 이슈 자동 통지
+- **슬랙 연동**: 팀 채널로 정리 결과 자동 전송
+- **사용 통계**: 환경변수별 사용 빈도 분석
+- **자동 백업**: 정리 전 환경변수 상태 백업 

@@ -485,6 +485,194 @@ DELETE /api/mcp/admin/servers/:name
 PATCH /api/mcp/admin/servers/:name/toggle
 ```
 
+### 5.5 환경변수 스케줄러 관리 (v3.1 신규)
+
+#### 5.5.1 스케줄러 상태 조회
+**파일**: `src/routes/index.ts` (라인 675-702)
+
+```http
+GET /api/admin/env-scheduler/status
+```
+
+**권한**: 관리자만
+
+**응답**:
+```json
+{
+  "success": true,
+  "data": {
+    "isRunning": true,
+    "config": {
+      "enabled": true,
+      "intervalHours": 24,
+      "autoCleanup": false,
+      "maxOrphanedKeys": 10,
+      "scheduledTime": "00:00"
+    },
+    "nextRunTime": "2025-08-07T15:00:00.000Z"
+  }
+}
+```
+
+#### 5.5.2 스케줄러 설정 업데이트
+**파일**: `src/routes/index.ts` (라인 705-738)
+
+```http
+POST /api/admin/env-scheduler/config
+```
+
+**권한**: 관리자만
+
+**요청 본문**:
+```json
+{
+  "enabled": true,
+  "intervalHours": 12,
+  "autoCleanup": false,
+  "maxOrphanedKeys": 5,
+  "scheduledTime": "00:00"
+}
+```
+
+**파라미터 상세**:
+- `enabled` (boolean): 스케줄러 활성화 여부
+- `intervalHours` (number): 주기적 실행 간격 (시간 단위, 1-168)
+- `autoCleanup` (boolean): 자동 정리 활성화 여부 (기본: false)
+- `maxOrphanedKeys` (number): 알림 임계값 (고아 키 개수, 1-100)
+- `scheduledTime` (string, 선택사항): 특정 시간 실행 ("HH:MM" 형식)
+
+**실행 방식**:
+1. **특정 시간 실행**: `scheduledTime`이 설정된 경우 매일 해당 시간에 실행
+2. **주기적 실행**: `scheduledTime`이 null인 경우 `intervalHours` 간격으로 실행
+
+**응답**:
+```json
+{
+  "success": true,
+  "message": "스케줄러 설정이 업데이트되었습니다.",
+  "data": {
+    "enabled": true,
+    "intervalHours": 12,
+    "autoCleanup": false,
+    "maxOrphanedKeys": 5,
+    "scheduledTime": "00:00"
+  }
+}
+```
+
+#### 5.5.3 스케줄러 수동 실행
+**파일**: `src/routes/index.ts` (라인 741-765)
+
+```http
+POST /api/admin/env-scheduler/run
+```
+
+**권한**: 관리자만
+
+**응답**:
+```json
+{
+  "success": true,
+  "message": "환경변수 검증이 수동으로 실행되었습니다."
+}
+```
+
+**설명**: 스케줄러 설정과 상관없이 즉시 환경변수 검증 작업을 실행합니다.
+
+### 5.6 환경변수 관리
+
+#### 5.6.1 환경변수 검증
+**파일**: `src/routes/index.ts` (라인 624-640)
+
+```http
+GET /api/env-vars/validate
+```
+
+**권한**: 인증 필요
+
+**응답**:
+```json
+{
+  "success": true,
+  "data": {
+    "isValid": true,
+    "issues": [
+      {
+        "type": "ORPHANED_KEY",
+        "severity": "WARNING",
+        "message": "USER_GITHUB_TOKEN이 사용되지 않습니다"
+      }
+    ],
+    "summary": {
+      "totalServers": 4,
+      "totalEnvVars": 7,
+      "totalUsers": 3,
+      "usersWithTokens": 2,
+      "orphanedKeys": ["USER_GITHUB_TOKEN"],
+      "missingKeys": []
+    }
+  }
+}
+```
+
+#### 5.6.2 환경변수 정리
+**파일**: `src/routes/index.ts` (라인 643-672)
+
+```http
+POST /api/env-vars/cleanup
+```
+
+**권한**: 인증 필요
+
+**요청 본문**:
+```json
+{
+  "dryRun": true
+}
+```
+
+**파라미터**:
+- `dryRun` (boolean): true면 시뮬레이션만, false면 실제 정리 실행
+
+**응답**:
+```json
+{
+  "success": true,
+  "message": "환경변수 분석 완료: 1명의 사용자, 1개 변수 처리",
+  "data": {
+    "affectedUsers": 1,
+    "removedVars": ["USER_GITHUB_TOKEN"],
+    "dryRun": true
+  }
+}
+```
+
+#### 5.6.3 환경변수 사용 현황 보고서
+**파일**: `src/routes/index.ts` (라인 768-812)
+
+```http
+GET /api/env-vars/report
+```
+
+**권한**: 인증 필요
+
+**응답**:
+```json
+{
+  "success": true,
+  "data": {
+    "summary": {
+      "totalServers": 4,
+      "totalEnvVars": 7,
+      "totalUsers": 3,
+      "usersWithTokens": 2
+    },
+    "issues": [],
+    "timestamp": "2025-08-07T06:00:00.000Z"
+  }
+}
+```
+
 ---
 
 ## 6. 시스템 모니터링 (System Monitoring)

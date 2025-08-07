@@ -41,7 +41,12 @@
     "typeorm": "typeorm-ts-node-esm",
     "migration:run": "typeorm-ts-node-esm migration:run -d src/db/connection.ts",
     "migration:revert": "typeorm-ts-node-esm migration:revert -d src/db/connection.ts",
-    "api:test": "echo 'API 테스트 스크립트가 삭제되었습니다. TODO-PHASE3-CLEANUP.md를 참조하세요.'"
+    "api:test": "echo 'API 테스트 스크립트가 삭제되었습니다. TODO-PHASE3-CLEANUP.md를 참조하세요.'",
+    "env:validate": "node scripts/env-var-management.js validate",
+    "env:cleanup": "node scripts/env-var-management.js cleanup",
+    "env:cleanup:dry-run": "node scripts/env-var-management.js cleanup --dry-run",
+    "env:report": "node scripts/env-var-management.js report",
+    "env:report:detailed": "node scripts/env-var-management.js report --detailed"
   },
   "keywords": [
     "typescript",

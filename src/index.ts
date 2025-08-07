@@ -29,7 +29,7 @@ async function boot() {
     await appServer.initialize();
 
     // HTTP 서버 시작
-    appServer.start();
+    await appServer.start();
   } catch (error) {
     console.error('Failed to start application:', {
       message: error instanceof Error ? error.message : 'Unknown error',
