@@ -17,6 +17,7 @@ import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/
 import { Server } from '@modelcontextprotocol/sdk/server/index.js';
 import { CallToolRequestSchema, ListToolsRequestSchema } from '@modelcontextprotocol/sdk/types.js';
 import { z } from 'zod';
+import RedisSessionStore from './redisSessionStore.js';
 import { OpenAPIClient } from '../clients/openapi.js';
 import config, { expandEnvVars, loadSettings, replaceEnvVars, saveSettings } from '../config/index.js';
 import { MCPHubKeyService } from '../services/mcpHubKeyService.js';
@@ -249,6 +250,10 @@ const createTransportFromConfig = (
         });
       }
     }
+
+    // Redis에 저장된 업스트림 세션이 있으면 사용 (비동기 호출 지양: 상위 호출부에서 await 처리 불가한 구간)
+    // 이 구간에서는 동기적으로 설정 불가 → ensureServerConnected에서 세션 저장/재사용을 처리
+
     transport = new StreamableHTTPClientTransport(new URL(conf.url || ''), options);
   } else if (conf.type === 'stdio' && conf.command && conf.args) {
     // 표준 입출력 전송 계층 생성 (프로세스 기반)
@@ -648,6 +653,21 @@ export const ensureServerConnected = async (
           url: serverConfig.url?.replace(/[A-Za-z0-9_-]{20,}/, '***')
         });
         return false;
+      }
+
+      // 초기화 응답에서 세션 헤더 수집 후 Redis에 보관 (StreamableHTTPClientTransport가 sessionId 보관)
+      try {
+        const sessionId = (transport as any).sessionId as string | undefined;
+        if (sessionId) {
+          const store = RedisSessionStore.getInstance();
+          const contextKey = userApiKeys && Object.keys(userApiKeys).length > 0
+            ? 'tok:' + Object.keys(userApiKeys).sort().join('|')
+            : 'shared';
+          await store.setSessionId({ serverName: serverName, contextKey }, sessionId, 3600);
+          console.log(`💾 업스트림 세션 저장 (${serverName}/${contextKey}): ${sessionId}`);
+        }
+      } catch (e) {
+        console.warn('RedisSessionStore save failed (non-fatal):', e);
       }
 
       // 도구 목록 가져오기 (타임아웃 추가)

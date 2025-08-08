@@ -53,6 +53,7 @@ curl -sS -X POST http://localhost:3000/mcp \
 - `src/services/mcpService.ts`
   - MCP SDK 표준에 맞춰 `Server.setRequestHandler`에 Zod 리터럴 스키마로 다음 핸들러 등록: `capabilities`, `capabilities/list`, `offerings/list`.
   - 초기 협상 단계에서 `-32601`이 발생하지 않도록 SDK 계층에서 직접 응답.
+  - StreamableHTTP 업스트림 세션 재사용: 초기화 응답의 `Mcp-Session-Id`를 Redis(`redis://127.0.0.1:6379` 기본) 에 저장하고 이후 요청에 재사용.
 
 - `src/services/sseService.ts`
   - `POST /mcp`에서 초기 협상 메서드(`offerings/list`, `capabilities`, `capabilities/list`)를 항상 직접 처리.
