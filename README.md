@@ -189,6 +189,7 @@ curl -X POST http://localhost:3000/api/env-vars/cleanup \
 | 🗄️ **[데이터베이스 스키마](docs/database-schema.md)** | 완전한 DB 구조 및 관계 | 백엔드 개발자 |
 | 📡 **[API 참조](docs/api-reference.md)** | 모든 API 엔드포인트 명세 | 풀스택 개발자 |
 | 🛣️ **[라우팅 참조](docs/routing-reference.md)** | 프론트엔드 라우팅 구조 | 프론트엔드 개발자 |
+| 🔗 **[업스트림 세션 스토어](docs/upstream-session-store.md)** | Redis 기반 Mcp-Session-Id 재사용 가이드 | 백엔드 개발자 |
 
 ### 🚀 **설정 및 배포**
 
