@@ -4,8 +4,8 @@
 
 MCPHub는 Model Context Protocol (MCP) 서버들을 중앙 집중식으로 관리하는 허브 플랫폼입니다. 사용자들이 다양한 MCP 서버에 접근할 수 있도록 하는 통합 게이트웨이 역할을 합니다.
 
-**문서 버전**: 3.0.1  
-**최종 업데이트**: 2025-08-03
+**문서 버전**: 3.1.1  
+**최종 업데이트**: 2025-08-08
 
 ## 🎯 핵심 완성 기능
 
@@ -643,7 +643,8 @@ sequenceDiagram
 
 ### 시스템 가이드
 - `MCPHUB_MULTIUSER_SESSION_COMPLETE_GUIDE.md` - 다중 사용자 세션 시스템 완전 가이드
-- `CURSOR_IDE_SETUP_GUIDE.md` - Cursor IDE 연동 설정 가이드
+- `CURSOR_IDE_SETUP_GUIDE.md` - Cursor IDE 연동 설정 가이드 (구)
+  - 업데이트: `docs/cursor-ide-integration.md`로 통합, 최신 호환성 조치 반영 (v3.1.1)
 - `docs/mcphub-env-var-system.md` - 환경변수 자동화 시스템
 
 ### 릴리즈 노트

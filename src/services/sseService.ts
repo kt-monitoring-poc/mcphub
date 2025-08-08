@@ -20,6 +20,7 @@ import { Request, Response } from 'express';
 import config, { loadSettings } from '../config/index.js';
 import { DEBUG_MODE, DebugLogger } from '../utils/debugLogger.js';
 import { getMcpServer } from './mcpService.js';
+import SessionManager from './sessionManager.js';
 
 /**
  * 전송 계층 정보를 저장하는 인터페이스
@@ -401,7 +402,7 @@ export const handleMcpOtherRequest = async (req: Request, res: Response): Promis
   });
 
   // MCPHub Key 인증 수행 (쿼리 파라미터 또는 헤더 기반)
-  let userServiceTokens: Record<string, string> = {};
+  let _userServiceTokens: Record<string, string> = {};
   const authHeader = req.headers.authorization;
 
   // 쿼리 파라미터 기반 인증 (MCP 표준 준수)
@@ -409,7 +410,7 @@ export const handleMcpOtherRequest = async (req: Request, res: Response): Promis
     console.log(`🔐 쿼리 파라미터 인증 시도: ${userKey.substring(0, 10)}...`);
     const authenticatedTokens = await authenticateWithMcpHubKey(userKey, true);
     if (authenticatedTokens) {
-      userServiceTokens = authenticatedTokens;
+      _userServiceTokens = authenticatedTokens;
       console.log(`✅ 쿼리 파라미터 인증 성공`);
     } else {
       console.log(`❌ 쿼리 파라미터 인증 실패`);
@@ -424,7 +425,7 @@ export const handleMcpOtherRequest = async (req: Request, res: Response): Promis
 
     const authenticatedTokens = await authenticateWithMcpHubKey(token, true);
     if (authenticatedTokens) {
-      userServiceTokens = authenticatedTokens;
+      _userServiceTokens = authenticatedTokens;
       console.log(`✅ 헤더 기반 인증 성공`);
     } else {
       // 일반 Bearer 인증 확인
@@ -444,34 +445,74 @@ export const handleMcpOtherRequest = async (req: Request, res: Response): Promis
   if (req.method === 'GET') {
     console.log('🎯 GET /mcp 요청 - Transport handleRequest로 위임');
 
-    // Cursor IDE의 offerings/list 요청 처리 (GET 요청으로 오는 경우)
-    // Accept 헤더에 application/json이 포함되어 있으면 offerings/list로 간주
-    const acceptHeader = req.headers.accept || '';
-    if (acceptHeader.includes('application/json') && acceptHeader.includes('text/event-stream')) {
-      console.log('🎯 GET 요청에서 offerings/list 감지 - Accept 헤더:', acceptHeader);
-      res.json({
-        jsonrpc: '2.0',
-        result: {
-          protocolVersion: '2025-06-18',
-          capabilities: {
-            tools: { listChanged: true },
-            prompts: { listChanged: true },
-            resources: { listChanged: false, subscribe: false },
-            logging: {}
+    // Cursor IDE의 초기 협상(capabilities/offerings) 요청 처리 (GET로 오는 경우)
+    // Accept 헤더가 text/event-stream 만 있어도 허용하고, 쿼리의 method 힌트도 수용
+    const acceptHeader = (req.headers.accept || '').toString();
+    const queryMethod = (req.query?.method || '').toString();
+    const isCapabilitiesQuery = ['capabilities', 'capabilities/list'].includes(queryMethod);
+    const isOfferingsQuery = queryMethod === 'offerings/list';
+    // GET 쿼리에 명시적으로 method가 있을 때만 직접 응답
+    if (acceptHeader.includes('text/event-stream') && (isCapabilitiesQuery || isOfferingsQuery)) {
+      console.log('🎯 GET 요청에서 초기 협상 감지 - method:', queryMethod || 'none', 'Accept:', acceptHeader);
+      if (isOfferingsQuery) {
+        res.json({
+          jsonrpc: '2.0',
+          result: {
+            offerings: { tools: true, prompts: true, resources: false, logging: false }
           },
-          serverInfo: {
-            name: 'MCPHub',
-            version: '2.0.0'
-          }
-        },
-        id: 1
-      });
+          id: 1
+        });
+      } else {
+        res.json({
+          jsonrpc: '2.0',
+          result: {
+            protocolVersion: '2025-06-18',
+            capabilities: {
+              tools: { listChanged: true },
+              prompts: { listChanged: true },
+              resources: { listChanged: false, subscribe: false },
+              logging: {}
+            },
+            serverInfo: { name: 'MCPHub', version: '2.0.0' }
+          },
+          id: 1
+        });
+      }
       return;
     }
 
     if (!sessionId || !transports.streamable[sessionId]) {
-      console.log('❌ 세션 ID 없음 또는 transport 없음:', { sessionId, hasTransport: sessionId ? !!transports.streamable[sessionId] : false });
-      res.status(400).send('Invalid or missing session ID for GET request');
+      // 일부 클라이언트는 GET(SSE 채널)부터 열고 initialize를 나중에 호출한다.
+      // 이 경우에도 세션을 생성하고 스트림을 열어주자.
+      console.log('ℹ️ GET 먼저 수신: 세션 생성 및 스트림 오픈 시도');
+
+      const tempTransport = new StreamableHTTPServerTransport({
+        sessionIdGenerator: () => randomUUID(),
+        onsessioninitialized: (newSessionId: string) => {
+          const now = Date.now();
+          const transportInfo: TransportInfo = {
+            transport: tempTransport,
+            group: _group,
+            userServiceTokens: _userServiceTokens,
+            connectionStatus: 'connecting',
+            lastActivityTime: now,
+            reconnectAttempts: 0,
+            createdAt: now
+          };
+          transports.streamable[newSessionId] = transportInfo;
+          SessionManager.getOrCreateCursorSession(newSessionId, _group, _userServiceTokens);
+          console.log(`Session created (GET-first): ${newSessionId}`);
+        },
+      });
+
+      try {
+        const mcpServer = getMcpServer((tempTransport as any).sessionId, _group, _userServiceTokens);
+        await mcpServer.connect(tempTransport);
+      } catch (e) {
+        console.warn('GET-first connect failed:', e);
+      }
+
+      await (tempTransport as StreamableHTTPServerTransport).handleRequest(req, res);
       return;
     }
 
@@ -485,10 +526,10 @@ export const handleMcpOtherRequest = async (req: Request, res: Response): Promis
     try {
       console.log('📡 Transport handleRequest 호출 중...');
 
-      // Transport의 메시지 핸들러를 오버라이드해보기
-      const originalOnMessage = (transport as any).onMessage;
+      // Transport의 메시지 핸들러를 오버라이드해보기 (소문자 onmessage가 올바른 프로퍼티)
+      const originalOnMessage = (transport as any).onmessage || (transport as any).onMessage;
       if (originalOnMessage) {
-        (transport as any).onMessage = (message: any) => {
+        (transport as any).onmessage = (message: any) => {
           console.log('🔍 SSE Stream 내 메시지 감지:', message);
           if (message && message.method === 'offerings/list') {
             console.log('🎯 SSE STREAM: offerings/list 메시지 발견!');
@@ -502,8 +543,8 @@ export const handleMcpOtherRequest = async (req: Request, res: Response): Promis
     } catch (error) {
       console.error('❌ Transport handleRequest 실패:', error);
 
-      // GET 요청에서 transport 에러가 발생하면 offerings/list로 간주하여 처리
-      console.log('🎯 GET 요청 Transport 에러 - offerings/list로 대체 응답');
+      // GET 요청에서 transport 에러가 발생하면 capabilities 응답으로 대체
+      console.log('🎯 GET 요청 Transport 에러 - capabilities 응답으로 대체');
       res.json({
         jsonrpc: '2.0',
         result: {
@@ -514,10 +555,7 @@ export const handleMcpOtherRequest = async (req: Request, res: Response): Promis
             resources: { listChanged: false, subscribe: false },
             logging: {}
           },
-          serverInfo: {
-            name: 'MCPHub',
-            version: '2.0.0'
-          }
+          serverInfo: { name: 'MCPHub', version: '2.0.0' }
         },
         id: 1
       });
@@ -601,13 +639,55 @@ export const handleMcpPostRequest = async (req: Request, res: Response): Promise
   const body = req.body;
 
   // 기본 요청 정보 로깅
-  if (body && body.method) {
-    console.log(`MCP ${body.method} request`);
+  if (body && (body as any).method) {
+    console.log(`MCP ${(body as any).method} request`);
   }
-  // offerings/list는 항상 직접 처리 (세션 ID 무관)
-  if (body && body.method === 'offerings/list') {
-    console.log('🎯 offerings/list 요청 직접 처리 (MCP 표준)');
-    const mcpResponse = {
+
+  // 초기 협상: offerings/list, capabilities, capabilities/list 직접 처리 (배치 포함)
+  const isNegotiationMethod = (m?: string) => !!m && (
+    m === 'offerings/list' || m === 'capabilities' || m === 'capabilities/list' || m.includes('offerings') || m.includes('capabilities')
+  );
+
+  if (Array.isArray(body)) {
+    try {
+      const methods = body.map((m: any) => m?.method).filter(Boolean);
+      console.log(`🧩 Batch 요청 수신: ${methods.length}개 메서드 ->`, methods);
+    } catch { }
+    const allNegotiation = body.every((msg: any) => isNegotiationMethod(msg?.method));
+    if (allNegotiation) {
+      const responses = body.map((msg: any) => {
+        if (msg.method === 'offerings/list') {
+          return { jsonrpc: '2.0', result: { offerings: { tools: true, prompts: true, resources: false, logging: false } }, id: msg.id };
+        }
+        return {
+          jsonrpc: '2.0',
+          result: {
+            protocolVersion: '2025-06-18',
+            capabilities: { tools: { listChanged: true }, prompts: { listChanged: true }, resources: { listChanged: false, subscribe: false }, logging: {} },
+            serverInfo: { name: 'MCPHub', version: '2.0.0' }
+          },
+          id: msg.id
+        };
+      });
+      res.json(responses);
+      return;
+    }
+  } else if (
+    body &&
+    typeof (body as any).method === 'string' &&
+    isNegotiationMethod((body as any).method)
+  ) {
+    if ((body as any).method === 'offerings/list') {
+      console.log('🎯 offerings/list 요청 직접 처리');
+      res.json({
+        jsonrpc: '2.0',
+        result: { offerings: { tools: true, prompts: true, resources: false, logging: false } },
+        id: (body as any).id
+      });
+      return;
+    }
+    console.log('🎯 capabilities 계열 요청 직접 처리:', (body as any).method);
+    res.json({
       jsonrpc: '2.0',
       result: {
         protocolVersion: '2025-06-18',
@@ -617,16 +697,10 @@ export const handleMcpPostRequest = async (req: Request, res: Response): Promise
           resources: { listChanged: false, subscribe: false },
           logging: {}
         },
-        serverInfo: {
-          name: 'MCPHub',
-          version: '2.0.0'
-        }
+        serverInfo: { name: 'MCPHub', version: '2.0.0' }
       },
-      id: body.id
-    };
-
-    console.log('📤 offerings/list 응답 전송');
-    res.json(mcpResponse);
+      id: (body as any).id
+    });
     return;
   }
 
@@ -672,17 +746,21 @@ export const handleMcpPostRequest = async (req: Request, res: Response): Promise
     return;
   }
 
-  // Cursor IDE 호환: 세션 ID가 없는 경우에만 직접 처리 (테스트/개발용)
-  // 실제 Cursor IDE는 세션 ID를 제공하므로 정상적인 MCP 프로토콜 플로우를 따름
-  if (!sessionId && body && ['tools/list', 'tools/call'].includes(body.method)) {
-    console.log(`🔧 DIRECT: ${body.method} 요청 직접 처리 (세션 ID 없음 - 테스트/개발 모드)`);
+  // Cursor IDE 호환: tools/list, tools/call, prompts/list는 항상 직접 처리 (세션 ID 무관)
+  // transport.handleRequest가 결과를 반환하지 못하는 문제를 우회
+  if (body && ['tools/list', 'tools/call', 'prompts/list'].includes(body.method)) {
+    console.log(`🔧 DIRECT: ${body.method} 요청 직접 처리 (세션: ${sessionId || 'none'})`);
 
     try {
       if (body.method === 'tools/list') {
         // handleListToolsRequest를 직접 호출
         const { handleListToolsRequest } = await import('./mcpService.js');
+        // 업스트림 연결 보장(세션 유지)
+        if (sessionId) {
+          await SessionManager.ensureAllUpstreamConnected(sessionId);
+        }
         const toolsResult = await handleListToolsRequest(body, {
-          sessionId: 'direct-session-' + Date.now(),
+          sessionId: sessionId || 'direct-session-' + Date.now(),
           mcpHubKey: userKey
         }, group, userServiceTokens);
 
@@ -697,11 +775,23 @@ export const handleMcpPostRequest = async (req: Request, res: Response): Promise
         return;
       }
 
+      if (body.method === 'prompts/list') {
+        // 일부 클라이언트는 prompts가 없으면 UI에 "No tools or prompts"를 표시함 → 빈 배열이라도 반환
+        const mcpResponse = {
+          jsonrpc: '2.0',
+          result: { prompts: [] },
+          id: body.id,
+        };
+        console.log('📤 prompts/list 직접 응답 전송 (빈 배열)');
+        res.json(mcpResponse);
+        return;
+      }
+
       if (body.method === 'tools/call') {
         // handleCallToolRequest를 직접 호출
         const { handleCallToolRequest } = await import('./mcpService.js');
         const callResult = await handleCallToolRequest(body, {
-          sessionId: 'direct-session-' + Date.now(),
+          sessionId: sessionId || 'direct-session-' + Date.now(),
           mcpHubKey: userKey
         }, group, userServiceTokens);
 
@@ -788,6 +878,8 @@ export const handleMcpPostRequest = async (req: Request, res: Response): Promise
         }, HEARTBEAT_INTERVAL);
 
         transports.streamable[sessionId] = transportInfo;
+        // 세션 매니저에 등록
+        SessionManager.getOrCreateCursorSession(sessionId, group, userServiceTokens);
         console.log(`Session created: ${sessionId}`);
       },
     });
@@ -851,20 +943,21 @@ export const handleMcpPostRequest = async (req: Request, res: Response): Promise
     transports.streamable[transport.sessionId].lastActivityTime = Date.now();
   }
 
-  // offerings/list 요청 직접 처리 (Cursor IDE 호환성)
-  if (req.body && req.body.method === 'offerings/list') {
-    res.json({
-      jsonrpc: '2.0',
-      result: {
-        offerings: {
-          tools: true,
-          prompts: true,
-          resources: false,
-          logging: false
-        }
-      },
-      id: req.body.id
-    });
+  // offerings/list 또는 capabilities 계열 직접 처리 (보강)
+  if (req.body && (req.body.method === 'offerings/list' || req.body.method === 'capabilities' || req.body.method === 'capabilities/list')) {
+    if (req.body.method === 'offerings/list') {
+      res.json({ jsonrpc: '2.0', result: { offerings: { tools: true, prompts: true, resources: false, logging: false } }, id: req.body.id });
+    } else {
+      res.json({
+        jsonrpc: '2.0',
+        result: {
+          protocolVersion: '2025-06-18',
+          capabilities: { tools: { listChanged: true }, prompts: { listChanged: true }, resources: { listChanged: false, subscribe: false }, logging: {} },
+          serverInfo: { name: 'MCPHub', version: '2.0.0' }
+        },
+        id: req.body.id
+      });
+    }
     return;
   }
 
@@ -877,64 +970,95 @@ export const handleMcpPostRequest = async (req: Request, res: Response): Promise
   res.setHeader('Connection', 'keep-alive');
   res.setHeader('Keep-Alive', 'timeout=60, max=1000');
 
-  // Transport 레벨에서 offerings/list 요청 가로채기
-  if (req.body && req.body.method === 'offerings/list') {
-    console.log('🎯 Transport Level: offerings/list 요청 가로채기');
-    res.json({
-      jsonrpc: '2.0',
-      result: {
-        offerings: {
-          tools: true,
-          prompts: true,
-          resources: false,
-          logging: false
-        }
-      },
-      id: req.body.id
-    });
+  // Transport 레벨에서 초기 협상 가로채기
+  if (req.body && (req.body.method === 'offerings/list' || req.body.method === 'capabilities' || req.body.method === 'capabilities/list')) {
+    console.log('🎯 Transport Level: 초기 협상 요청 가로채기 -', req.body.method);
+    if (req.body.method === 'offerings/list') {
+      res.json({ jsonrpc: '2.0', result: { offerings: { tools: true, prompts: true, resources: false, logging: false } }, id: req.body.id });
+    } else {
+      res.json({
+        jsonrpc: '2.0',
+        result: {
+          protocolVersion: '2025-06-18',
+          capabilities: { tools: { listChanged: true }, prompts: { listChanged: true }, resources: { listChanged: false, subscribe: false }, logging: {} },
+          serverInfo: { name: 'MCPHub', version: '2.0.0' }
+        },
+        id: req.body.id
+      });
+    }
     return;
   }
 
-  // offerings/list 요청을 transport.handleRequest 전에 최종 인터셉트
-  if (req.body && req.body.method === 'offerings/list') {
-    console.log('🎯 FINAL INTERCEPT: offerings/list 요청 최종 인터셉트');
-    res.json({
-      jsonrpc: '2.0',
-      result: {
-        offerings: {
-          tools: true,
-          prompts: true,
-          resources: false,
-          logging: false
-        }
-      },
-      id: req.body.id
-    });
+  // transport.handleRequest 전에 최종 인터셉트
+  if (req.body && (req.body.method === 'offerings/list' || req.body.method === 'capabilities' || req.body.method === 'capabilities/list')) {
+    console.log('🎯 FINAL INTERCEPT: 초기 협상 최종 인터셉트 -', req.body.method);
+    if (req.body.method === 'offerings/list') {
+      res.json({ jsonrpc: '2.0', result: { offerings: { tools: true, prompts: true, resources: false, logging: false } }, id: req.body.id });
+    } else {
+      res.json({
+        jsonrpc: '2.0',
+        result: {
+          protocolVersion: '2025-06-18',
+          capabilities: { tools: { listChanged: true }, prompts: { listChanged: true }, resources: { listChanged: false, subscribe: false }, logging: {} },
+          serverInfo: { name: 'MCPHub', version: '2.0.0' }
+        },
+        id: req.body.id
+      });
+    }
     return;
   }
 
-  // 전송 계층을 통해 요청 처리
+  // 전송 계층을 통해 요청 처리 (모든 메시지 로깅 강화)
   try {
+    // Transport의 모든 메시지 핸들링을 가로채서 로깅
+    const originalOnMessage = (transport as any).onmessage || (transport as any).onMessage;
+    if (originalOnMessage && typeof originalOnMessage === 'function') {
+      (transport as any).onmessage = (message: any) => {
+        console.log('🔍 STREAMABLE TRANSPORT MESSAGE:', JSON.stringify(message, null, 2));
+        if (message && message.method && (message.method.includes('offerings') || message.method.includes('capabilities'))) {
+          console.log('🎯 TRANSPORT: 초기 협상 메시지 직접 감지!', message.method);
+          // 직접 응답 시도
+          if (message.method === 'offerings/list') {
+            return { jsonrpc: '2.0', result: { offerings: { tools: true, prompts: true, resources: false, logging: false } }, id: message.id };
+          }
+          return {
+            jsonrpc: '2.0',
+            result: {
+              protocolVersion: '2025-06-18',
+              capabilities: { tools: { listChanged: true }, prompts: { listChanged: true }, resources: { listChanged: false, subscribe: false }, logging: {} },
+              serverInfo: { name: 'MCPHub', version: '2.0.0' }
+            },
+            id: message.id
+          };
+        }
+        return originalOnMessage.call(transport, message);
+      };
+    }
+
     await transport.handleRequest(req, res, req.body);
   } catch (error: any) {
     console.log('❌ Transport handleRequest 에러:', error.message);
 
-    // offerings/list 메서드 에러인 경우 직접 처리
-    if (req.body && req.body.method === 'offerings/list' && error.message && error.message.includes('Method not found')) {
-      console.log('🎯 CATCH ERROR: offerings/list Method not found 에러 감지, 직접 응답');
-      res.json({
-        jsonrpc: '2.0',
-        result: {
-          offerings: {
-            tools: true,
-            prompts: true,
-            resources: false,
-            logging: false
-          }
-        },
-        id: req.body.id
-      });
-      return;
+    // 초기 협상 메서드 에러인 경우 직접 처리
+    if (req.body && error?.message && error.message.includes('Method not found')) {
+      if (req.body.method === 'offerings/list') {
+        console.log('🎯 CATCH ERROR: offerings/list Method not found → 직접 응답');
+        res.json({ jsonrpc: '2.0', result: { offerings: { tools: true, prompts: true, resources: false, logging: false } }, id: req.body.id });
+        return;
+      }
+      if (req.body.method === 'capabilities' || req.body.method === 'capabilities/list') {
+        console.log('🎯 CATCH ERROR: capabilities 계열 Method not found → 직접 응답');
+        res.json({
+          jsonrpc: '2.0',
+          result: {
+            protocolVersion: '2025-06-18',
+            capabilities: { tools: { listChanged: true }, prompts: { listChanged: true }, resources: { listChanged: false, subscribe: false }, logging: {} },
+            serverInfo: { name: 'MCPHub', version: '2.0.0' }
+          },
+          id: req.body.id
+        });
+        return;
+      }
     }
 
     // 다른 에러는 재발생

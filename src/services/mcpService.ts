@@ -16,6 +16,7 @@ import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js'
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js';
 import { Server } from '@modelcontextprotocol/sdk/server/index.js';
 import { CallToolRequestSchema, ListToolsRequestSchema } from '@modelcontextprotocol/sdk/types.js';
+import { z } from 'zod';
 import { OpenAPIClient } from '../clients/openapi.js';
 import config, { expandEnvVars, loadSettings, replaceEnvVars, saveSettings } from '../config/index.js';
 import { MCPHubKeyService } from '../services/mcpHubKeyService.js';
@@ -2012,6 +2013,67 @@ export const createMcpServer = (name: string, version: string, group?: string, u
     return handleCallToolRequest(request, enhancedExtra, group, userServiceTokens);
   });
 
+  // 비표준/초기 협상 메서드에 대한 안전 가드 (SDK가 -32601 반환하기 전에 처리)
+  try {
+    const anyServer = server as any;
+    if (typeof anyServer.setRequestHandler === 'function') {
+      // Zod 리터럴 스키마로 등록 (SDK는 requestSchema.shape.method.value를 참조함)
+      const JsonRpcIdSchema = z.union([z.string(), z.number()]).optional();
+      const BaseRequestShape = {
+        id: JsonRpcIdSchema,
+        jsonrpc: z.literal('2.0').optional(),
+        params: z.unknown().optional(),
+      } as const;
+
+      const CapabilitiesSchema = z.object({
+        method: z.literal('capabilities'),
+        ...BaseRequestShape,
+      });
+
+      const CapabilitiesListSchema = z.object({
+        method: z.literal('capabilities/list'),
+        ...BaseRequestShape,
+      });
+
+      const OfferingsListSchema = z.object({
+        method: z.literal('offerings/list'),
+        ...BaseRequestShape,
+      });
+
+      anyServer.setRequestHandler(CapabilitiesSchema, async (_req: any, _extra: any) => {
+        return {
+          protocolVersion: '2025-06-18',
+          capabilities: {
+            tools: { listChanged: true },
+            prompts: { listChanged: true },
+            resources: { listChanged: false, subscribe: false },
+            logging: {},
+          },
+          serverInfo: { name: 'MCPHub', version },
+        };
+      });
+
+      anyServer.setRequestHandler(CapabilitiesListSchema, async (_req: any, _extra: any) => {
+        return {
+          protocolVersion: '2025-06-18',
+          capabilities: {
+            tools: { listChanged: true },
+            prompts: { listChanged: true },
+            resources: { listChanged: false, subscribe: false },
+            logging: {},
+          },
+          serverInfo: { name: 'MCPHub', version },
+        };
+      });
+
+      anyServer.setRequestHandler(OfferingsListSchema, async (_req: any, _extra: any) => {
+        return { offerings: { tools: true, prompts: true, resources: false, logging: false } };
+      });
+    }
+  } catch (e) {
+    console.warn('Failed to register compatibility handlers for capabilities/offerings:', e);
+  }
+
   // 모든 요청을 로깅하기 위한 글로벌 핸들러
   const originalConnect = server.connect.bind(server);
   server.connect = async (transport: any) => {
@@ -2021,18 +2083,17 @@ export const createMcpServer = (name: string, version: string, group?: string, u
     const originalHandleMessage = transport.handleMessage;
     if (originalHandleMessage) {
       transport.handleMessage = (message: any) => {
-        if (message && message.method === 'offerings/list') {
-          console.log('Transport level: offerings/list message detected');
-          // 직접 응답 반환
+        if (message && typeof message.method === 'string' && (message.method === 'offerings/list' || message.method === 'capabilities' || message.method === 'capabilities/list' || message.method.includes('offerings') || message.method.includes('capabilities'))) {
+          console.log('Transport level: 초기 협상 메시지 감지:', message.method);
+          if (message.method === 'offerings/list') {
+            return { jsonrpc: '2.0', result: { offerings: { tools: true, prompts: true, resources: false, logging: false } }, id: message.id };
+          }
           return {
             jsonrpc: '2.0',
             result: {
-              offerings: {
-                tools: true,
-                prompts: true,
-                resources: false,
-                logging: false
-              }
+              protocolVersion: '2025-06-18',
+              capabilities: { tools: { listChanged: true }, prompts: { listChanged: true }, resources: { listChanged: false, subscribe: false }, logging: {} },
+              serverInfo: { name: 'MCPHub', version: '2.0.0' }
             },
             id: message.id
           };

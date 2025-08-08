@@ -174,7 +174,7 @@ curl -X POST http://localhost:3000/api/env-vars/cleanup \
 | 문서 | 설명 | 중요도 |
 |------|------|-------|
 | 🎉 **[v2.6.0 릴리즈 노트](docs/release-notes/v2.6.0-session-isolation-2025-08-01.md)** | 최신 릴리즈 상세 정보 | ⭐⭐⭐ |
-| 🚀 **[프론트엔드/백엔드 분리 가이드](docs/frontend-backend-separation-plan.md)** | 아키텍처 분리 완전 가이드 | ⭐⭐⭐ |
+| 🚀 **[Cursor IDE 통합 가이드](docs/cursor-ide-integration.md)** | Cursor에서 "No tools or prompts" 해결 포함 최종 가이드 | ⭐⭐⭐ |
 | 📊 **[프로젝트 현황](docs/mcphub-project-status.md)** | 전체 프로젝트 상태 및 완성도 | ⭐⭐⭐ |
 | ⚡ **[환경변수 시스템](docs/mcphub-env-var-system.md)** | 핵심 자동화 시스템 가이드 | ⭐⭐⭐ |
 
@@ -197,6 +197,10 @@ curl -X POST http://localhost:3000/api/env-vars/cleanup \
 | 🔐 **[OAuth 설정](docs/oauth-setup-guide.md)** | GitHub OAuth 설정 가이드 | 시스템 관리자 |
 | 🏗️ **[설치 가이드](docs/installation.mdx)** | 상세한 설치 및 배포 가이드 | 운영팀 |
 | ⚙️ **[환경 설정](docs/configuration/)** | 각종 설정 파일 관리 | 운영팀 |
+
+### 📝 릴리즈 노트
+
+- 최신: `docs/release-notes/v3.1.1-cursor-compatibility-2025-08-08.md` – Cursor 초기협상 완전 호환
 
 ### 🧪 **테스트 및 품질관리**
 
