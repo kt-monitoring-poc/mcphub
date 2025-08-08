@@ -1,4 +1,5 @@
-import * as IORedis from 'ioredis';
+import { createRequire } from 'module';
+const nodeRequire = createRequire(import.meta.url);
 
 export interface UpstreamSessionKey {
     serverName: string;
@@ -11,7 +12,17 @@ export class RedisSessionStore {
 
     private constructor() {
         const url = process.env.REDIS_URL || 'redis://127.0.0.1:6379';
-        this.client = new (IORedis as any)(url);
+        const ctor = this.getRedisCtor();
+        this.client = new ctor(url);
+    }
+
+    private getRedisCtor(): any {
+        try {
+            const mod: any = nodeRequire('ioredis');
+            return mod?.Redis || mod?.default || mod;
+        } catch (e) {
+            throw new Error('ioredis module not found or incompatible');
+        }
     }
 
     public static getInstance(): RedisSessionStore {
@@ -35,38 +46,38 @@ export class RedisSessionStore {
         await this.client.del(this.keyOf(key));
     }
 
-  private parseKey(redisKey: string): UpstreamSessionKey | null {
-    const parts = redisKey.split(':');
-    if (parts.length < 5) return null;
-    const serverName = parts[3];
-    const contextKey = parts.slice(4).join(':');
-    return { serverName, contextKey };
-  }
+    private parseKey(redisKey: string): UpstreamSessionKey | null {
+        const parts = redisKey.split(':');
+        if (parts.length < 5) return null;
+        const serverName = parts[3];
+        const contextKey = parts.slice(4).join(':');
+        return { serverName, contextKey };
+    }
 
-  async listAll(): Promise<Array<{ serverName: string; contextKey: string; sessionId: string; ttl: number }>> {
-    const results: Array<{ serverName: string; contextKey: string; sessionId: string; ttl: number }> = [];
-    let cursor = '0';
-    do {
-      // SCAN to iterate keys without blocking Redis
-      // eslint-disable-next-line no-await-in-loop
-      const reply = await this.client.scan(cursor, 'MATCH', 'mcp:upstream:session:*', 'COUNT', 100);
-      cursor = reply[0];
-      const keys: string[] = reply[1] || [];
-      if (keys.length === 0) continue;
-      // eslint-disable-next-line no-await-in-loop
-      const values = await this.client.mget(keys);
-      // eslint-disable-next-line no-await-in-loop
-      const ttls = await Promise.all(keys.map((k) => this.client.ttl(k)));
-      keys.forEach((k, idx) => {
-        const meta = this.parseKey(k);
-        if (!meta) return;
-        const sessionId = values[idx] || '';
-        const ttl = ttls[idx] ?? -1;
-        results.push({ serverName: meta.serverName, contextKey: meta.contextKey, sessionId, ttl });
-      });
-    } while (cursor !== '0');
-    return results;
-  }
+    async listAll(): Promise<Array<{ serverName: string; contextKey: string; sessionId: string; ttl: number }>> {
+        const results: Array<{ serverName: string; contextKey: string; sessionId: string; ttl: number }> = [];
+        let cursor = '0';
+        do {
+            // SCAN to iterate keys without blocking Redis
+            // eslint-disable-next-line no-await-in-loop
+            const reply = await this.client.scan(cursor, 'MATCH', 'mcp:upstream:session:*', 'COUNT', 100);
+            cursor = reply[0];
+            const keys: string[] = reply[1] || [];
+            if (keys.length === 0) continue;
+            // eslint-disable-next-line no-await-in-loop
+            const values = await this.client.mget(keys);
+            // eslint-disable-next-line no-await-in-loop
+            const ttls = await Promise.all(keys.map((k) => this.client.ttl(k)));
+            keys.forEach((k, idx) => {
+                const meta = this.parseKey(k);
+                if (!meta) return;
+                const sessionId = values[idx] || '';
+                const ttl = ttls[idx] ?? -1;
+                results.push({ serverName: meta.serverName, contextKey: meta.contextKey, sessionId, ttl });
+            });
+        } while (cursor !== '0');
+        return results;
+    }
 }
 
 export default RedisSessionStore;

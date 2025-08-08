@@ -17,7 +17,6 @@ import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/
 import { Server } from '@modelcontextprotocol/sdk/server/index.js';
 import { CallToolRequestSchema, ListToolsRequestSchema } from '@modelcontextprotocol/sdk/types.js';
 import { z } from 'zod';
-import RedisSessionStore from './redisSessionStore.js';
 import { OpenAPIClient } from '../clients/openapi.js';
 import config, { expandEnvVars, loadSettings, replaceEnvVars, saveSettings } from '../config/index.js';
 import { MCPHubKeyService } from '../services/mcpHubKeyService.js';
@@ -25,6 +24,7 @@ import { ServerConfig, ServerInfo, ToolInfo } from '../types/index.js';
 import { DEBUG_MODE, DebugLogger } from '../utils/debugLogger.js';
 import { upstreamContextPropagator } from '../utils/upstreamContext.js';
 import { extractUserEnvVars } from '../utils/variableDetection.js';
+import RedisSessionStore from './redisSessionStore.js';
 import { getGroup } from './sseService.js';
 import { UserGroupService } from './userGroupService.js';
 import { saveToolsAsVectorEmbeddings, searchToolsByVector } from './vectorSearchService.js';
@@ -192,7 +192,8 @@ const createTransportFromConfig = (
   name: string,
   conf: ServerConfig,
   userApiKeys?: Record<string, string>,
-  userContext?: { userId: string; userSessionId: string; mcpHubSessionId: string; requestId: string }
+  userContext?: { userId: string; userSessionId: string; mcpHubSessionId: string; requestId: string },
+  savedSessionId?: string
 ): any => {
   const requestId = userContext?.requestId || 'unknown';
   let transport;
@@ -251,8 +252,11 @@ const createTransportFromConfig = (
       }
     }
 
-    // Redis에 저장된 업스트림 세션이 있으면 사용 (비동기 호출 지양: 상위 호출부에서 await 처리 불가한 구간)
-    // 이 구간에서는 동기적으로 설정 불가 → ensureServerConnected에서 세션 저장/재사용을 처리
+    // 사전에 저장된 업스트림 세션이 있으면 주입
+    if (savedSessionId) {
+      (options as any).sessionId = savedSessionId;
+      console.log(`♻️ 재사용 업스트림 세션 주입 (${name}): ${savedSessionId}`);
+    }
 
     transport = new StreamableHTTPClientTransport(new URL(conf.url || ''), options);
   } else if (conf.type === 'stdio' && conf.command && conf.args) {
@@ -615,8 +619,29 @@ export const ensureServerConnected = async (
       // 사용자 API Keys를 적용한 설정 생성
       const configWithKeys = applyUserApiKeysToConfig(serverConfig, userApiKeys);
 
-      // Transport 생성 (사용자 컨텍스트 포함)
-      const transport = createTransportFromConfig(serverName, configWithKeys, userApiKeys, userContext);
+      // Transport 생성 (사용자 컨텍스트 포함). Redis에 저장된 세션이 있으면 주입
+      let savedSessionId: string | undefined;
+      try {
+        const store = RedisSessionStore.getInstance();
+        const contextKey = userApiKeys && Object.keys(userApiKeys).length > 0
+          ? 'tok:' + Object.keys(userApiKeys).sort().join('|')
+          : 'shared';
+        const loaded = await store.getSessionId({ serverName: serverName, contextKey });
+        savedSessionId = loaded === null ? undefined : loaded;
+        if (savedSessionId) {
+          console.log(`♻️ 업스트림 세션 재사용 준비 (${serverName}/${contextKey}): ${savedSessionId}`);
+        }
+      } catch (e) {
+        console.warn('RedisSessionStore lookup failed (non-fatal):', e);
+      }
+
+      const transport = createTransportFromConfig(serverName, configWithKeys, userApiKeys, userContext, savedSessionId);
+      try {
+        const preSessionId = (transport as any).sessionId as string | undefined;
+        if (preSessionId) {
+          console.log(`📨 업스트림 요청에 세션 적용(${serverName}): ${preSessionId}`);
+        }
+      } catch { }
 
       const client = new Client(
         {
@@ -652,12 +677,49 @@ export const ensureServerConnected = async (
           transport: transport.constructor.name,
           url: serverConfig.url?.replace(/[A-Za-z0-9_-]{20,}/, '***')
         });
-        return false;
+
+        // 세션 무효화 후 1회 재연결 시도 (HTTP 40x 등 세션 만료 추정)
+        const msg: string = (error?.message || '').toString();
+        const shouldRetry = savedSessionId && /HTTP 40\d/.test(msg);
+        if (shouldRetry) {
+          try {
+            const store = RedisSessionStore.getInstance();
+            const contextKey = userApiKeys && Object.keys(userApiKeys).length > 0
+              ? 'tok:' + Object.keys(userApiKeys).sort().join('|')
+              : 'shared';
+            await store.deleteSessionId({ serverName, contextKey });
+            console.warn(`♻️ 세션 무효화 및 재연결 시도 (${serverName}/${contextKey}): ${savedSessionId}`);
+
+            const retryTransport = createTransportFromConfig(serverName, configWithKeys, userApiKeys, userContext, undefined);
+            const retryClient = new Client(
+              { name: `mcp-client-${serverName}`, version: '1.0.0' },
+              {
+                capabilities: { prompts: {}, resources: {}, tools: {}, logging: {}, roots: { listChanged: false } },
+              },
+            );
+            const retryPromise = retryClient.connect(retryTransport);
+            await Promise.race([retryPromise, timeoutPromise]);
+            console.log(`✅ ${serverName} 서버 재연결 성공 (세션 재발급)`);
+            // 재시도용 객체로 교체
+            (serverInfo as any); // noop to satisfy TS if needed
+            // 이후 listTools에서 세션 저장 로직 동일 적용되도록 아래로 진행
+            (client as any) = retryClient;
+            (transport as any) = retryTransport;
+          } catch (retryErr) {
+            console.error(`❌ ${serverName} 서버 재연결 실패:`, retryErr);
+            return false;
+          }
+        } else {
+          return false;
+        }
       }
 
       // 초기화 응답에서 세션 헤더 수집 후 Redis에 보관 (StreamableHTTPClientTransport가 sessionId 보관)
       try {
         const sessionId = (transport as any).sessionId as string | undefined;
+        if (sessionId) {
+          console.log(`🪪 서버 세션 확인(${serverName}): ${sessionId}`);
+        }
         if (sessionId) {
           const store = RedisSessionStore.getInstance();
           const contextKey = userApiKeys && Object.keys(userApiKeys).length > 0
@@ -680,9 +742,43 @@ export const ensureServerConnected = async (
       let tools;
       try {
         tools = await Promise.race([toolsPromise, toolsTimeoutPromise]);
-      } catch (error) {
+      } catch (error: any) {
         console.error(`❌ ${serverName} 도구 목록 가져오기 실패:`, error);
-        return false;
+
+        // 세션 무효화 후 1회 재시도 (HTTP 40x)
+        const msg: string = (error?.message || '').toString();
+        const shouldRetry = savedSessionId && /HTTP 40\d/.test(msg);
+        if (shouldRetry) {
+          try {
+            const store = RedisSessionStore.getInstance();
+            const contextKey = userApiKeys && Object.keys(userApiKeys).length > 0
+              ? 'tok:' + Object.keys(userApiKeys).sort().join('|')
+              : 'shared';
+            await store.deleteSessionId({ serverName, contextKey });
+            console.warn(`♻️ 세션 무효화 및 tools/list 재시도 (${serverName}/${contextKey}): ${savedSessionId}`);
+
+            const retryTransport = createTransportFromConfig(serverName, configWithKeys, userApiKeys, userContext, undefined);
+            const retryClient = new Client(
+              { name: `mcp-client-${serverName}`, version: '1.0.0' },
+              { capabilities: { prompts: {}, resources: {}, tools: {}, logging: {}, roots: { listChanged: false } } },
+            );
+            await retryClient.connect(retryTransport);
+            const retryTools = await retryClient.listTools();
+            // 교체가 필요하나 상위 스코프 const로 선언된 경우, 반환 전에 기존 serverInfo 갱신만 수행
+            const existing = serverInfos.find(info => info.name === serverName);
+            if (existing) {
+              existing.client = retryClient;
+              existing.transport = retryTransport as any;
+            }
+            tools = retryTools;
+            console.log(`✅ ${serverName} 도구 목록 재시도 성공`);
+          } catch (retryErr) {
+            console.error(`❌ ${serverName} 도구 목록 재시도 실패:`, retryErr);
+            return false;
+          }
+        } else {
+          return false;
+        }
       }
       const toolsList: ToolInfo[] = tools.tools?.map(tool => ({
         name: tool.name, // 원본 이름 그대로 사용 (접두사 제거)

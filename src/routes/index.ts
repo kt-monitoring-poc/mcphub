@@ -11,8 +11,8 @@ import {
   toggleUserActive,
   toggleUserAdmin
 } from '../controllers/adminController.js';
+import { deleteUpstreamSession, listUpstreamSessions } from '../controllers/adminUpstreamSessionsController.js';
 import userGroupRoutes from './userGroupRoutes.js';
-import { listUpstreamSessions, deleteUpstreamSession } from '../controllers/adminUpstreamSessionsController.js';
 
 import {
   getPublicConfig,
