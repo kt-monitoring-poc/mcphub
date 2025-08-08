@@ -66,8 +66,14 @@ curl -sS -X POST http://localhost:3000/mcp \
 - `redis-cli GET mcp:upstream:session:<server>:<contextKey>`
 
 ### 향후 확장
-- 초기 연결 전 Redis에서 세션 로드 후 `StreamableHTTPClientTransport` 생성 시 `sessionId` 옵션 주입
-- 404/400 응답 시 세션 삭제 및 재시도 정책
-- 세션 메트릭/관리 API 제공 (조회/삭제/TTL 갱신)
+ - 초기 연결 전 Redis에서 세션 로드 후 `StreamableHTTPClientTransport` 생성 시 `sessionId` 옵션 주입 (적용됨)
+ - 404/400 응답 시 세션 삭제 및 재시도 정책 (다음 단계)
+ - 세션 메트릭/관리 API 제공 (조회/삭제/TTL 갱신) (일부 적용)
+
+### 관리 API
+- `GET /api/admin/upstream-sessions`
+  - 반환: `[ { serverName, contextKey, sessionId, ttl } ]`
+- `DELETE /api/admin/upstream-sessions/:serverName/:contextKey`
+  - 특정 세션 삭제 (다음 요청에서 재수립)
 
 

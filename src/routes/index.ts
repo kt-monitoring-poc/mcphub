@@ -12,6 +12,7 @@ import {
   toggleUserAdmin
 } from '../controllers/adminController.js';
 import userGroupRoutes from './userGroupRoutes.js';
+import { listUpstreamSessions, deleteUpstreamSession } from '../controllers/adminUpstreamSessionsController.js';
 
 import {
   getPublicConfig,
@@ -323,6 +324,9 @@ export const initRoutes = (app: express.Application): void => {
   router.get('/admin/stats', requireAuth, requireAdmin, getSystemStats);
   router.get('/admin/activities', requireAuth, requireAdmin, getRecentActivities);
   router.get('/admin/user-keys', requireAuth, requireAdmin, getUserKeyStatus);
+  // 업스트림 세션 관리
+  router.get('/admin/upstream-sessions', requireAuth, requireAdmin, listUpstreamSessions);
+  router.delete('/admin/upstream-sessions/:serverName/:contextKey', requireAuth, requireAdmin, deleteUpstreamSession);
 
   // 사용자 관리 API 추가
   router.get('/admin/users', async (req, res) => {
