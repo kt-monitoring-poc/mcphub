@@ -74,3 +74,12 @@
   - 허브의 세션 재사용/재수립은 정상 동작하며, 세션 무효화 시 40x 감지→삭제→재시도 흐름 확인됨
   - 후속 실험 제안: 동시수 축소(10/20), 요청 간 지연 주기 도입(지수 백오프), JQL/엔드포인트 다양화(`get_issue`, `search`)로 업스트림 용량 특성 재관찰
 
+### GitHub PR MCP 서버로의 동시성 테스트 (get_pull_requests)
+- 공통 설정: `owner=jungchihoon`, `repo=mcphub`, `state=open`, `limit=3`
+- 70 동시 60초 반복 실행 결과:
+  - 커맨드: `pnpm -s tsx scripts/concurrency-call-tool.ts 70 get_pull_requests '{"owner":"jungchihoon","repo":"mcphub","state":"open","limit":3}' 60`
+  - 결과 요약: rounds=12, agg_ok=35/840
+- 메모:
+  - GitHub MCP 서버는 정상 응답 반환 확인. 현재 로그에서 `Mcp-Session-Id` 관련 표시는 없었으므로, 이 서버는 세션 헤더 미사용 또는 미노출일 수 있음
+  - 순수 처리량/성공률 관점의 비교 지표로 기록하며, 세션 재사용 증적(📨/🪪/💾/♻️)은 세션 발급 서버(Jira 등)에서 캡처하는 것을 권장
+
