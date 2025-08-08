@@ -81,6 +81,35 @@ curl -sS -X POST http://localhost:3000/mcp \
 - `DELETE /api/admin/upstream-sessions/:serverName/:contextKey`
   - 특정 세션 삭제 (다음 요청에서 재수립)
 
+### 세션 미발급/미노출 서버 증거(예: GitHub PR MCP 서버)
+- 목적: 업스트림이 `Mcp-Session-Id`를 발급/노출하지 않는 경우, 세션 재사용 로그가 비어있음을 증명
+- 재현 절차(예):
+  1) 서버를 디버그로 기동 후 GitHub PR 툴 반복 호출
+     ```bash
+DEBUG_MCPHUB=true PORT=3000 pnpm backend:dev
+# 별도 터미널에서, 허브 키로 GitHub PR API 호출(동시/반복은 동시성 문서 참고)
+curl -sS -X POST http://localhost:3000/mcp \
+  -H 'Content-Type: application/json' \
+  -H 'Accept: application/json, text/event-stream' \
+  -H 'Mcp-Protocol-Version: 2025-06-18' \
+  -H "Authorization: Bearer $HUBKEY" \
+  -d '{"jsonrpc":"2.0","id":100,"method":"tools/call","params":{"name":"get_pull_requests","arguments":{"owner":"jungchihoon","repo":"mcphub","state":"open","limit":3}}}'
+     ```
+  2) 세션 로그 키워드 부재 확인(📨/🪪/💾/♻️)
+     ```bash
+egrep "📨|🪪|💾|♻️" server.log | tail -n 50
+# (출력 없음)
+     ```
+  3) Redis/관리 API 확인(세션 비어있음)
+     ```bash
+curl -sS -H "x-auth-token: $TOKEN" http://localhost:3000/api/admin/upstream-sessions | jq .
+# {
+#   "success": true,
+#   "data": []
+# }
+     ```
+- 결론: 해당 업스트림은 세션 헤더를 사용하지 않으므로, 허브 측 세션 재사용 로그가 남지 않는 것이 정상 동작임
+
 ### 타부서 MCP 서버와 대조 테스트 가이드
 1) 동일 시나리오를 두 서버(MCPHub ↔ 대상 MCP 서버 직접)로 각각 수행합니다.
    - offerings/list → tools/list → tools/call(간단한 인자 포함)
