@@ -18,8 +18,17 @@ Client₃ ┘     ↑ 저장/재사용      ↑ 메모리 절약
 - **업스트림 세션**: MCP 서버가 제공하는 `Mcp-Session-Id`를 Redis에 저장하여 재사용
 - **목표**: 70명의 동시 사용자가 하나의 업스트림 세션을 공유하여 MCP 서버 리소스 최적화
 
+## 🔧 MCP 세션 기본 개념
+
+### MCP 프로토콜 세션 처리 원칙
+Model Context Protocol (MCP)는 **세션 기반 프로토콜**입니다:
+
+1. **세션 기반 처리**: 클라이언트가 아닌 **세션 기준**으로 프로토콜 처리
+2. **세션 독립성**: 동일 클라이언트도 세션이 다르면 완전 독립 동작
+3. **헤더 기반 식별**: `Mcp-Session-Id` 헤더로 세션 식별
+
 ### 기술적 세부사항
-- 헤더: `Mcp-Session-Id`
+- **헤더**: `Mcp-Session-Id`
   - 초기화 응답 시 서버가 할당할 수 있음 → 이후 요청에 반드시 포함
   - 서버가 404 반환 시 세션 재수립 필요
 - 컨텍스트 키(contextKey)
@@ -96,6 +105,13 @@ curl -sS -X POST http://localhost:3000/mcp \
   - 반환: `[ { serverName, contextKey, sessionId, ttl } ]`
 - `DELETE /api/admin/upstream-sessions/:serverName/:contextKey`
   - 특정 세션 삭제 (다음 요청에서 재수립)
+
+## 📚 관련 문서 및 참조
+
+### MCPHub 문서
+- [MCP 프로토콜 사양서](https://modelcontextprotocol.io/docs/specification)
+- [MCPHub 아키텍처 가이드](./mcphub-project-status.md)
+- [API 참조 문서](../references/api-reference.md)
 
 ### 세션 미발급/미노출 서버 증거(예: GitHub PR MCP 서버)
 - 목적: 업스트림이 `Mcp-Session-Id`를 발급/노출하지 않는 경우, 세션 재사용 로그가 비어있음을 증명
