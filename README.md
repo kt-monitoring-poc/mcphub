@@ -10,7 +10,7 @@
 [![PostgreSQL](https://img.shields.io/badge/postgresql-%3E%3D14.0.0-blue.svg)](https://postgresql.org/)
 [![MCP Protocol](https://img.shields.io/badge/MCP_Protocol-2025--06--18-brightgreen.svg)](https://modelcontextprotocol.io/)
 
-[빠른 시작](#-빠른-시작) • [v3.0 새 기능](#-v30-새로운-기능) • [문서](#-문서-가이드) • [기능](#-핵심-기능) • [API](#-api-문서) • [기여하기](#-기여하기)
+[빠른 시작](#-빠른-시작) • [v3.0 새 기능](#-v30-새로운-기능) • [문서](#-문서-가이드) • [기능](#-핵심-기능) • [API](#-api-문서) • [브랜치 히스토리](BRANCH_HISTORY.md) • [기여하기](#-기여하기)
 
 </div>
 
@@ -408,10 +408,11 @@ frontend/src/
 - **이슈 트래커**: [GitHub Issues](https://github.com/jungchihoon/mcphub/issues)
 - **릴리즈**: [GitHub Releases](https://github.com/jungchihoon/mcphub/releases)
 
-### **문서**
+### **문서 & 개발**
 - **전체 문서**: [docs/](docs/)
-- **API 참조**: [docs/api-reference.md](docs/api-reference.md)
+- **API 참조**: [docs/references/api-reference.md](docs/references/api-reference.md)
 - **설치 가이드**: [docs/installation.mdx](docs/installation.mdx)
+- **브랜치 히스토리**: [BRANCH_HISTORY.md](BRANCH_HISTORY.md) 🆕
 
 ---
 
