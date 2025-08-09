@@ -34,6 +34,11 @@
       "headers": {
         "Authorization": "Bearer ${GITHUB_TOKEN}"
       }
+    },
+    "local-fastmcp-session": {
+      "type": "streamable-http",
+      "url": "http://127.0.0.1:8124/mcp/",
+      "enabled": true
     }
   }
 }

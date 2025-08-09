@@ -21,8 +21,9 @@
 - Cursor 통합 가이드: `docs/cursor-ide-integration.md`
 - 오퍼링/네고시에이션 호환성 개선 노트: `docs/release-notes/v3.1.1-cursor-compatibility-2025-08-08.md`
 
-### 트러블슈팅
+### 트러블슈팅 & 최적화
 - 서버 데드락 문제 해결: `docs/troubleshooting/cursor-deadlock-fix-2025-08-09.md`
+- 타임아웃 설정 최적화: `docs/timeout-optimization-2025-08-09.md`
 
 ### 세션/동시성
 - 업스트림 세션 저장소(REDIS): `docs/upstream-session-store.md`

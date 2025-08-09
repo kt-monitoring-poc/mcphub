@@ -232,9 +232,9 @@ export class AppServer {
     // HTTP/1.1 서버 생성 (SSE 호환성을 위해)
     const server = http.createServer(this.app);
 
-    // Keep-alive 설정
-    server.keepAliveTimeout = 65000; // 65초
-    server.headersTimeout = 66000;   // keepAliveTimeout보다 약간 크게
+    // Keep-alive 설정 - 개발 도구 특성을 고려한 관대한 설정
+    server.keepAliveTimeout = 180000; // 3분 (업계 표준보다 관대)
+    server.headersTimeout = 181000;   // keepAliveTimeout보다 약간 크게
 
     server.listen(this.port, () => {
       console.log(`\n🚀 MCPHub Server is running on port ${this.port} (HTTP/1.1)`);

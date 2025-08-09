@@ -171,7 +171,7 @@ export const createServer = async (req: Request, res: Response): Promise<void> =
 
     // SSE 서버에 대한 기본 keep-alive 간격 설정
     if ((config.type === 'sse' || (!config.type && config.url)) && !config.keepAliveInterval) {
-      config.keepAliveInterval = 60000; // 기본값 60초
+      config.keepAliveInterval = 120000; // 기본값 2분 (관대한 설정)
     }
 
     const result = await addServer(name, config);
@@ -350,7 +350,7 @@ export const updateServer = async (req: Request, res: Response): Promise<void> =
 
     // SSE 서버에 대한 기본 keep-alive 간격 설정
     if ((config.type === 'sse' || (!config.type && config.url)) && !config.keepAliveInterval) {
-      config.keepAliveInterval = 60000; // 기본값 60초
+      config.keepAliveInterval = 120000; // 기본값 2분 (관대한 설정)
     }
 
     const result = await addOrUpdateServer(name, config, true); // 업데이트를 위해 덮어쓰기 허용

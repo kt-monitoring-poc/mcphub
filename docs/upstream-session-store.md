@@ -110,6 +110,54 @@ curl -sS -H "x-auth-token: $TOKEN" http://localhost:3000/api/admin/upstream-sess
      ```
 - 결론: 해당 업스트림은 세션 헤더를 사용하지 않으므로, 허브 측 세션 재사용 로그가 남지 않는 것이 정상 동작임
 
+### 로컬 세션 테스트 서버(get_session_id)로 세션 재사용 증적 확보
+- 목적: Streamable HTTP 응답 헤더 `Mcp-Session-Id`를 제공하는 샘플 서버와 허브 연동 후, 동일 세션 재사용(📨/🪪/💾)을 검증
+- 샘플 서버 경로: `servers/fastmcp-session-test/server.js`
+- 기동
+  ```bash
+node servers/fastmcp-session-test/server.js > /tmp/local_fastmcp.log 2>&1 &
+sleep 1
+curl -sS -X POST http://127.0.0.1:8124/mcp/ \
+  -H 'Content-Type: application/json' \
+  -H 'Accept: text/event-stream' \
+  -d '{"jsonrpc":"2.0","id":1,"method":"tools/list","params":{}}' -D - | \
+  awk 'tolower($0) ~ /mcp-session-id/ {print}'
+# 기대: Mcp-Session-Id: sess-local-12345
+  ```
+- 허브 재기동 및 도구 확인
+  ```bash
+DEBUG_MCPHUB=true PORT=3000 pnpm -s backend:dev > /tmp/mcphub_debug.log 2>&1 &
+sleep 4
+HUBKEY=mcphub_... # (또는 /api/auth/login → /api/oauth/keys → full-value 순서로 획득)
+curl -sS -X POST http://localhost:3000/mcp \
+  -H 'Content-Type: application/json' \
+  -H 'Accept: application/json, text/event-stream' \
+  -H 'Mcp-Protocol-Version: 2025-06-18' \
+  -H "Authorization: Bearer $HUBKEY" \
+  -d '{"jsonrpc":"2.0","id":101,"method":"tools/list","params":{}}' | \
+  jq -r '.result.tools[]?.name' | grep get_session_id
+# 기대: get_session_id
+  ```
+- 반복 호출 및 로그 확인
+  ```bash
+for i in 1 2 3; do
+  curl -sS -X POST http://localhost:3000/mcp \
+    -H 'Content-Type: application/json' \
+    -H 'Accept: application/json, text/event-stream' \
+    -H 'Mcp-Protocol-Version: 2025-06-18' \
+    -H "Authorization: Bearer $HUBKEY" \
+    -d '{"jsonrpc":"2.0","id":400,"method":"tools/call","params":{"name":"get_session_id","arguments":{}}}'; echo; done
+
+egrep "📨|🪪|💾|♻️" /tmp/mcphub_debug.log | tail -n 80
+# 기대 로그 예시:
+# 🪪 서버 세션 확인(local-fastmcp-session): sess-local-12345
+# 💾 업스트림 세션 저장 (local-fastmcp-session/shared): sess-local-12345
+# 📨 재사용 업스트림 세션 주입 (local-fastmcp-session): sess-local-12345
+  ```
+- 문제 해결 팁
+  - tools/call이 지연되면 허브 구동 직후 도구 임베딩/연결 재구성 중일 수 있음 → 수 초 후 재시도
+  - 샘플 서버는 SSE 응답을 사용하므로 `Accept: text/event-stream` 포함 권장
+
 ### 타부서 MCP 서버와 대조 테스트 가이드
 1) 동일 시나리오를 두 서버(MCPHub ↔ 대상 MCP 서버 직접)로 각각 수행합니다.
    - offerings/list → tools/list → tools/call(간단한 인자 포함)

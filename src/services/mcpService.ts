@@ -664,7 +664,7 @@ export const ensureServerConnected = async (
       // 타임아웃과 함께 연결 시도
       const connectPromise = client.connect(transport);
       const timeoutPromise = new Promise<never>((_, reject) =>
-        setTimeout(() => reject(new Error('Connection timeout')), 30000) // 30초 타임아웃 (Firecrawl은 느릴 수 있음)
+        setTimeout(() => reject(new Error('Connection timeout')), 60000) // 1분 타임아웃 (업스트림 서버 안정성 고려)
       );
 
       try {
@@ -736,7 +736,7 @@ export const ensureServerConnected = async (
       console.log(`📋 ${serverName} 도구 목록 가져오는 중...`);
       const toolsPromise = client.listTools();
       const toolsTimeoutPromise = new Promise<never>((_, reject) =>
-        setTimeout(() => reject(new Error('Tools listing timeout')), 30000) // 30초 타임아웃
+        setTimeout(() => reject(new Error('Tools listing timeout')), 60000) // 1분 타임아웃 (도구 로딩 여유시간)
       );
 
       let tools;
@@ -1076,7 +1076,7 @@ export const initializeClientsFromSettings = async (isInit: boolean): Promise<Se
     // Get request options from server configuration, with fallbacks
     const serverRequestOptions = conf.options || {};
     const requestOptions = {
-      timeout: serverRequestOptions.timeout || 60000,
+      timeout: serverRequestOptions.timeout || 120000, // 2분으로 연장 (도구 호출 여유시간)
       resetTimeoutOnProgress: serverRequestOptions.resetTimeoutOnProgress || false,
       maxTotalTimeout: serverRequestOptions.maxTotalTimeout,
     };

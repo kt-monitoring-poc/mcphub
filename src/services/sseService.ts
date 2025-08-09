@@ -48,9 +48,9 @@ const transports: {
   sse: {}
 };
 
-// 상수 정의
-const HEARTBEAT_INTERVAL = 30000; // 30초
-const INACTIVITY_TIMEOUT = 120000; // 2분
+// 상수 정의 - 개발 작업 특성을 고려한 관대한 설정
+const HEARTBEAT_INTERVAL = 60000; // 1분 (업계 표준)
+const INACTIVITY_TIMEOUT = 900000; // 15분 (개발 작업 고려)
 
 /**
  * 세션 상태 모니터링 및 정리
@@ -968,7 +968,7 @@ export const handleMcpPostRequest = async (req: Request, res: Response): Promise
 
   // Keep-Alive 응답 헤더 설정
   res.setHeader('Connection', 'keep-alive');
-  res.setHeader('Keep-Alive', 'timeout=60, max=1000');
+  res.setHeader('Keep-Alive', 'timeout=120, max=1000'); // 2분으로 연장
 
   // Transport 레벨에서 초기 협상 가로채기
   if (req.body && (req.body.method === 'offerings/list' || req.body.method === 'capabilities' || req.body.method === 'capabilities/list')) {
