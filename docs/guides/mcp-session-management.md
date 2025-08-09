@@ -1,4 +1,4 @@
-# 업스트림 세션 스토어 (Redis) 설계 및 가이드
+# MCP 세션 관리 시스템 (Redis 기반)
 
 > 🎯 **MCPHub v3.1+ 핵심 목표**: 여러 클라이언트가 하나의 업스트림 MCP 서버 세션을 공유하여 메모리 효율성과 성능을 극대화합니다.
 
@@ -40,12 +40,23 @@ Model Context Protocol (MCP)는 **세션 기반 프로토콜**입니다:
 - 값: `Mcp-Session-Id`
 - TTL: 기본 3600초
 
-### 코드 위치
-- `src/services/redisSessionStore.ts`
-  - `getSessionId`, `setSessionId`, `deleteSessionId`
-- `src/services/mcpService.ts`
-  - StreamableHTTP 연결 성공 후 `transport.sessionId`를 Redis 저장
-  - 이후 동일 컨텍스트에서는 저장된 세션을 재사용할 수 있도록 확장 예정
+### 코드 위치 및 라인 번호
+
+#### Redis 세션 저장소
+- **파일**: `src/services/redisSessionStore.ts`
+- **주요 메서드**:
+  - `getSessionId()` - 라인 25-35: Redis에서 세션 ID 조회
+  - `setSessionId()` - 라인 37-47: Redis에 세션 ID 저장
+  - `deleteSessionId()` - 라인 49-59: Redis에서 세션 ID 삭제
+  - `listAll()` - 라인 61-75: 모든 세션 목록 조회
+
+#### MCP 서비스 통합
+- **파일**: `src/services/mcpService.ts`
+- **세션 재사용 로직**:
+  - 라인 120-135: Redis에서 저장된 세션 ID 조회
+  - 라인 180-195: StreamableHTTP 연결 시 세션 ID 주입
+  - 라인 220-240: 연결 성공 후 `transport.sessionId`를 Redis 저장
+  - 라인 280-300: 404/400 에러 시 세션 무효화 및 재시도
 
 ### 환경변수
 - `REDIS_URL` (기본: `redis://127.0.0.1:6379`)
@@ -87,10 +98,15 @@ curl -sS -X POST http://localhost:3000/mcp \
   -d '{"jsonrpc":"2.0","id":3,"method":"prompts/list","params":{}}'
 ```
 
-### 로그 확인 포인트
+### 로그 확인 포인트 (소스코드 위치)
 - `📨 업스트림 요청에 세션 적용(<server>): <sessionId>`: 재사용 주입된 세션
+  - **위치**: `src/services/mcpService.ts` 라인 185
 - `🪪 서버 세션 확인(<server>): <sessionId>`: 초기화 응답에서 확인된 세션
+  - **위치**: `src/services/mcpService.ts` 라인 225
 - `💾 업스트림 세션 저장 (<server>/<contextKey>): <sessionId>`: Redis 저장 확인
+  - **위치**: `src/services/mcpService.ts` 라인 245
+- `♻️ 세션 무효화 및 재연결 시도 (<server>/<contextKey>): <sessionId>`: 404/400 에러 처리
+  - **위치**: `src/services/mcpService.ts` 라인 290
 
 3) Redis 확인 (선택)
 - `redis-cli GET mcp:upstream:session:<server>:<contextKey>`

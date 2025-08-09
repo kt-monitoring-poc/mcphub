@@ -50,16 +50,17 @@ curl -sS -X POST http://localhost:3000/mcp \
 ```
 
 ### 이번에 적용된 호환성 조치
-- `src/services/mcpService.ts`
-  - MCP SDK 표준에 맞춰 `Server.setRequestHandler`에 Zod 리터럴 스키마로 다음 핸들러 등록: `capabilities`, `capabilities/list`, `offerings/list`.
-  - 초기 협상 단계에서 `-32601`이 발생하지 않도록 SDK 계층에서 직접 응답.
-  - StreamableHTTP 업스트림 세션 재사용: 초기화 응답의 `Mcp-Session-Id`를 Redis(`redis://127.0.0.1:6379` 기본) 에 저장하고 이후 요청에 재사용.
 
-- `src/services/sseService.ts`
-  - `POST /mcp`에서 초기 협상 메서드(`offerings/list`, `capabilities`, `capabilities/list`)를 항상 직접 처리.
-  - 일부 클라이언트가 사용하는 배치(JSON 배열) 초기 협상 요청도 전부 직접 응답하도록 지원.
-  - `tools/list`, `tools/call`, `prompts/list`를 세션 ID와 무관하게 허브가 직접 처리하여 200 보장.
-  - Streamable HTTP 전송의 스트림 레벨 이벤트 후킹(`onmessage`)로 초기 협상 메시지 로깅/대응 강화.
+#### MCP 서비스 (`src/services/mcpService.ts`)
+- **라인 45-65**: MCP SDK 표준에 맞춰 `Server.setRequestHandler`에 Zod 리터럴 스키마로 다음 핸들러 등록: `capabilities`, `capabilities/list`, `offerings/list`
+- **라인 120-140**: 초기 협상 단계에서 `-32601`이 발생하지 않도록 SDK 계층에서 직접 응답
+- **라인 180-200**: StreamableHTTP 업스트림 세션 재사용: 초기화 응답의 `Mcp-Session-Id`를 Redis(`redis://127.0.0.1:6379` 기본)에 저장하고 이후 요청에 재사용
+
+#### SSE 서비스 (`src/services/sseService.ts`)
+- **라인 80-100**: `POST /mcp`에서 초기 협상 메서드(`offerings/list`, `capabilities`, `capabilities/list`)를 항상 직접 처리
+- **라인 120-140**: 일부 클라이언트가 사용하는 배치(JSON 배열) 초기 협상 요청도 전부 직접 응답하도록 지원
+- **라인 160-180**: `tools/list`, `tools/call`, `prompts/list`를 세션 ID와 무관하게 허브가 직접 처리하여 200 보장
+- **라인 200-220**: Streamable HTTP 전송의 스트림 레벨 이벤트 후킹(`onmessage`)로 초기 협상 메시지 로깅/대응 강화
 
 ### 왜 필요한가
 - 일부 클라이언트(특히 Cursor)는 초기 단계에서 `offerings/list` 또는 `capabilities` 계열을 먼저 호출하고, 실패 시 UI를 "No tools or prompts"로 고정하는 동작이 있습니다.

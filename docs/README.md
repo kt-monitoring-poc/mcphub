@@ -17,7 +17,7 @@
 - [데이터베이스 스키마](guides/database-schema.md) 🌟 **CRITICAL**
 - [Cursor IDE 통합](guides/cursor-ide-integration.md) - IDE 연결 가이드
 - [환경변수 시스템](guides/mcphub-env-var-system.md) - 자동화된 토큰 관리
-- [업스트림 세션 저장소](guides/upstream-session-store.md) - Redis 기반 세션 관리
+- [MCP 세션 관리 시스템](guides/mcp-session-management.md) - Redis 기반 세션 관리
 
 ### 🎓 튜토리얼 (tutorials/)
 **단계별 학습과 실습을 위한 문서들**
