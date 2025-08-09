@@ -37,6 +37,7 @@
 - [Docker 설정](operations/docker-setup.md) - 컨테이너 배포
 - [Azure 배포](operations/azure-container-apps-deployment.md) - 클라우드 배포
 - [타임아웃 최적화](operations/timeout-optimization-2025-08-09.md) - 성능 튜닝
+- [지라 백로그 종합 정리](operations/JIRA_BACKLOG_SUMMARY.md) 📋 - 이슈 관리
 
 ### 🛠️ 개발 (development/)
 **개발자를 위한 기술 문서들**
