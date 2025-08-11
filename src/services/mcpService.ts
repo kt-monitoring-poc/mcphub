@@ -15,6 +15,7 @@ import { SSEClientTransport } from '@modelcontextprotocol/sdk/client/sse.js';
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js';
 import { Server } from '@modelcontextprotocol/sdk/server/index.js';
+import { StreamableHTTPClientTransportWrapper } from '../clients/streamableHttpWrapper.js';
 import { CallToolRequestSchema, ListToolsRequestSchema } from '@modelcontextprotocol/sdk/types.js';
 import { OpenAPIClient } from '../clients/openapi.js';
 import config, { expandEnvVars, loadSettings, replaceEnvVars, saveSettings } from '../config/index.js';
@@ -229,7 +230,11 @@ const createTransportFromConfig = (
         headers,
       };
     }
-    transport = new StreamableHTTPClientTransport(new URL(conf.url || ''), options);
+    
+    // StreamableHTTPClientTransportWrapper 사용하여 mcp-session-id 헤더 처리
+    console.log(`🚀 [${name}] StreamableHTTP 전송 계층 생성 중...`);
+    const wrapper = new StreamableHTTPClientTransportWrapper(new URL(conf.url || ''), options, name);
+    transport = wrapper.asTransport();
   } else if (conf.type === 'stdio' && conf.command && conf.args) {
     // 표준 입출력 전송 계층 생성 (프로세스 기반)
     const env: Record<string, string> = {
@@ -341,7 +346,9 @@ const callToolWithReconnect = async (
       // HTTP 40x 오류 감지
       const isHttp40xError = error?.message?.startsWith?.('Error POSTing to endpoint (HTTP 40');
       // StreamableHTTP 전송 계층에서만 재시도
-      const isStreamableHttp = serverInfo.transport instanceof StreamableHTTPClientTransport;
+      const isStreamableHttp = serverInfo.transport instanceof StreamableHTTPClientTransport || 
+                              (serverInfo.transport && serverInfo.transport.constructor && 
+                               serverInfo.transport.constructor.name === 'StreamableHTTPClientTransport');
 
       if (isHttp40xError && attempt < maxRetries && serverInfo.transport && isStreamableHttp) {
         console.warn(
@@ -367,6 +374,13 @@ const callToolWithReconnect = async (
 
           // 새로운 전송 계층 생성
           const newTransport = createTransportFromConfig(serverInfo.name, conf);
+          
+          // streamable-http 서버의 경우 이전 sessionId 재사용
+          if (conf.type === 'streamable-http' && serverInfo.sessionId && newTransport.setSessionId) {
+            newTransport.setSessionId(serverInfo.sessionId);
+            console.log(`🔄 [${serverInfo.name}] 🔄 재연결 시도 중...`);
+            console.log(`📤 [${serverInfo.name}] 📤 기존 mcp-session-id 재사용: ${serverInfo.sessionId}`);
+          }
 
           // 새로운 클라이언트 생성
           const client = new Client(
@@ -394,10 +408,35 @@ const callToolWithReconnect = async (
           serverInfo.client = client;
           serverInfo.transport = newTransport;
           serverInfo.status = 'connected';
+          
+          // streamable-http 서버의 경우 새로운 sessionId 저장
+          if (conf.type === 'streamable-http' && newTransport.getSessionId) {
+            const newSessionId = newTransport.getSessionId();
+            if (newSessionId && newSessionId !== serverInfo.sessionId) {
+              serverInfo.sessionId = newSessionId;
+              console.log(`🎯 [${serverInfo.name}] 🎯 재연결 성공!`);
+              console.log(`📥 [${serverInfo.name}] 📥 새로운 mcp-session-id 수신: ${newSessionId}`);
+              console.log(`💾 [${serverInfo.name}] 💾 새 세션 ID 저장 완료`);
+            } else if (newSessionId) {
+              console.log(`✅ [${serverInfo.name}] ✅ 재연결 성공! 기존 세션 ID 유지: ${newSessionId}`);
+            }
+          }
 
           // 재연결 후 도구 목록 다시 로드
           try {
             const tools = await client.listTools({}, serverInfo.options || {});
+            
+            // listTools 호출 후에도 sessionId 확인
+            if (conf.type === 'streamable-http' && newTransport.getSessionId) {
+              const reconnectListToolsSessionId = newTransport.getSessionId();
+              if (reconnectListToolsSessionId && reconnectListToolsSessionId !== serverInfo.sessionId) {
+                serverInfo.sessionId = reconnectListToolsSessionId;
+                console.log(`🎯 [${serverInfo.name}] 🎯 재연결 후 listTools에서 새로운 mcp-session-id 발견!`);
+                console.log(`📥 [${serverInfo.name}] 📥 받은 mcp-session-id: ${reconnectListToolsSessionId}`);
+                console.log(`💾 [${serverInfo.name}] 💾 세션 ID 업데이트 완료`);
+              }
+            }
+            
             serverInfo.tools = tools.tools.map((tool) => ({
               name: `${serverInfo.name}-${tool.name}`, // 서버 접두사 유지 (main 브랜치 방식)
               description: tool.description || '',
@@ -947,10 +986,50 @@ export const initializeClientsFromSettings = async (isInit: boolean): Promise<Se
       .connect(transport, initRequestOptions || requestOptions)
       .then(() => {
         console.log(`Successfully connected client for server: ${name}`);
+        
+        // streamable-http 서버의 경우 sessionId 저장 및 콜백 등록
+        if (conf.type === 'streamable-http') {
+          const transportAny = transport as any;
+          
+          // 기존 sessionId 확인
+          if (transportAny && typeof transportAny.getSessionId === 'function') {
+            const sessionId = transportAny.getSessionId();
+            if (sessionId) {
+              serverInfo.sessionId = sessionId;
+              console.log(`🎯 [${name}] 🚀 streamable-http 서버 연결 성공!`);
+              console.log(`📌 [${name}] 📥 받은 mcp-session-id: ${sessionId}`);
+              console.log(`💾 [${name}] 💾 세션 ID 저장 완료`);
+            }
+          }
+          
+          // HTTP 응답에서 sessionId 변경을 감지하는 콜백 등록
+          if (transportAny && typeof transportAny.onSessionIdChange === 'function') {
+            const sessionIdCallback = (newSessionId: string) => {
+              if (newSessionId && newSessionId !== serverInfo.sessionId) {
+                serverInfo.sessionId = newSessionId;
+                console.log(`🎯 [${name}] 🎯 HTTP 응답에서 새로운 mcp-session-id 발견!`);
+                console.log(`📥 [${name}] 📥 세션 ID: ${newSessionId}`);
+                console.log(`💾 [${name}] 💾 세션 ID 업데이트 완료`);
+              }
+            };
+            
+            transportAny.onSessionIdChange(sessionIdCallback);
+            console.log(`📝 [${name}] 📝 HTTP 응답 모니터링 콜백 등록 완료`);
+            
+            // 콜백 참조를 저장하여 나중에 제거할 수 있도록 함
+            (serverInfo as any).sessionIdCallback = sessionIdCallback;
+          } else {
+            console.log(`⚠️ [${name}] ⚠️ onSessionIdChange 메서드 없음 - HTTP 응답 모니터링 불가`);
+            console.log(`🔍 [${name}] 🔍 transport 메서드들:`, Object.getOwnPropertyNames(transportAny || {}));
+          }
+        }
+        
         client
           .listTools({}, initRequestOptions || requestOptions)
           .then((tools) => {
             console.log(`Successfully listed ${tools.tools.length} tools for server: ${name}`);
+
+            // HTTP 응답 콜백이 자동으로 sessionId를 처리하므로 별도 확인 불필요
 
             serverInfo.tools = tools.tools.map((tool) => ({
               name: `${name}-${tool.name}`, // 서버 접두사 유지 (main 브랜치 방식)
@@ -1738,6 +1817,18 @@ export const handleCallToolRequest = async (request: any, extra: any, group?: st
         targetServerInfo.options || {},
       );
 
+      // 도구 호출 후 sessionId 확인 (래퍼된 transport 고려)
+      const transport = targetServerInfo.transport as any;
+      if (transport && typeof transport.getSessionId === 'function') {
+        const toolCallSessionId = transport.getSessionId();
+        if (toolCallSessionId && toolCallSessionId !== targetServerInfo.sessionId) {
+          targetServerInfo.sessionId = toolCallSessionId;
+          console.log(`🎯 [${targetServerInfo.name}] 🎯 도구 호출 후 새로운 mcp-session-id 발견!`);
+          console.log(`📥 [${targetServerInfo.name}] 📥 받은 mcp-session-id: ${toolCallSessionId}`);
+          console.log(`💾 [${targetServerInfo.name}] 💾 세션 ID 업데이트 완료`);
+        }
+      }
+
       console.log(`Tool invocation result: ${JSON.stringify(result)}`);
       return result;
     }
@@ -1809,6 +1900,18 @@ export const handleCallToolRequest = async (request: any, extra: any, group?: st
         },
         serverInfo.options || {},
       );
+
+      // 도구 호출 후 sessionId 확인 (래퍼된 transport 고려)
+      const transport = serverInfo.transport as any;
+      if (transport && typeof transport.getSessionId === 'function') {
+        const toolCallSessionId = transport.getSessionId();
+        if (toolCallSessionId && toolCallSessionId !== serverInfo.sessionId) {
+          serverInfo.sessionId = toolCallSessionId;
+          console.log(`🎯 [${serverInfo.name}] 🎯 도구 호출 후 새로운 mcp-session-id 발견!`);
+          console.log(`📥 [${serverInfo.name}] 📥 받은 mcp-session-id: ${toolCallSessionId}`);
+          console.log(`💾 [${serverInfo.name}] 💾 세션 ID 업데이트 완료`);
+        }
+      }
 
       console.log(`Tool call result: ${JSON.stringify(result)}`);
       return result;
@@ -1882,6 +1985,19 @@ export const handleCallToolRequest = async (request: any, extra: any, group?: st
       request.params,
       serverInfo.options || {},
     );
+
+    // 도구 호출 후 sessionId 확인 (래퍼된 transport 고려)
+    const transport = serverInfo.transport as any;
+    if (transport && typeof transport.getSessionId === 'function') {
+      const toolCallSessionId = transport.getSessionId();
+      if (toolCallSessionId && toolCallSessionId !== serverInfo.sessionId) {
+        serverInfo.sessionId = toolCallSessionId;
+        console.log(`🎯 [${serverInfo.name}] 🎯 도구 호출 후 새로운 mcp-session-id 발견!`);
+        console.log(`📥 [${serverInfo.name}] 📥 받은 mcp-session-id: ${toolCallSessionId}`);
+        console.log(`💾 [${serverInfo.name}] 💾 세션 ID 업데이트 완료`);
+      }
+    }
+
     console.log(`Tool call result: ${JSON.stringify(result)}`);
     return result;
   } catch (error) {

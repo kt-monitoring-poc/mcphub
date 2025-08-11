@@ -164,6 +164,7 @@ export interface ServerInfo {
   createTime: number; // Timestamp of when the server was created
   enabled?: boolean; // Flag to indicate if the server is enabled
   keepAliveIntervalId?: NodeJS.Timeout; // Timer ID for keep-alive ping interval
+  sessionId?: string; // mcp-session-id for streamable-http servers
 }
 
 // Details about a tool available on the server

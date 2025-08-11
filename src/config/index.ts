@@ -4,7 +4,14 @@ import { McpSettings } from '../types/index.js';
 import { getConfigFilePath } from '../utils/path.js';
 import { getPackageVersion } from '../utils/version.js';
 
+// Load base .env first
 dotenv.config();
+// Then, if present, load .env.local to override for local development
+try {
+  if (fs.existsSync('.env.local')) {
+    dotenv.config({ path: '.env.local', override: true });
+  }
+} catch {}
 
 const defaultConfig = {
   port: process.env.PORT || 3000,
