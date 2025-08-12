@@ -24,7 +24,7 @@ import { ServerConfig, ServerInfo, ToolInfo } from '../types/index.js';
 import { DEBUG_MODE, DebugLogger } from '../utils/debugLogger.js';
 import { upstreamContextPropagator } from '../utils/upstreamContext.js';
 import { extractUserEnvVars } from '../utils/variableDetection.js';
-import RedisSessionStore from './redisSessionStore.js';
+// RedisSessionStore import 제거 - 세션 관리 기능 비활성화
 import { getGroup } from './sseService.js';
 import { UserGroupService } from './userGroupService.js';
 import { saveToolsAsVectorEmbeddings, searchToolsByVector } from './vectorSearchService.js';
@@ -192,8 +192,7 @@ const createTransportFromConfig = (
   name: string,
   conf: ServerConfig,
   userApiKeys?: Record<string, string>,
-  userContext?: { userId: string; userSessionId: string; mcpHubSessionId: string; requestId: string },
-  savedSessionId?: string
+  userContext?: { userId: string; userSessionId: string; mcpHubSessionId: string; requestId: string }
 ): any => {
   const requestId = userContext?.requestId || 'unknown';
   let transport;
@@ -252,11 +251,7 @@ const createTransportFromConfig = (
       }
     }
 
-    // 사전에 저장된 업스트림 세션이 있으면 주입
-    if (savedSessionId) {
-      (options as any).sessionId = savedSessionId;
-      console.log(`♻️ 재사용 업스트림 세션 주입 (${name}): ${savedSessionId}`);
-    }
+    // 세션 관리 기능 비활성화 - savedSessionId 주입 제거
 
     transport = new StreamableHTTPClientTransport(new URL(conf.url || ''), options);
   } else if (conf.type === 'stdio' && conf.command && conf.args) {
@@ -648,31 +643,9 @@ export const ensureServerConnected = async (
     // 사용자 API Keys를 적용한 설정 생성
     const configWithKeys = applyUserApiKeysToConfig(serverConfig, userApiKeys);
 
-    // Transport 생성 (사용자 컨텍스트 포함). Redis에 저장된 세션이 있으면 주입
-    let savedSessionId: string | undefined;
-    try {
-      const store = RedisSessionStore.getInstance();
-      const contextKey = userApiKeys && Object.keys(userApiKeys).length > 0
-        ? 'tok:' + Object.keys(userApiKeys).sort().join('|')
-        : 'shared';
-      const loaded = await store.getSessionId({ serverName: serverName, contextKey });
-      savedSessionId = loaded === null ? undefined : loaded;
-      if (savedSessionId) {
-        console.log(`♻️ 업스트림 세션 재사용 준비 (${serverName}/${contextKey}): ${savedSessionId}`);
-      }
-    } catch (e) {
-      console.warn('RedisSessionStore lookup failed (non-fatal):', e);
-    }
+    // 세션 관리 기능 비활성화 - savedSessionId 제거
 
-    const transport = createTransportFromConfig(serverName, configWithKeys, userApiKeys, userContext, savedSessionId);
-    try {
-      const preSessionId = (transport as any).sessionId as string | undefined;
-      if (preSessionId) {
-        console.log(`📨 업스트림 요청에 세션 적용(${serverName}): ${preSessionId}`);
-      }
-    } catch (e) {
-      // 세션 ID 추출 실패는 무시
-    }
+    const _transport = createTransportFromConfig(serverName, configWithKeys, userApiKeys, userContext);
 
     const client = new Client(
       {
