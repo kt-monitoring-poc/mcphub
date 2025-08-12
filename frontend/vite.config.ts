@@ -1,11 +1,10 @@
-import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 import path from 'path';
-import tailwindcss from '@tailwindcss/vite';
+import { defineConfig } from 'vite';
 // Import the package.json to get the version
 import { readFileSync } from 'fs';
 
-// Get package.json version
+// Get package.json version (use root package.json)
 const packageJson = JSON.parse(readFileSync(path.resolve(__dirname, '../package.json'), 'utf-8'));
 
 // For runtime configuration, we'll always use relative paths
@@ -15,7 +14,7 @@ const basePath = '';
 // https://vitejs.dev/config/
 export default defineConfig({
   base: './', // Always use relative paths for runtime configuration
-  plugins: [react(), tailwindcss()],
+  plugins: [react()],
   resolve: {
     alias: {
       '@': path.resolve(__dirname, './src'),
@@ -30,20 +29,27 @@ export default defineConfig({
     sourcemap: true, // Enable source maps for production build
   },
   server: {
+    port: 5173, // 프론트엔드 개발 서버 포트 명시
+    host: true, // 모든 호스트에서 접근 허용
+    allowedHosts: ['all'], // 모든 호스트 허용 (ngrok 포함)
     proxy: {
-      [`${basePath}/api`]: {
+      '/api': {
         target: 'http://localhost:3000',
         changeOrigin: true,
       },
-      [`${basePath}/auth`]: {
+      '/auth': {
         target: 'http://localhost:3000',
         changeOrigin: true,
       },
-      [`${basePath}/config`]: {
+      '/config': {
         target: 'http://localhost:3000',
         changeOrigin: true,
       },
-      [`${basePath}/public-config`]: {
+      '/login/config': {
+        target: 'http://localhost:3000',
+        changeOrigin: true,
+      },
+      '/mcp': {
         target: 'http://localhost:3000',
         changeOrigin: true,
       },

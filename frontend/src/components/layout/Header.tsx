@@ -39,7 +39,7 @@ interface HeaderProps {
 const Header: React.FC<HeaderProps> = ({ onToggleSidebar }) => {
   const { t } = useTranslation();
   const navigate = useNavigate();
-  const { user } = useAuth();
+  const { auth } = useAuth();
 
   return (
     <header className="bg-white dark:bg-gray-800 shadow-sm z-10 border-b border-gray-200 dark:border-gray-700">
@@ -68,7 +68,7 @@ const Header: React.FC<HeaderProps> = ({ onToggleSidebar }) => {
         {/* 우측 상단: 사용자 프로필 메뉴 및 테마 스위치 */}
         <div className="flex items-center space-x-4">
           {/* 사용자 프로필 메뉴 */}
-          {user && (
+          {auth.user && (
             <UserProfileMenu
               collapsed={false}
               version={import.meta.env.PACKAGE_VERSION || 'dev'}

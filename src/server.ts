@@ -8,25 +8,29 @@
  * - SSE 및 HTTP 엔드포인트 설정
  */
 
+import cors from 'cors';
 import express from 'express';
 import session from 'express-session';
-import fs from 'fs';
 import http from 'http';
 import passport from 'passport';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import config from './config/index.js';
 import { configurePassport, validateGitHubOAuthConfig } from './config/passport.js';
+import { initializeDatabase } from './db/connection.js';
 import { initMiddlewares } from './middlewares/index.js';
 import { initializeDefaultUser } from './models/User.js';
 import { initRoutes } from './routes/index.js';
-import { initUpstreamServers } from './services/mcpService.js';
+import { initializeScheduler } from './services/envVarScheduler.js';
+import { getServersInfo, initUpstreamServers } from './services/mcpService.js';
 import {
   handleMcpOtherRequest,
   handleMcpPostRequest,
   handleSseConnection,
   handleSseMessage,
 } from './services/sseService.js';
+import { DEBUG_MODE, DebugLogger } from './utils/debugLogger.js';
+import { quickValidation } from './utils/envVarValidation.js';
 
 // ESM 환경에서 __dirname 구하기
 const __filename = fileURLToPath(import.meta.url);
@@ -35,7 +39,6 @@ const __dirname = path.dirname(__filename);
 export class AppServer {
   private app: express.Application;
   private port: number | string;
-  private frontendPath: string | null = null;
   private basePath: string;
 
   /**
@@ -63,6 +66,10 @@ export class AppServer {
    */
   async initialize(): Promise<void> {
     try {
+      // 데이터베이스 초기화
+      await initializeDatabase();
+      console.log('✅ 데이터베이스 초기화 완료');
+
       // 사용자가 없는 경우 기본 관리자 사용자 생성
       await initializeDefaultUser();
 
@@ -97,32 +104,77 @@ export class AppServer {
       // Express 미들웨어 초기화 (CORS, 바디 파서 등)
       initMiddlewares(this.app);
 
+      // 디버그 로깅 미들웨어
+      if (DEBUG_MODE) {
+        this.app.use((req, res, next) => {
+          const requestId = DebugLogger.createContext(req);
+          (req as any).requestId = requestId;
+
+          // 응답 완료 시 로깅
+          const originalSend = res.send;
+          const originalJson = res.json;
+
+          res.send = function (data: any) {
+            DebugLogger.endRequest(requestId, res.statusCode, data);
+            return originalSend.call(this, data);
+          };
+
+          res.json = function (data: any) {
+            DebugLogger.endRequest(requestId, res.statusCode, data);
+            return originalJson.call(this, data);
+          };
+
+          next();
+        });
+      } else {
+        // 기본 요청 로깅 (필수 정보만)
+        this.app.use((req, res, next) => {
+          // API 요청만 간단히 로깅
+          if (req.path.startsWith('/api/') || req.path.startsWith('/mcp')) {
+            console.log(`${req.method} ${req.path}`);
+          }
+          next();
+        });
+      }
+
       // MCP 서버 관리 라우트 추가 (initRoutes 이전에 등록)
       // TODO: DB 시스템 오류 해결 후 활성화
       // const mcpServerRoutes = await import('./routes/mcpServerRoutes.js');
       // this.app.use(`${config.basePath}/api/mcp`, mcpServerRoutes.default);
 
+      // CORS 미들웨어 설정 (프론트엔드/백엔드 분리)
+      this.app.use(cors({
+        origin: [
+          'http://localhost:5173',  // Vite 개발 서버
+          'http://localhost:3001',  // 대체 프론트엔드 포트
+          'https://mcphub.company.com'  // 운영 환경 (필요시 수정)
+        ],
+        credentials: true,
+        methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+        allowedHeaders: ['Content-Type', 'Authorization', 'x-auth-token', 'Accept']
+      }));
+
       // Routes 초기화 (API 라우트를 먼저 등록)
       initRoutes(this.app);
 
-      // 프론트엔드 정적 파일 서빙 설정 (API 라우트 이후에 설정)
-      this.findAndServeFrontend();
+      // MCP 요청 처리 엔드포인트 (MCP 표준 준수 - /mcp만 사용)
+      this.app.post(`${this.basePath}/mcp`, handleMcpPostRequest);
+      this.app.get(`${this.basePath}/mcp`, handleMcpOtherRequest);
+      this.app.delete(`${this.basePath}/mcp`, handleMcpOtherRequest);
+
+      // 프론트엔드 정적 파일 서빙 제거 (프론트엔드/백엔드 분리)
+      // this.findAndServeFrontend(); // 분리 후 사용 안함
 
       // MCP 서버들 초기화 및 연결
       initUpstreamServers()
         .then(() => {
-          console.log('MCP server initialized successfully');
+          console.log('✅ MCP 서버 초기화 프로세스 완료');
 
           // SSE 연결 엔드포인트 설정 (실시간 통신용)
           this.app.get(`${this.basePath}/sse/:group?`, (req, res) => handleSseConnection(req, res));
 
           // SSE 메시지 처리 엔드포인트
           this.app.post(`${this.basePath}/messages`, handleSseMessage);
-
-          // MCP 요청 처리 엔드포인트들
-          this.app.post(`${this.basePath}/mcp/:group?`, handleMcpPostRequest);
-          this.app.get(`${this.basePath}/mcp/:group?`, handleMcpOtherRequest);
-          this.app.delete(`${this.basePath}/mcp/:group?`, handleMcpOtherRequest);
         })
         .catch((error) => {
           console.error('Error initializing MCP server:', error);
@@ -135,57 +187,10 @@ export class AppServer {
   }
 
   /**
-   * 프론트엔드 정적 파일 서빙 설정
-   * 
-   * 빌드된 프론트엔드 파일들을 찾아서 Express 정적 파일 서빙을 설정합니다.
-   * - 프론트엔드 dist 디렉토리 탐색
-   * - SPA 라우팅을 위한 fallback 설정
-   * - 베이스 패스 리다이렉션 설정
-   * 
-   * @private
-   */
-  private findAndServeFrontend(): void {
-    // 프론트엔드 빌드 파일 경로 찾기
-    this.frontendPath = this.findFrontendDistPath();
-
-    if (this.frontendPath) {
-      console.log(`Serving frontend from: ${this.frontendPath}`);
-
-      // 베이스 패스로 정적 파일 서빙
-      this.app.use(this.basePath, express.static(this.frontendPath));
-
-      // SPA를 위한 와일드카드 라우트 설정 (모든 경로를 index.html로 리다이렉트)
-      if (fs.existsSync(path.join(this.frontendPath, 'index.html'))) {
-        this.app.get(`${this.basePath}/*`, (req, res) => {
-          // API 경로는 제외
-          if (req.path.startsWith('/api/')) {
-            return res.status(404).json({
-              success: false,
-              message: 'API endpoint not found'
-            });
-          }
-          res.sendFile(path.join(this.frontendPath!, 'index.html'));
-        });
-
-        // 베이스 패스가 설정된 경우 루트 경로에서 베이스 패스로 리다이렉트
-        if (this.basePath) {
-          this.app.get('/', (_req, res) => {
-            res.redirect(this.basePath);
-          });
-        }
-      }
-    } else {
-      console.warn('Frontend dist directory not found. Server will run without frontend.');
-      const rootPath = this.basePath || '/';
-
-      // 프론트엔드가 없는 경우 404 응답
-      this.app.get(rootPath, (_req, res) => {
-        res
-          .status(404)
-          .send('Frontend not found. MCPHub API is running, but the UI is not available.');
-      });
-    }
-  }
+ * 프론트엔드/백엔드 분리로 인해 제거됨
+ * 백엔드는 API와 MCP endpoint만 제공
+ */
+  // private findAndServeFrontend(): void { ... } // 제거됨
 
   /**
    * HTTP 서버 시작
@@ -193,23 +198,80 @@ export class AppServer {
    * 설정된 포트에서 Express 서버를 시작하고 접속 정보를 출력합니다.
    * HTTP/1.1을 사용하여 SSE 호환성을 보장합니다.
    */
-  start(): void {
+  async start(): Promise<void> {
+    // 시작 전 환경변수 검증
+    console.log('🔍 환경변수 매핑 검증 중...');
+    try {
+      await quickValidation();
+    } catch (error) {
+      console.warn(`⚠️  환경변수 검증 실패: ${error}`);
+    }
+
+    // 환경변수 자동 관리 스케줄러 시작
+    const schedulerConfig = {
+      enabled: process.env.NODE_ENV === 'production', // 프로덕션에서만 기본 활성화
+      intervalHours: 24, // 24시간마다
+      autoCleanup: false, // 기본적으로 자동 정리 비활성화
+      maxOrphanedKeys: 10
+    };
+
+    if (process.env.ENV_SCHEDULER_ENABLED === 'true') {
+      schedulerConfig.enabled = true;
+    }
+
+    if (process.env.ENV_AUTO_CLEANUP === 'true') {
+      schedulerConfig.autoCleanup = true;
+    }
+
+    initializeScheduler(schedulerConfig);
+
+    if (schedulerConfig.enabled) {
+      console.log('🕐 환경변수 자동 관리 스케줄러가 활성화되었습니다.');
+    }
+
     // HTTP/1.1 서버 생성 (SSE 호환성을 위해)
     const server = http.createServer(this.app);
 
-    // Keep-alive 설정
-    server.keepAliveTimeout = 65000; // 65초
-    server.headersTimeout = 66000;   // keepAliveTimeout보다 약간 크게
+    // Keep-alive 설정 - 개발 도구 특성을 고려한 관대한 설정
+    server.keepAliveTimeout = 180000; // 3분 (업계 표준보다 관대)
+    server.headersTimeout = 181000;   // keepAliveTimeout보다 약간 크게
 
     server.listen(this.port, () => {
-      console.log(`Server is running on port ${this.port} (HTTP/1.1)`);
-      if (this.frontendPath) {
-        console.log(`Open http://localhost:${this.port} in your browser to access MCPHub UI`);
-      } else {
-        console.log(
-          `MCPHub API is running on http://localhost:${this.port}, but the UI is not available`,
-        );
-      }
+      console.log(`\n🚀 MCPHub Server is running on port ${this.port} (HTTP/1.1)`);
+
+      // MCP 서버 상태 요약
+      setTimeout(() => {
+        const serverInfos = getServersInfo();
+        const connectedServers = serverInfos.filter((s: any) => s.status === 'connected');
+        const disconnectedServers = serverInfos.filter((s: any) => s.status === 'disconnected');
+        const disabledServers = serverInfos.filter((s: any) => s.enabled === false);
+
+        console.log(`\n📊 MCP Server Status Summary:`);
+        console.log(`   ✅ Connected: ${connectedServers.length} servers`);
+        if (connectedServers.length > 0) {
+          connectedServers.forEach((s: any) => {
+            console.log(`      - ${s.name} (${s.tools.length} tools)`);
+          });
+        }
+
+        if (disconnectedServers.length > 0) {
+          console.log(`   ⚠️  Disconnected: ${disconnectedServers.length} servers`);
+          disconnectedServers.forEach((s: any) => {
+            console.log(`      - ${s.name}`);
+          });
+        }
+
+        if (disabledServers.length > 0) {
+          console.log(`   🔴 Disabled: ${disabledServers.length} servers`);
+          disabledServers.forEach((s: any) => {
+            console.log(`      - ${s.name}`);
+          });
+        }
+
+        console.log(`\n💡 MCPHub is ready!`);
+        console.log(`   API is available at http://localhost:${this.port}`);
+        console.log('');
+      }, 1000); // 1초 후에 상태 출력 (서버들이 연결될 시간 확보)
     });
   }
 
@@ -224,115 +286,7 @@ export class AppServer {
     return this.app;
   }
 
-  /**
-   * 프론트엔드 dist 경로 탐색
-   * 
-   * 다양한 환경에서 프론트엔드 빌드 파일의 위치를 찾습니다.
-   * - 개발 환경: 프로젝트 루트/frontend/dist
-   * - 프로덕션 환경: 패키지 설치 위치 기준
-   * - npx 실행 환경: npx 캐시 디렉토리 기준
-   * 
-   * @private
-   * @returns {string | null} 프론트엔드 dist 경로 또는 null (찾지 못한 경우)
-   */
-  private findFrontendDistPath(): string | null {
-    // 디버그 플래그 확인
-    const debug = process.env.DEBUG === 'true';
-
-    if (debug) {
-      console.log('DEBUG: Current directory:', process.cwd());
-      console.log('DEBUG: Script directory:', __dirname);
-    }
-
-    // 패키지 루트 디렉토리 찾기
-    const packageRoot = this.findPackageRoot();
-
-    if (debug) {
-      console.log('DEBUG: Using package root:', packageRoot);
-    }
-
-    if (!packageRoot) {
-      console.warn('Could not determine package root directory');
-      return null;
-    }
-
-    // 표준 위치에서 프론트엔드 dist 확인
-    const frontendDistPath = path.join(packageRoot, 'frontend', 'dist');
-
-    if (debug) {
-      console.log(`DEBUG: Checking frontend at: ${frontendDistPath}`);
-    }
-
-    if (
-      fs.existsSync(frontendDistPath) &&
-      fs.existsSync(path.join(frontendDistPath, 'index.html'))
-    ) {
-      return frontendDistPath;
-    }
-
-    console.warn('Frontend distribution not found at', frontendDistPath);
-    return null;
-  }
-
-  /**
-   * 패키지 루트 디렉토리 탐색
-   * 
-   * package.json 파일이 있는 MCPHub 프로젝트의 루트 디렉토리를 찾습니다.
-   * 다양한 실행 환경을 고려하여 여러 위치를 검사합니다.
-   * 
-   * @private
-   * @returns {string | null} 패키지 루트 경로 또는 null (찾지 못한 경우)
-   */
-  private findPackageRoot(): string | null {
-    const debug = process.env.DEBUG === 'true';
-
-    // package.json이 있을 수 있는 위치들
-    const possibleRoots = [
-      // 표준 npm 패키지 위치
-      path.resolve(__dirname, '..', '..'),
-      // 현재 작업 디렉토리
-      process.cwd(),
-      // dist 디렉토리에서 실행하는 경우
-      path.resolve(__dirname, '..'),
-      // npx로 설치된 경우
-      path.resolve(__dirname, '..', '..', '..'),
-    ];
-
-    // npx 실행 환경 특별 처리
-    if (process.argv[1] && process.argv[1].includes('_npx')) {
-      const npxDir = path.dirname(process.argv[1]);
-      possibleRoots.unshift(path.resolve(npxDir, '..'));
-    }
-
-    if (debug) {
-      console.log('DEBUG: Checking for package.json in:', possibleRoots);
-    }
-
-    // 각 위치에서 package.json 확인
-    for (const root of possibleRoots) {
-      const packageJsonPath = path.join(root, 'package.json');
-      if (fs.existsSync(packageJsonPath)) {
-        try {
-          const pkg = JSON.parse(fs.readFileSync(packageJsonPath, 'utf8'));
-
-          // MCPHub 패키지인지 확인
-          if (pkg.name === 'mcphub' || pkg.name === '@samanhappy/mcphub') {
-            if (debug) {
-              console.log(`DEBUG: Found package.json at ${packageJsonPath}`);
-            }
-            return root;
-          }
-        } catch (e) {
-          if (debug) {
-            console.error(`DEBUG: Failed to parse package.json at ${packageJsonPath}:`, e);
-          }
-          // 다음 위치로 계속 진행
-        }
-      }
-    }
-
-    return null;
-  }
+  // 프론트엔드 관련 메서드들 제거됨 (프론트엔드/백엔드 분리)
 }
 
 export default AppServer;

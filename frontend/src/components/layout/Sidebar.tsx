@@ -2,17 +2,15 @@
  * 사이드바 컴포넌트
  * 
  * 애플리케이션의 주요 네비게이션을 담당하는 사이드바 컴포넌트입니다.
- * 접을 수 있는 네비게이션 메뉴와 사용자 프로필 메뉴를 제공합니다.
+ * 접을 수 있는 네비게이션 메뉴를 제공합니다.
  * 
  * 주요 기능:
  * - 접을 수 있는 네비게이션 메뉴
  * - 대시보드, 서버, 그룹, 마켓, 로그 페이지 링크
  * - 활성 페이지 하이라이트
- * - 사용자 프로필 메뉴
- * - 버전 정보 표시
  */
 
-import UserProfileMenu from '@/components/ui/UserProfileMenu';
+
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/contexts/ToastContext';
 import React from 'react';
@@ -53,12 +51,12 @@ interface MenuItem {
  */
 const Sidebar: React.FC<SidebarProps> = ({ collapsed }) => {
   const { t } = useTranslation();
-  const { user } = useAuth();
+  const { auth } = useAuth();
   const navigate = useNavigate();
   const { showToast } = useToast();
 
   // 메뉴 아이템 구성 (관리자/일반 사용자 구분)
-  const allMenuItems: MenuItem[] = user?.isAdmin ? [
+  const allMenuItems: MenuItem[] = auth.user?.isAdmin ? [
     // 관리자 전용 통합 메뉴
     {
       path: '/admin/dashboard',
@@ -136,12 +134,13 @@ const Sidebar: React.FC<SidebarProps> = ({ collapsed }) => {
         </svg>
       ),
     },
+
     {
-      path: '/groups',
-      label: t('nav.groups'),
+      path: '/user-groups',
+      label: 'MCP 서버 그룹',
       icon: (
         <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-          <path d="M13 6a3 3 0 11-6 0 3 3 0 016 0zM18 8a2 2 0 11-4 0 2 2 0 014 0zM14 15a4 4 0 00-8 0v3h8v-3zM6 8a2 2 0 11-4 0 2 2 0 014 0zM16 18v-3a5.972 5.972 0 00-.75-2.906A3.005 3.005 0 0119 15v3h-3zM4.75 12.094A5.973 5.973 0 004 15v3H1v-3a3 3 0 013.75-2.906z" />
+          <path fillRule="evenodd" d="M5 4a3 3 0 00-3 3v6a3 3 0 003 3h10a3 3 0 003-3V7a3 3 0 00-3-3H5zm-1 9v-1h5v2H5a1 1 0 01-1-1zm7 1h4a1 1 0 001-1v-1h-5v2zm0-4h5V8h-5v2zM9 8H4v2h5V8z" clipRule="evenodd" />
         </svg>
       ),
     },
@@ -195,10 +194,7 @@ const Sidebar: React.FC<SidebarProps> = ({ collapsed }) => {
         </nav>
       </div>
 
-      {/* 사용자 프로필 메뉴 (하단 고정) */}
-      <div className="p-3 border-t border-gray-200 dark:border-gray-700">
-        <UserProfileMenu collapsed={collapsed} />
-      </div>
+
     </aside>
   );
 };

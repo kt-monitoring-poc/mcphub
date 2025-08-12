@@ -1,4 +1,4 @@
-import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, UpdateDateColumn, Index, OneToMany } from 'typeorm';
+import { Column, CreateDateColumn, Entity, Index, OneToMany, PrimaryGeneratedColumn, UpdateDateColumn } from 'typeorm';
 
 /**
  * 사용자 엔티티
@@ -13,18 +13,31 @@ export class User {
   id!: string;
 
   /**
-   * GitHub 사용자 ID (고유)
+   * GitHub 사용자 ID (고유) - GitHub OAuth 사용자에서만 필수
    */
-  @Column({ type: 'varchar', length: 50, unique: true })
+  @Column({ type: 'varchar', length: 50, unique: true, nullable: true })
   @Index()
-  githubId!: string;
+  githubId?: string;
 
   /**
-   * GitHub 사용자명 (고유)
+   * GitHub 사용자명 (고유) - GitHub OAuth 사용자에서만 필수
    */
-  @Column({ type: 'varchar', length: 100, unique: true })
+  @Column({ type: 'varchar', length: 100, unique: true, nullable: true })
   @Index()
-  githubUsername!: string;
+  githubUsername?: string;
+
+  /**
+   * 로컬 사용자명 (관리자 계정용)
+   */
+  @Column({ type: 'varchar', length: 100, unique: true, nullable: true })
+  @Index()
+  username?: string;
+
+  /**
+   * 해시된 비밀번호 (로컬 계정용)
+   */
+  @Column({ type: 'varchar', length: 255, nullable: true })
+  password?: string;
 
   /**
    * 이메일 주소 (GitHub에서 제공)

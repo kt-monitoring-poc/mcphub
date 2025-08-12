@@ -1,4 +1,3 @@
-import { Repository } from 'typeorm';
 import { User } from '../entities/User.js';
 import { BaseRepository } from './BaseRepository.js';
 
@@ -7,7 +6,7 @@ import { BaseRepository } from './BaseRepository.js';
  * GitHub OAuth 기반 사용자 데이터 관리를 담당합니다.
  */
 export class UserRepository extends BaseRepository<User> {
-  
+
   constructor() {
     super(User);
   }
@@ -64,7 +63,7 @@ export class UserRepository extends BaseRepository<User> {
       user.displayName = githubData.displayName;
       user.githubProfileUrl = githubData.githubProfileUrl;
       user.lastLoginAt = new Date();
-      
+
       return this.repository.save(user);
     } else {
       // 새 사용자 생성
@@ -138,14 +137,26 @@ export class UserRepository extends BaseRepository<User> {
   }
 
   /**
-   * 사용자 비활성화
+   * 사용자 활성화/비활성화
    */
-  async deactivateUser(userId: string): Promise<User | null> {
+  async setUserActive(userId: string, isActive: boolean): Promise<User | null> {
     const user = await this.findById(userId);
     if (!user) return null;
 
-    user.isActive = false;
+    // 관리자는 비활성화할 수 없음 (보안)
+    if (user.isAdmin && !isActive) {
+      throw new Error('관리자는 비활성화할 수 없습니다.');
+    }
+
+    user.isActive = isActive;
     return this.repository.save(user);
+  }
+
+  /**
+   * 사용자 비활성화 (하위 호환성)
+   */
+  async deactivateUser(userId: string): Promise<User | null> {
+    return this.setUserActive(userId, false);
   }
 
   /**
@@ -155,7 +166,80 @@ export class UserRepository extends BaseRepository<User> {
     const user = await this.findById(userId);
     if (!user) return null;
 
+    // 관리자를 일반 사용자로 변경 시 최소 1명의 관리자는 유지해야 함
+    if (user.isAdmin && !isAdmin) {
+      const adminCount = await this.repository.count({ 
+        where: { isAdmin: true, isActive: true } 
+      });
+      
+      if (adminCount <= 1) {
+        throw new Error('최소 1명의 관리자가 필요합니다.');
+      }
+    }
+
     user.isAdmin = isAdmin;
+    return this.repository.save(user);
+  }
+
+  /**
+   * 사용자 삭제 (소프트 삭제 - 실제로는 비활성화)
+   */
+  async softDeleteUser(userId: string): Promise<User | null> {
+    const user = await this.findById(userId);
+    if (!user) return null;
+
+    // 관리자는 삭제할 수 없음
+    if (user.isAdmin) {
+      throw new Error('관리자는 삭제할 수 없습니다.');
+    }
+
+    user.isActive = false;
+    return this.repository.save(user);
+  }
+
+  /**
+   * 사용자 완전 삭제 (주의: 실제 DB에서 삭제)
+   */
+  async hardDeleteUser(userId: string): Promise<boolean> {
+    const user = await this.findById(userId);
+    if (!user) return false;
+
+    // 관리자는 삭제할 수 없음
+    if (user.isAdmin) {
+      throw new Error('관리자는 삭제할 수 없습니다.');
+    }
+
+    await this.repository.remove(user);
+    return true;
+  }
+
+  /**
+   * 로컬 사용자명으로 조회 (관리자 계정용)
+   */
+  async findByUsername(username: string): Promise<User | null> {
+    return this.repository.findOne({
+      where: { username },
+      relations: ['mcpHubKeys']
+    });
+  }
+
+  /**
+   * 로컬 관리자 계정 생성
+   */
+  async createLocalAdmin(userData: {
+    username: string;
+    password: string;
+    email?: string;
+  }): Promise<User> {
+    const user = this.repository.create({
+      username: userData.username,
+      password: userData.password,
+      email: userData.email,
+      isAdmin: true,
+      isActive: true,
+      lastLoginAt: new Date()
+    });
+
     return this.repository.save(user);
   }
 } 

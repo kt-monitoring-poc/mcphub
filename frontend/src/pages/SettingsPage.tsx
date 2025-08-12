@@ -1,4 +1,4 @@
-import ChangePasswordForm from '@/components/ChangePasswordForm';
+
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/contexts/ToastContext';
 import { Eye, EyeOff, FileText, Github, Globe, Key, MessageSquare, Save, Server, Settings } from 'lucide-react';
@@ -143,8 +143,8 @@ const SettingsPage: React.FC = () => {
           Object.entries(data.data).forEach(([serverName, serverEnvVars]) => {
             if (typeof serverEnvVars === 'object' && serverEnvVars !== null) {
               Object.entries(serverEnvVars as Record<string, string>).forEach(([varName, value]) => {
-                // USER_ 접두사를 추가하여 템플릿과 매칭
-                const userVarName = varName.startsWith('USER_') ? varName : `USER_${varName}`;
+                // 백엔드에서는 USER_ 없이 오므로 추가
+                const userVarName = `USER_${varName}`;
                 flattenedEnvVars[userVarName] = value;
               });
             }
@@ -452,17 +452,7 @@ const SettingsPage: React.FC = () => {
         </div>
       </div>
 
-      {/* 비밀번호 변경 */}
-      <div className="bg-white dark:bg-gray-800 shadow rounded-lg">
-        <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700">
-          <h2 className="text-lg font-medium text-gray-900 dark:text-white">
-            비밀번호 변경
-          </h2>
-        </div>
-        <div className="p-6">
-          <ChangePasswordForm onSuccess={() => { }} />
-        </div>
-      </div>
+
     </div>
   );
 };

@@ -1,12 +1,23 @@
 import express from 'express';
-import fs from 'fs';
 import jwt from 'jsonwebtoken';
-import path from 'path';
 import { Pool } from 'pg';
 import config, { loadSettings, saveSettings } from '../config/index.js';
 import {
-  getGroup
-} from '../controllers/groupController.js';
+  deleteUser,
+  getAllUsers,
+  getRecentActivities,
+  getSystemStats,
+  getUserKeyStatus,
+  toggleUserActive,
+  toggleUserAdmin
+} from '../controllers/adminController.js';
+import { deleteUpstreamSession, listUpstreamSessions } from '../controllers/adminUpstreamSessionsController.js';
+import userGroupRoutes from './userGroupRoutes.js';
+
+import {
+  getPublicConfig,
+  getRuntimeConfig
+} from '../controllers/configController.js';
 import {
   getAllMarketCategories,
   getAllMarketServers,
@@ -60,10 +71,18 @@ export const initRoutes = (app: express.Application): void => {
         });
       }
 
-      // 사용자 찾기
-      const user = findUserByUsername(username);
+      // 사용자 찾기 (비동기)
+      const user = await findUserByUsername(username);
 
       if (!user) {
+        return res.status(401).json({
+          success: false,
+          message: 'Invalid credentials'
+        });
+      }
+
+      // 로컬 계정 여부 확인 (비밀번호가 있는 경우)
+      if (!user.password) {
         return res.status(401).json({
           success: false,
           message: 'Invalid credentials'
@@ -231,7 +250,7 @@ export const initRoutes = (app: express.Application): void => {
   router.put('/system-config', updateSystemConfig);
 
   // Groups - core functionality
-  router.get('/groups/:name', getGroup);
+
 
   // Market API - 완전 구현
   router.get('/market', getAllMarketServers);
@@ -288,150 +307,26 @@ export const initRoutes = (app: express.Application): void => {
     });
   });
 
-  // 관리자 API들 - 실제 데이터 구조에 맞게 수정
-  router.get('/admin/stats', async (req, res) => {
-    try {
-      const pool = new Pool({
-        connectionString: process.env.DATABASE_URL || 'postgresql://localhost:5432/mcphub'
-      });
+  // 기존 관리자 라우트들 뒤에 새로운 사용자 관리 라우트들 추가
+  // 모든 사용자 조회 (새로운 API)
+  router.get('/admin/users/list', requireAuth, requireAdmin, getAllUsers);
 
-      // 사용자 통계
-      const userStats = await pool.query(`
-        SELECT 
-          COUNT(*) as total_users,
-          COUNT(CASE WHEN "isActive" = true THEN 1 END) as active_users
-        FROM users
-      `);
+  // 사용자 활성화/비활성화
+  router.put('/admin/users/:userId/active', requireAuth, requireAdmin, toggleUserActive);
 
-      // MCPHub 키 통계
-      const keyStats = await pool.query(`
-        SELECT COUNT(*) as total_keys
-        FROM mcphub_keys
-      `);
+  // 사용자 관리자 권한 설정
+  router.put('/admin/users/:userId/admin', requireAuth, requireAdmin, toggleUserAdmin);
 
-      // MCP 서버 통계 (mcp_settings.json에서 가져오기)
-      const settingsPath = path.join(process.cwd(), 'mcp_settings.json');
-      const settings = JSON.parse(fs.readFileSync(settingsPath, 'utf8'));
+  // 사용자 삭제
+  router.delete('/admin/users/:userId', requireAuth, requireAdmin, deleteUser);
 
-      const totalServers = Object.keys(settings.servers || {}).length;
-      const activeServers = Object.values(settings.servers || {}).filter((server: any) => server.enabled).length;
-
-      await pool.end();
-
-      const stats = {
-        totalUsers: parseInt(userStats.rows[0].total_users),
-        activeUsers: parseInt(userStats.rows[0].active_users),
-        totalServers: totalServers,
-        activeServers: activeServers,
-        totalKeys: parseInt(keyStats.rows[0].total_keys),
-        activeKeys: parseInt(keyStats.rows[0].total_keys), // 모든 키가 활성 상태로 가정
-        todayLogs: 15, // 임시 값 (로그 테이블이 없음)
-        systemStatus: 'healthy' as const
-      };
-
-      res.json({
-        success: true,
-        data: stats
-      });
-    } catch (error) {
-      console.error('시스템 통계 조회 실패:', error);
-      res.status(500).json({
-        success: false,
-        message: '시스템 통계 조회에 실패했습니다.'
-      });
-    }
-  });
-
-  router.get('/admin/activities', (req, res) => {
-    res.json({
-      success: true,
-      data: []
-    });
-  });
-
-  router.get('/admin/user-keys', async (req, res) => {
-    try {
-      const pool = new Pool({
-        connectionString: process.env.DATABASE_URL || 'postgresql://localhost:5432/mcphub'
-      });
-
-      // 모든 사용자와 그들의 키 정보를 조회
-      const result = await pool.query(`
-        SELECT 
-          u.id as "userId",
-          u."githubUsername",
-          u."displayName",
-          u."isActive",
-          u."createdAt" as "userCreatedAt",
-          mk.id as "keyId",
-          mk.name as "keyName",
-          mk.description as "keyDescription",
-          mk."isActive" as "keyIsActive",
-          mk."expiresAt",
-          mk."lastUsedAt",
-          mk."usageCount",
-          mk."createdAt" as "keyCreatedAt"
-        FROM users u
-        LEFT JOIN mcphub_keys mk ON u.id = mk."userId"
-        ORDER BY u."createdAt" DESC, mk."createdAt" DESC
-      `);
-
-      await pool.end();
-
-      // 사용자별로 그룹화하여 키 상태 정보 구성
-      const userKeyStatusMap = new Map();
-
-      result.rows.forEach((row: any) => {
-        const userId = row.userId;
-
-        if (!userKeyStatusMap.has(userId)) {
-          userKeyStatusMap.set(userId, {
-            userId: userId,
-            username: row.githubUsername,
-            githubUsername: row.githubUsername,
-            displayName: row.displayName || row.githubUsername,
-            isActive: row.isActive,
-            hasKey: false,
-            keyInfo: null
-          });
-        }
-
-        const userStatus = userKeyStatusMap.get(userId);
-
-        // 키 정보가 있는 경우
-        if (row.keyId) {
-          const now = new Date();
-          const expiresAt = new Date(row.expiresAt);
-          const daysUntilExpiry = Math.ceil((expiresAt.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
-
-          userStatus.hasKey = true;
-          userStatus.keyInfo = {
-            id: row.keyId,
-            name: row.keyName,
-            isActive: row.keyIsActive,
-            expiresAt: row.expiresAt.toISOString(),
-            lastUsedAt: row.lastUsedAt ? row.lastUsedAt.toISOString() : null,
-            usageCount: row.usageCount || 0,
-            createdAt: row.keyCreatedAt.toISOString(),
-            daysUntilExpiry: daysUntilExpiry
-          };
-        }
-      });
-
-      const userKeyStatus = Array.from(userKeyStatusMap.values());
-
-      res.json({
-        success: true,
-        data: userKeyStatus
-      });
-    } catch (error) {
-      console.error('사용자 키 상태 데이터 조회 실패:', error);
-      res.status(500).json({
-        success: false,
-        message: '사용자 키 상태 데이터 조회에 실패했습니다.'
-      });
-    }
-  });
+  // 기존 관리자 라우트들을 새로운 컨트롤러로 교체
+  router.get('/admin/stats', requireAuth, requireAdmin, getSystemStats);
+  router.get('/admin/activities', requireAuth, requireAdmin, getRecentActivities);
+  router.get('/admin/user-keys', requireAuth, requireAdmin, getUserKeyStatus);
+  // 업스트림 세션 관리
+  router.get('/admin/upstream-sessions', requireAuth, requireAdmin, listUpstreamSessions);
+  router.delete('/admin/upstream-sessions/:serverName/:contextKey', requireAuth, requireAdmin, deleteUpstreamSession);
 
   // 사용자 관리 API 추가
   router.get('/admin/users', async (req, res) => {
@@ -574,6 +469,8 @@ export const initRoutes = (app: express.Application): void => {
       });
 
       // 사용자의 MCPHub 키에서 serviceTokens 조회 (기존 방식)
+      // JWT payload에서는 githubUsername이 username으로 저장됨
+      const githubUsername = user.githubUsername || user.username;
       const result = await pool.query(`
         SELECT "serviceTokens"
         FROM mcphub_keys 
@@ -581,7 +478,7 @@ export const initRoutes = (app: express.Application): void => {
         AND "isActive" = true
         ORDER BY "createdAt" DESC
         LIMIT 1
-      `, [user.username]);
+      `, [githubUsername]);
 
       await pool.end();
 
@@ -594,12 +491,22 @@ export const initRoutes = (app: express.Application): void => {
         // 기존 API 키들을 서버별로 매핑
         const serverMapping: Record<string, string> = {
           'FIRECRAWL_TOKEN': 'firecrawl-mcp',
-          'GITHUB_TOKEN': 'github',
+          'GITHUB_TOKEN': 'github-pr-mcp-server',
           'CONFLUENCE_TOKEN': 'confluence',
           'JIRA_TOKEN': 'jira',
-          'JIRA_BASE_URL': 'jira-emoket',
-          'JIRA_EMAIL': 'jira-emoket',
-          'JIRA_API_TOKEN': 'jira-emoket'
+          'JIRA_BASE_URL': 'jira-azure',
+          'JIRA_EMAIL': 'jira-azure',
+          'JIRA_API_TOKEN': 'jira-azure',
+          'ATLASSIAN_TOKEN': 'mcp-atlassian',
+          'ATLASSIAN_EMAIL': 'mcp-atlassian',
+          'ATLASSIAN_CLOUD_ID': 'mcp-atlassian',
+          // 새로 추가된 Atlassian 서버 키들
+          'ATLASSIAN_JIRA_TOKEN': 'mcp-atlassian-jira',
+          'ATLASSIAN_JIRA_EMAIL': 'mcp-atlassian-jira',
+          'ATLASSIAN_JIRA_CLOUD_ID': 'mcp-atlassian-jira',
+          'ATLASSIAN_CONFLUENCE_TOKEN': 'mcp-atlassian-confluence',
+          'ATLASSIAN_CONFLUENCE_EMAIL': 'mcp-atlassian-confluence',
+          'ATLASSIAN_CONFLUENCE_CLOUD_ID': 'mcp-atlassian-confluence'
         };
 
         Object.entries(serviceTokens).forEach(([varName, value]) => {
@@ -650,7 +557,9 @@ export const initRoutes = (app: express.Application): void => {
       });
 
       // 사용자 ID 조회
-      const userResult = await pool.query('SELECT id FROM users WHERE "githubUsername" = $1', [user.username]);
+      // JWT payload에서는 githubUsername이 username으로 저장됨
+      const githubUsername = user.githubUsername || user.username;
+      const userResult = await pool.query('SELECT id FROM users WHERE "githubUsername" = $1', [githubUsername]);
       if (userResult.rows.length === 0) {
         await pool.end();
         return res.status(404).json({
@@ -715,9 +624,287 @@ export const initRoutes = (app: express.Application): void => {
     }
   });
 
+  // 환경변수 매핑 검증 API
+  router.get('/env-vars/validate', requireAuth, async (req, res) => {
+    try {
+      const { validateEnvVarMapping } = await import('../utils/envVarValidation.js');
+      const result = await validateEnvVarMapping();
+
+      res.json({
+        success: true,
+        data: result
+      });
+    } catch (error) {
+      console.error('환경변수 검증 실패:', error);
+      res.status(500).json({
+        success: false,
+        message: '환경변수 검증에 실패했습니다.'
+      });
+    }
+  });
+
+  // 사용되지 않는 환경변수 정리 API
+  router.post('/env-vars/cleanup', requireAuth, async (req, res) => {
+    try {
+      const { dryRun = false } = req.body;
+      const { getCurrentEnvVars, cleanupObsoleteEnvVars } = await import('../utils/envVarCleanup.js');
+      const { loadSettings } = await import('../config/index.js');
+
+      // 현재 사용 중인 환경변수들 가져오기
+      const settings = loadSettings();
+      const currentEnvVars = getCurrentEnvVars(settings);
+
+      // 정리 실행
+      const result = await cleanupObsoleteEnvVars(currentEnvVars, dryRun);
+
+      res.json({
+        success: result.success,
+        message: result.message,
+        data: {
+          affectedUsers: result.affectedUsers,
+          removedVars: result.removedVars,
+          dryRun
+        }
+      });
+    } catch (error) {
+      console.error('환경변수 정리 실패:', error);
+      res.status(500).json({
+        success: false,
+        message: '환경변수 정리에 실패했습니다.'
+      });
+    }
+  });
+
+  // 환경변수 스케줄러 상태 조회 API (관리자 전용)
+  router.get('/admin/env-scheduler/status', requireAuth, async (req, res) => {
+    try {
+      const { getScheduler } = await import('../services/envVarScheduler.js');
+      const scheduler = getScheduler();
+
+      if (!scheduler) {
+        return res.json({
+          success: true,
+          data: {
+            isRunning: false,
+            config: null,
+            nextRunTime: null
+          }
+        });
+      }
+
+      res.json({
+        success: true,
+        data: scheduler.getStatus()
+      });
+    } catch (error) {
+      console.error('스케줄러 상태 조회 실패:', error);
+      res.status(500).json({
+        success: false,
+        message: '스케줄러 상태 조회에 실패했습니다.'
+      });
+    }
+  });
+
+  // 환경변수 스케줄러 설정 업데이트 API (관리자 전용)
+  router.post('/admin/env-scheduler/config', requireAuth, async (req, res) => {
+    try {
+      const { getScheduler } = await import('../services/envVarScheduler.js');
+      const scheduler = getScheduler();
+
+      if (!scheduler) {
+        return res.status(404).json({
+          success: false,
+          message: 'Scheduler not initialized'
+        });
+      }
+
+      const { enabled, intervalHours, autoCleanup, maxOrphanedKeys, scheduledTime } = req.body;
+
+      scheduler.updateConfig({
+        enabled: enabled !== undefined ? enabled : undefined,
+        intervalHours: intervalHours !== undefined ? intervalHours : undefined,
+        autoCleanup: autoCleanup !== undefined ? autoCleanup : undefined,
+        maxOrphanedKeys: maxOrphanedKeys !== undefined ? maxOrphanedKeys : undefined,
+        scheduledTime: scheduledTime !== undefined ? scheduledTime : undefined
+      });
+
+      const updatedConfig = scheduler.getConfig();
+      res.json({
+        success: true,
+        message: '스케줄러 설정이 업데이트되었습니다.',
+        data: updatedConfig
+      });
+    } catch (error) {
+      console.error('스케줄러 설정 업데이트 실패:', error);
+      res.status(500).json({
+        success: false,
+        message: '스케줄러 설정 업데이트에 실패했습니다.'
+      });
+    }
+  });
+
+  // 환경변수 검증 수동 실행 API (관리자 전용)
+  router.post('/admin/env-scheduler/run', requireAuth, async (req, res) => {
+    try {
+      const { getScheduler } = await import('../services/envVarScheduler.js');
+      const scheduler = getScheduler();
+
+      if (!scheduler) {
+        return res.status(404).json({
+          success: false,
+          message: 'Scheduler not initialized'
+        });
+      }
+
+      await scheduler.runManually();
+      res.json({
+        success: true,
+        message: '환경변수 검증이 수동으로 실행되었습니다.'
+      });
+    } catch (error) {
+      console.error('수동 검증 실행 실패:', error);
+      res.status(500).json({
+        success: false,
+        message: '수동 검증 실행에 실패했습니다.'
+      });
+    }
+  });
+
+  // 환경변수 사용 현황 보고서 API
+  router.get('/env-vars/report', requireAuth, async (req, res) => {
+    try {
+      const { Pool } = await import('pg');
+      const { extractUserEnvVars } = await import('../utils/variableDetection.js');
+      const { loadSettings } = await import('../config/index.js');
+
+      // 서버별 환경변수 추출
+      const settings = loadSettings();
+      const serverStats: any[] = [];
+      const allEnvVars = new Map<string, string[]>();
+
+      if (settings?.mcpServers) {
+        Object.entries(settings.mcpServers).forEach(([serverName, serverConfig]) => {
+          const envVars = extractUserEnvVars(serverConfig);
+
+          serverStats.push({
+            serverName,
+            envVars,
+            usersWithValues: 0,
+            totalUsers: 0,
+            usagePercentage: 0
+          });
+
+          envVars.forEach(varName => {
+            if (!allEnvVars.has(varName)) {
+              allEnvVars.set(varName, []);
+            }
+            allEnvVars.get(varName)!.push(serverName);
+          });
+        });
+      }
+
+      // DB에서 사용자 데이터 조회
+      const pool = new Pool({
+        connectionString: process.env.DATABASE_URL || 'postgresql://localhost:5432/mcphub'
+      });
+
+      const result = await pool.query(`
+        SELECT 
+          mk.id,
+          mk."userId", 
+          mk."serviceTokens",
+          u."githubUsername",
+          u."isActive" as user_active
+        FROM mcphub_keys mk
+        JOIN users u ON mk."userId" = u.id
+        WHERE mk."isActive" = true
+        ORDER BY u."githubUsername"
+      `);
+
+      const totalUsers = result.rows.length;
+
+      // 환경변수별 사용 통계 계산
+      const envVarStats: any[] = [];
+
+      allEnvVars.forEach((associatedServers, varName) => {
+        let usersWithValues = 0;
+
+        result.rows.forEach(row => {
+          const serviceTokens = row.serviceTokens || {};
+          const hasValue = serviceTokens[varName] &&
+            serviceTokens[varName].trim() !== '';
+          if (hasValue) {
+            usersWithValues++;
+          }
+        });
+
+        envVarStats.push({
+          varName,
+          usersWithValues,
+          totalUsers,
+          usagePercentage: totalUsers > 0 ? (usersWithValues / totalUsers) * 100 : 0,
+          associatedServers
+        });
+      });
+
+      // 서버별 통계 계산
+      serverStats.forEach(serverStat => {
+        let serverUsersWithAnyValue = 0;
+
+        result.rows.forEach(row => {
+          const serviceTokens = row.serviceTokens || {};
+          const hasAnyServerValue = serverStat.envVars.some((varName: string) =>
+            serviceTokens[varName] && serviceTokens[varName].trim() !== ''
+          );
+
+          if (hasAnyServerValue) {
+            serverUsersWithAnyValue++;
+          }
+        });
+
+        serverStat.usersWithValues = serverUsersWithAnyValue;
+        serverStat.totalUsers = totalUsers;
+        serverStat.usagePercentage = totalUsers > 0 ? (serverUsersWithAnyValue / totalUsers) * 100 : 0;
+      });
+
+      await pool.end();
+
+      res.json({
+        success: true,
+        data: {
+          summary: {
+            totalServers: serverStats.length,
+            totalEnvVars: envVarStats.length,
+            totalUsers
+          },
+          serverStats: serverStats.sort((a, b) => b.usagePercentage - a.usagePercentage),
+          envVarStats: envVarStats.sort((a, b) => b.usagePercentage - a.usagePercentage),
+          unusedVars: envVarStats.filter(v => v.usagePercentage === 0)
+        }
+      });
+
+    } catch (error) {
+      console.error('환경변수 보고서 생성 실패:', error);
+      res.status(500).json({
+        success: false,
+        message: '환경변수 보고서 생성에 실패했습니다.'
+      });
+    }
+  });
+
   // Add API routes to express app
   const basePath = config.basePath;
   app.use(`${basePath}/api`, router);
+
+  // Config 라우트 (인증 없이 접근 가능)
+  app.get(`${basePath}/config`, getRuntimeConfig);
+  app.get(`${basePath}/login/config`, getPublicConfig);
+
+  // 사용자 그룹 관리 라우트
+  app.use(`${basePath}/api/user/groups`, userGroupRoutes);
+
+  // REST API 엔드포인트는 Cursor IDE에서 사용하지 않으므로 제거
+  // Cursor IDE는 MCP 프로토콜을 통해 /mcp 엔드포인트로 통신함
 };
 
 export default router;

@@ -2,6 +2,7 @@ import ThemeSwitch from '@/components/ui/ThemeSwitch';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/contexts/ToastContext';
 import {
+  Database,
   FileText,
   Key,
   LayoutDashboard,
@@ -22,12 +23,12 @@ const AdminLayout: React.FC<AdminLayoutProps> = () => {
   const { t } = useTranslation();
   const navigate = useNavigate();
   const location = useLocation();
-  const { user, logout } = useAuth();
+  const { auth, logout } = useAuth();
   const { showToast } = useToast();
   const [sidebarOpen, setSidebarOpen] = useState(true);
 
   // 관리자 권한 확인
-  if (!user?.isAdmin) {
+  if (!auth.user?.isAdmin) {
     showToast('관리자 권한이 필요합니다.', 'error');
     navigate('/');
     return null;
@@ -63,6 +64,11 @@ const AdminLayout: React.FC<AdminLayoutProps> = () => {
       path: '/admin/settings',
       label: '시스템 설정',
       icon: <Settings className="h-5 w-5" />
+    },
+    {
+      path: '/admin/env-vars',
+      label: '환경변수 관리',
+      icon: <Database className="h-5 w-5" />
     }
   ];
 
