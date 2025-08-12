@@ -35,6 +35,9 @@ importers:
       bcryptjs:
         specifier: ^3.0.2
         version: 3.0.2
+      chalk:
+        specifier: ^5.5.0
+        version: 5.5.0
       cors:
         specifier: ^2.8.5
         version: 2.8.5
@@ -1932,6 +1935,10 @@ packages:
 
   chalk@5.2.0:
     resolution: {integrity: sha512-ree3Gqw/nazQAPuJJEy+avdl7QfZMcUvmHIKgEZkGL+xOBzRvup5Hxo6LHuMceSxOabuJLJm5Yp/92R9eMmMvA==}
+    engines: {node: ^12.17.0 || ^14.13 || >=16.0.0}
+
+  chalk@5.5.0:
+    resolution: {integrity: sha512-1tm8DTaJhPBG3bIkVeZt1iZM9GfSX2lzOeDVZH9R9ffRHpmHvxZ/QhgQH/aDTkswQVt+YHdXAdS/In/30OjCbg==}
     engines: {node: ^12.17.0 || ^14.13 || >=16.0.0}
 
   char-regex@1.0.2:
@@ -6495,6 +6502,8 @@ snapshots:
 
   chalk@5.2.0: {}
 
+  chalk@5.5.0: {}
+
   char-regex@1.0.2: {}
 
   chardet@0.7.0: {}
@@ -8074,7 +8083,7 @@ snapshots:
 
   log-symbols@5.1.0:
     dependencies:
-      chalk: 5.2.0
+      chalk: 5.5.0
       is-unicode-supported: 1.3.0
 
   longest@1.0.1: {}
@@ -8338,7 +8347,7 @@ snapshots:
 
   ora@6.3.1:
     dependencies:
-      chalk: 5.2.0
+      chalk: 5.5.0
       cli-cursor: 4.0.0
       cli-spinners: 2.9.2
       is-interactive: 2.0.0
