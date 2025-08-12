@@ -83,15 +83,30 @@ export const detectVariables = (payload: any): string[] => {
 export const extractUserEnvVars = (serverConfig: any): string[] => {
     const variables = new Set<string>();
 
-    // 1. ${USER_...} 패턴 감지
+    // 1. ${변수명} 패턴 감지 - 모든 환경변수 포함
     const templateVars = detectVariables(serverConfig);
-    templateVars.filter(varName => varName.startsWith('USER_')).forEach(varName => variables.add(varName));
+
+    // 사용자별 토큰으로 간주할 변수 패턴들
+    const userTokenPatterns = [
+        /^USER_/,           // USER_로 시작하는 변수
+        /^GITHUB_TOKEN$/,   // GitHub 토큰
+        /^FIRECRAWL_TOKEN$/, // Firecrawl 토큰
+        /^ATLASSIAN_.*_TOKEN$/, // Atlassian 토큰들
+        /^ATLASSIAN_.*_EMAIL$/, // Atlassian 이메일들
+        /^ATLASSIAN_.*_URL$/    // Atlassian URL들
+    ];
+
+    // 패턴에 맞는 변수들만 필터링
+    templateVars.forEach(varName => {
+        if (userTokenPatterns.some(pattern => pattern.test(varName))) {
+            variables.add(varName);
+        }
+    });
 
     // 2. env 필드에 직접 정의된 환경변수 감지
     if (serverConfig.env && typeof serverConfig.env === 'object') {
         Object.keys(serverConfig.env).forEach(key => {
-            // USER_로 시작하는 환경변수만 추가
-            if (key.startsWith('USER_')) {
+            if (userTokenPatterns.some(pattern => pattern.test(key))) {
                 variables.add(key);
             }
         });
