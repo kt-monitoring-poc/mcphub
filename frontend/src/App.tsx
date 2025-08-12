@@ -38,7 +38,7 @@ function App() {
                   <Route path="/" element={<DashboardPage />} />
 
                   <Route path="/user-groups" element={<UserGroupsPage />} />
-                  <Route path="/api-keys" element={<KeyManagementPage />} />
+                  <Route path="/keys" element={<KeyManagementPage />} />
                   <Route path="/settings" element={<SettingsPage />} />
                 </Route>
               </Route>
