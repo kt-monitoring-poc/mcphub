@@ -269,6 +269,57 @@ export const initRoutes = (app: express.Application): void => {
     });
   });
 
+  // API Keys 엔드포인트 추가 (프론트엔드 /api-keys 요청 처리)
+  router.get('/api-keys', requireAuth, async (req, res) => {
+    try {
+      const user = (req as any).user;
+      if (!user) {
+        return res.status(401).json({
+          success: false,
+          message: '인증이 필요합니다.'
+        });
+      }
+
+      const pool = new Pool({
+        connectionString: process.env.DATABASE_URL || 'postgresql://localhost:5432/mcphub'
+      });
+
+      // 사용자의 MCPHub 키에서 serviceTokens 조회
+      const githubUsername = user.githubUsername || user.username;
+      const result = await pool.query(`
+        SELECT "serviceTokens"
+        FROM mcphub_keys 
+        WHERE "userId" = (SELECT id FROM users WHERE "githubUsername" = $1)
+        AND "isActive" = true
+        ORDER BY "createdAt" DESC
+        LIMIT 1
+      `, [githubUsername]);
+
+      await pool.end();
+
+      if (result.rows.length > 0 && result.rows[0].serviceTokens) {
+        const serviceTokens = result.rows[0].serviceTokens;
+        res.json({
+          success: true,
+          data: serviceTokens
+        });
+      } else {
+        res.json({
+          success: true,
+          data: {}
+        });
+      }
+    } catch (error) {
+      console.error('API Keys 조회 실패:', error);
+      res.status(500).json({
+        success: false,
+        message: 'API Keys 조회에 실패했습니다.'
+      });
+    }
+  });
+
+
+
   router.post('/keys', (req, res) => {
     res.json({
       success: true,
