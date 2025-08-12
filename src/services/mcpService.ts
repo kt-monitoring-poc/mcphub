@@ -694,7 +694,7 @@ export const ensureServerConnected = async (
 
     // 임시로 기본 연결만 수행
     console.log(`🔌 ${serverName} 서버에 기본 연결 시도 중...`);
-    
+
     // 서버 정보 업데이트
     const newServerInfo: ServerInfo = {
       name: serverName,
@@ -704,10 +704,10 @@ export const ensureServerConnected = async (
       error: null,
       createTime: Date.now()
     };
-    
+
     serverInfos.push(newServerInfo);
     console.log(`✅ ${serverName} 서버 기본 연결 완료`);
-    
+
     return true;
   } catch (error) {
     console.error(`❌ ensureServerConnected 실패: ${serverName}`, error);

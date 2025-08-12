@@ -44,6 +44,11 @@
 - [컨트리뷰션](development/contributing.mdx) - 개발 참여 가이드
 - [디버그 로깅](development/debug-logging.md) - 완전한 로깅 시스템
 
+### 📖 개발 히스토리 (development-history/)
+**개발 과정의 모든 변경사항과 문제 해결 과정**
+- [**개발 히스토리 관리 시스템**](development-history/README.md) ⭐ - 체계적인 개발 기록 시스템
+- [**2025-08-12 GitHub MCP 연결 문제 해결**](development-history/2025-08-12-github-mcp-connection-and-docker-build-fixes.md) - 오늘의 상세 개발 히스토리
+
 ### 🚨 트러블슈팅 (troubleshooting/)
 **문제 해결과 장애 대응 가이드**
 - [Cursor 연결 문제](troubleshooting/cursor-deadlock-fix-2025-08-09.md) - 서버 무응답 해결
@@ -60,8 +65,9 @@
 ### 👨‍💻 개발자/관리자
 1. [프로젝트 현황](guides/mcphub-project-status.md) ⭐
 2. [데이터베이스 스키마](guides/database-schema.md) ⭐
-3. [API 레퍼런스](references/api-reference.md)
-4. [아키텍처](development/architecture.mdx)
+3. [**개발 히스토리 관리 시스템**](development-history/README.md) ⭐ - 최신 개발 과정 참조
+4. [API 레퍼런스](references/api-reference.md)
+5. [아키텍처](development/architecture.mdx)
 
 ### 🎮 Cursor 사용자
 1. [빠른 시작](quickstart.mdx) ⭐
