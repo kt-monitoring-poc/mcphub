@@ -31,3 +31,10 @@ coverage/
 build-for-azure.sh
 
 data/
+# Environment variables
+.env
+.env.*
+*.env
+.env.local
+.env.production
+.env.staging
