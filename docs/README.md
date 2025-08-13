@@ -48,6 +48,14 @@
 **개발 과정의 모든 변경사항과 문제 해결 과정**
 - [**개발 히스토리 관리 시스템**](development-history/README.md) ⭐ - 체계적인 개발 기록 시스템
 - [**2025-08-12 GitHub MCP 연결 문제 해결**](development-history/2025-08-12-github-mcp-connection-and-docker-build-fixes.md) - 오늘의 상세 개발 히스토리
+- [**2025-08-12 소스코드 문서화 격차 분석**](development-history/2025-08-12-sourcecode-documentation-gap-analysis.md) - Jira 이슈 등록을 위한 문서화 필요 항목 분석
+
+### 🌟 혁신 기능 (features/)
+**특허 가능한 혁신적 기능들의 상세 개발 계획**
+- [**특허 혁신 기능 로드맵**](features/patent-innovation-roadmap.mdx) 🚀 - 모든 혁신 기능의 개발 계획과 특허 전략
+- [**AI 기반 자동 구성 시스템**](features/ai-powered-auto-configuration.mdx) 🤖 - 자연어 요구사항을 AI가 분석하여 MCP 서버 자동 구성
+- [**실시간 성능 예측 및 자동 스케일링**](features/real-time-performance-prediction.mdx) 📊 - ML 기반 성능 예측으로 리소스 자동 조정
+- [**기능 가이드**](features/README.md) 📚 - MCPHub의 모든 기능들을 체계적으로 정리한 가이드
 
 ### 🚨 트러블슈팅 (troubleshooting/)
 **문제 해결과 장애 대응 가이드**
