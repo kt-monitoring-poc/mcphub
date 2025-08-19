@@ -4,7 +4,7 @@ NPM_REGISTRY=${NPM_REGISTRY:-https://registry.npmjs.org/}
 echo "Setting npm registry to ${NPM_REGISTRY}"
 npm config set registry "$NPM_REGISTRY"
 
-# 处理 HTTP_PROXY 和 HTTPS_PROXY 环境变量
+# HTTP_PROXY 및 HTTPS_PROXY 환경변수 처리
 if [ -n "$HTTP_PROXY" ]; then
   echo "Setting HTTP proxy to ${HTTP_PROXY}"
   npm config set proxy "$HTTP_PROXY"

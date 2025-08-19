@@ -8,13 +8,7 @@
 # API 서버 및 MCP 프로토콜 처리를 담당합니다.
 
 # Azure Container Apps는 amd64 플랫폼을 사용하므로 명시적 지정
-FROM --platform=linux/amd64 python:3.13-slim-bookworm AS base
-
-# uv (Python 패키지 매니저) 설치
-# uv는 Python 패키지 설치 및 실행을 위한 고성능 도구
-# MCPHub에서 Python 기반 MCP 서버들을 실행하기 위해 필요
-# 예: uvx mcp-server-fetch, uvx mcp-server-sqlite 등
-COPY --from=ghcr.io/astral-sh/uv:latest /uv /uvx /bin/
+FROM --platform=linux/amd64 node:22-bookworm-slim AS base
 
 # 프록시 환경변수 설정 (네트워크 제한 환경 지원)
 # 중국 등 특정 지역에서 패키지 다운로드 최적화를 위한 설정
@@ -24,14 +18,11 @@ ARG HTTPS_PROXY=""
 ENV HTTP_PROXY=$HTTP_PROXY
 ENV HTTPS_PROXY=$HTTPS_PROXY
 
-# 시스템 패키지 설치 및 Node.js 설정
+# 시스템 패키지 설치
 # - curl: 외부 API 호출 및 헬스체크용
 # - gnupg: GPG 키 검증용
 # - git: Git 기반 MCP 서버 설치용
-# - nodejs: MCPHub 메인 애플리케이션 (TypeScript/React) 실행용
 RUN apt-get update && apt-get install -y curl gnupg git \
-  && curl -fsSL https://deb.nodesource.com/setup_22.x | bash - \
-  && apt-get install -y nodejs \
   && apt-get clean && rm -rf /var/lib/apt/lists/*
 
 # pnpm 설치 (Node.js 패키지 매니저)
@@ -85,17 +76,14 @@ RUN if [ "$INSTALL_PLAYWRIGHT" = "true" ]; then \
   npx -y playwright install --with-deps chrome; \
   fi
 
-# Python 기반 MCP 서버 설치
-# 현재 mcp_settings.json에서 Python 기반 MCP 서버를 사용하지 않으므로 생략
-# 필요시 uv tool install <package-name> 형태로 추가 가능
-
 # 애플리케이션 작업 디렉토리 설정
 WORKDIR /app
 
 # Backend 의존성 설치 (캐시 최적화)
 # package.json과 pnpm-lock.yaml을 먼저 복사하여 Docker 레이어 캐싱 활용
-# TypeScript 빌드를 위해 devDependencies도 포함하여 설치
 COPY package.json pnpm-lock.yaml ./
+
+# 개발 의존성 포함하여 설치 (TypeScript 빌드용)
 RUN pnpm install --frozen-lockfile
 
 # Backend 소스 코드 복사

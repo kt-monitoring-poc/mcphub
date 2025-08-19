@@ -8,7 +8,7 @@ set -e
 echo "🚀 Azure Container Apps 배포용 Docker 이미지 빌드 및 푸시 시작..."
 
 # Docker Hub 설정
-DOCKER_HUB_USERNAME="giglepeople"
+DOCKER_HUB_USERNAME="kksshh0612"
 VERSION="v1"
 
 # 이미지 태그 설정
@@ -23,7 +23,7 @@ FRONTEND_HUB_TAG="$DOCKER_HUB_USERNAME/mcphub-frontend:$VERSION"
 echo "📦 Backend 이미지 빌드 중..."
 docker build \
   --platform linux/amd64 \
-  --build-arg BUILD_ENV=docker \
+  --build-arg BUILD_ENV=production \
   --build-arg INSTALL_PLAYWRIGHT=false \
   --build-arg REQUEST_TIMEOUT=300000 \
   --build-arg BASE_PATH="" \
@@ -48,12 +48,12 @@ echo "🔐 Docker Hub 로그인 상태 확인 중..."
 if ! docker info | grep -q "Username"; then
   echo "⚠️  Docker Hub에 로그인되지 않았습니다."
   echo "   다음 명령어로 로그인해주세요:"
-  echo "   docker login -u giglepeople"
+  echo "   docker login -u kksshh0612"
   echo ""
   read -p "Docker Hub에 로그인하시겠습니까? (y/n): " -n 1 -r
   echo
   if [[ $REPLY =~ ^[Yy]$ ]]; then
-    docker login -u giglepeople
+    docker login -u kksshh0612
   else
     echo "❌ Docker Hub 로그인이 필요합니다. 스크립트를 중단합니다."
     exit 1
@@ -104,5 +104,5 @@ echo "  GITHUB_CLIENT_SECRET=your-github-client-secret"
 echo "  OPENAI_API_KEY=your-openai-api-key"
 echo ""
 echo "🌐 Docker Hub 이미지 URL:"
-echo "  Backend: https://hub.docker.com/r/giglepeople/mcphub-backend"
-echo "  Frontend: https://hub.docker.com/r/giglepeople/mcphub-frontend" 
+echo "  Backend: https://hub.docker.com/r/kksshh0612/mcphub-backend"
+echo "  Frontend: https://hub.docker.com/r/kksshh0612/mcphub-frontend" 

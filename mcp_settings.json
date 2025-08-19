@@ -11,7 +11,7 @@
     },
     "mcp-atlassian-jira": {
       "type": "streamable-http",
-      "url": "https://mcp-jira-service.livelybeach-90f399a8.koreacentral.azurecontainerapps.io/mcp/",
+      "url": "https://mcp-jira-server.redrock-1ca7a56f.koreacentral.azurecontainerapps.io/mcp/",
       "headers": {
         "Authorization": "Bearer ${ATLASSIAN_JIRA_TOKEN}",
         "X-User-Email": "${ATLASSIAN_JIRA_EMAIL}",
@@ -20,11 +20,11 @@
     },
     "mcp-atlassian-confluence": {
       "type": "streamable-http",
-      "url": "https://mcp-confluence-service.livelybeach-90f399a8.koreacentral.azurecontainerapps.io/mcp/",
+      "url": "https://mcp-confluence-server.redrock-1ca7a56f.koreacentral.azurecontainerapps.io/mcp/",
       "headers": {
         "Authorization": "Bearer ${ATLASSIAN_CONFLUENCE_TOKEN}",
         "X-User-Email": "${ATLASSIAN_CONFLUENCE_EMAIL}",
-        "X-Jira-URL": "${ATLASSIAN_CONFLUENCE_URL}"
+        "X-Confluence-URL": "${ATLASSIAN_CONFLUENCE_URL}"
       }
     },
     "github-pr-mcp-server": {
@@ -34,6 +34,10 @@
       "headers": {
         "Authorization": "Bearer ${GITHUB_TOKEN}"
       }
+    },
+    "react Docs": {
+      "type": "streamable-http",
+      "url": "https://gitmcp.io/facebook/react"
     }
   }
 }
