@@ -145,3 +145,7 @@ NODE_OPTIONS=--require @opentelemetry/auto-instrumentations-node/register
 - OpenTelemetry Collector 엔드포인트는 Kubernetes 환경 기준으로 설정됨
 - 로컬 개발 시에는 환경변수를 오버라이드하여 사용 가능
 - Winston 로거는 기존 LogService와 병행하여 사용되므로 기존 기능에 영향 없음
+
+## 📚 관련 문서
+- [Winston Transport 구현 및 로그/트레이스 검증](./2025-01-20-opentelemetry-winston-transport-implementation.md)
+- [Node.js OpenTelemetry 완전 가이드](../guides/nodejs-opentelemetry-complete-guide.md)

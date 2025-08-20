@@ -7,7 +7,10 @@
 ```
 docs/development-history/
 ├── README.md                                    # 이 파일 (인덱스)
-├── 2025-08-12-github-mcp-connection-and-docker-build-fixes.md  # 오늘의 개발 히스토리
+├── 2025-01-20-opentelemetry-winston-transport-implementation.md  # Winston Transport 구현
+├── 2025-01-12-opentelemetry-integration.md     # OpenTelemetry 초기 통합
+├── 2025-08-12-github-mcp-connection-and-docker-build-fixes.md  # GitHub MCP 연결 수정
+├── 2025-08-12-sourcecode-documentation-gap-analysis.md  # 문서화 격차 분석
 └── [날짜]-[주제]-[상세내용].md                 # 향후 개발 히스토리 파일들
 ```
 
