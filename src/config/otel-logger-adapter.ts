@@ -10,7 +10,6 @@
  * - OpenTelemetry trace 컨텍스트 자동 연동
  * - 구조화된 로그 데이터 생성
  */
-
 import { trace } from '@opentelemetry/api';
 import winston from 'winston';
 // import { OpenTelemetryTransportV3 } from '@opentelemetry/winston-transport';
