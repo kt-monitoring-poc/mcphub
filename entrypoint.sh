@@ -19,4 +19,15 @@ fi
 
 echo "Using REQUEST_TIMEOUT: $REQUEST_TIMEOUT"
 
+# OpenTelemetry 설정 확인 및 활성화 (런타임에만)
+if [ "$OTEL_ENABLED" = "true" ]; then
+  echo "OpenTelemetry enabled with endpoint: $OTEL_EXPORTER_OTLP_ENDPOINT"
+  echo "Service name: $OTEL_SERVICE_NAME"
+  # 런타임에 NODE_OPTIONS 설정
+  export NODE_OPTIONS="--require @opentelemetry/auto-instrumentations-node/register"
+  echo "NODE_OPTIONS set to: $NODE_OPTIONS"
+else
+  echo "OpenTelemetry disabled"
+fi
+
 exec "$@"

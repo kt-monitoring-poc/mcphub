@@ -56,6 +56,13 @@ ENV ENV_SCHEDULER_MAX_ORPHANED_KEYS=$ENV_SCHEDULER_MAX_ORPHANED_KEYS
 ARG ENV_SCHEDULER_SCHEDULED_TIME="00:00"
 ENV ENV_SCHEDULER_SCHEDULED_TIME=$ENV_SCHEDULER_SCHEDULED_TIME
 
+# OpenTelemetry 설정 (빌드 시점에는 환경변수만 설정, NODE_OPTIONS는 설정하지 않음)
+ENV OTEL_EXPORTER_OTLP_PROTOCOL="http/protobuf"
+ARG OTEL_TRACES_EXPORTER="otlp"
+ARG OTEL_EXPORTER_OTLP_ENDPOINT="http://10.224.0.11:30596"
+ARG OTEL_SERVICE_NAME="mcphub-backend"
+ARG OTEL_ENABLED="true"
+
 # 전역 MCP 서버 패키지 설치
 # 현재 mcp_settings.json에서 실제 사용하는 패키지만 설치
 ENV PNPM_HOME=/usr/local/share/pnpm
@@ -115,6 +122,13 @@ RUN pnpm backend:build
 
 # 프로덕션 의존성만 남기고 devDependencies 제거 (이미지 크기 최적화)
 RUN pnpm install --prod --frozen-lockfile
+
+# OpenTelemetry 환경변수 설정 (의존성 설치 후)
+ENV OTEL_EXPORTER_OTLP_PROTOCOL=$OTEL_EXPORTER_OTLP_PROTOCOL
+ENV OTEL_TRACES_EXPORTER=$OTEL_TRACES_EXPORTER
+ENV OTEL_EXPORTER_OTLP_ENDPOINT=$OTEL_EXPORTER_OTLP_ENDPOINT
+ENV OTEL_SERVICE_NAME=$OTEL_SERVICE_NAME
+ENV OTEL_ENABLED=$OTEL_ENABLED
 
 # Azure Container Apps용 엔트리포인트 스크립트 설정
 # 컨테이너 시작 시 실행될 스크립트 (환경 설정, 초기화 등)

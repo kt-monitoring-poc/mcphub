@@ -27,9 +27,9 @@
         "X-Confluence-URL": "${ATLASSIAN_CONFLUENCE_URL}"
       }
     },
-    "github-pr-mcp-server": {
+    "github-mcp-server": {
       "type": "streamable-http",
-      "url": "https://github-pr-mcp-server.livelybeach-90f399a8.koreacentral.azurecontainerapps.io/mcp",
+      "url": "https://github-mcp-server.redrock-1ca7a56f.koreacentral.azurecontainerapps.io/mcp",
       "enabled": true,
       "headers": {
         "Authorization": "Bearer ${GITHUB_TOKEN}"

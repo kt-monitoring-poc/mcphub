@@ -3,11 +3,13 @@
  * 
  * 이 파일은 MCPHub 서버 애플리케이션을 시작하는 역할을 합니다.
  * - TypeORM 메타데이터 리플렉션 설정
+ * - OpenTelemetry 로깅 어댑터 초기화
  * - 서버 인스턴스 생성 및 초기화
  * - 애플리케이션 부팅 프로세스 관리
  */
 
 import 'reflect-metadata'; // TypeORM 데코레이터 메타데이터 지원을 위해 필요
+import './config/otel-logger-adapter.js'; // OpenTelemetry 로깅 어댑터 초기화
 import AppServer from './server.js';
 
 // 애플리케이션 서버 인스턴스 생성
