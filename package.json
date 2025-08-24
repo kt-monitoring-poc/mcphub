@@ -62,7 +62,7 @@
     "@opentelemetry/api": "^1.9.0",
     "@opentelemetry/api-logs": "^0.203.0",
     "@opentelemetry/auto-instrumentations-node": "^0.62.0",
-    "@opentelemetry/exporter-logs-otlp-http": "^0.203.0",
+    "@opentelemetry/exporter-logs-otlp-grpc": "^0.203.0",
     "@opentelemetry/instrumentation-winston": "^0.48.0",
     "@opentelemetry/resources": "^2.0.1",
     "@opentelemetry/sdk-logs": "^0.203.0",

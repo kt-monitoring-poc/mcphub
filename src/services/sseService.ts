@@ -580,6 +580,8 @@ export const handleMcpOtherRequest = async (req: Request, res: Response): Promis
  * @returns {Promise<Record<string, string> | null>} 사용자 서비스 토큰 또는 null
  */
 const authenticateWithMcpHubKey = async (token: string, suppressLogs = false): Promise<Record<string, string> | null> => {
+  console.log('🔐 MCPHub Key 인증 시도:', token);
+
   if (!token.startsWith('mcphub_')) {
     return null;
   }
@@ -622,6 +624,19 @@ const authenticateWithMcpHubKey = async (token: string, suppressLogs = false): P
  * @returns {Promise<void>}
  */
 export const handleMcpPostRequest = async (req: Request, res: Response): Promise<void> => {
+  
+  console.log('📋 요청 본문:', req.body);
+  
+  // 모든 헤더 키와 값 로깅
+  const allHeaders = req.headers;
+  console.log('�� 모든 헤더 키들:', Object.keys(allHeaders));
+  
+  Object.entries(allHeaders).forEach(([key, value]) => {
+    // 민감한 정보 마스킹
+    let maskedValue = value;
+    console.log(`📋 헤더 [${key}]: ${maskedValue}`);
+  });
+  
   // 세션 ID 헤더 가져오기 (대소문자 무관)
   let sessionId: string | undefined;
   const headerKeys = Object.keys(req.headers);

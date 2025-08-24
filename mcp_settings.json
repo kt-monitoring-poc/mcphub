@@ -34,10 +34,6 @@
       "headers": {
         "Authorization": "Bearer ${GITHUB_TOKEN}"
       }
-    },
-    "react Docs": {
-      "type": "streamable-http",
-      "url": "https://gitmcp.io/facebook/react"
     }
   }
 }

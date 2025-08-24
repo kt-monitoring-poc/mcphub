@@ -9,7 +9,7 @@ echo "🚀 Azure Container Apps 배포용 Docker 이미지 빌드 및 푸시 시
 
 # Docker Hub 설정
 DOCKER_HUB_USERNAME="kksshh0612"
-VERSION="v2"
+VERSION="v4"
 
 # 이미지 태그 설정
 BACKEND_IMAGE="mcphub-backend:azure"
