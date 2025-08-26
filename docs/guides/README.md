@@ -4,6 +4,9 @@
 
 ## 📚 주요 가이드
 
+### 👤 사용자 가이드
+- [MCPHub 사용자 가이드](./user-guide.md) - 일반 사용자를 위한 친절한 안내서
+
 ### 🔧 개발 가이드
 - [Node.js OpenTelemetry 완전 가이드](./nodejs-opentelemetry-complete-guide.md) - Loki, Tempo, Mimir 통합
 - [Cursor IDE 통합 가이드](./cursor-ide-integration.md) - Cursor에서 MCPHub 사용하기

@@ -173,10 +173,11 @@ curl -X POST http://localhost:3000/api/env-vars/cleanup \
 
 | 문서 | 설명 | 중요도 |
 |------|------|-------|
+| 📚 **[사용자 가이드](docs/guides/user-guide.md)** | 일반 사용자를 위한 친절한 안내서 | ⭐⭐⭐ |
 | 🎉 **[v2.6.0 릴리즈 노트](docs/release-notes/v2.6.0-session-isolation-2025-08-01.md)** | 최신 릴리즈 상세 정보 | ⭐⭐⭐ |
-| 🚀 **[Cursor IDE 통합 가이드](docs/cursor-ide-integration.md)** | Cursor에서 "No tools or prompts" 해결 포함 최종 가이드 | ⭐⭐⭐ |
-| 📊 **[프로젝트 현황](docs/mcphub-project-status.md)** | 전체 프로젝트 상태 및 완성도 | ⭐⭐⭐ |
-| ⚡ **[환경변수 시스템](docs/mcphub-env-var-system.md)** | 핵심 자동화 시스템 가이드 | ⭐⭐⭐ |
+| 🚀 **[Cursor IDE 통합 가이드](docs/guides/cursor-ide-integration.md)** | Cursor에서 "No tools or prompts" 해결 포함 최종 가이드 | ⭐⭐⭐ |
+| 📊 **[프로젝트 현황](docs/guides/mcphub-project-status.md)** | 전체 프로젝트 상태 및 완성도 | ⭐⭐⭐ |
+| ⚡ **[환경변수 시스템](docs/guides/mcphub-env-var-system.md)** | 핵심 자동화 시스템 가이드 | ⭐⭐⭐ |
 
 ### 🔧 **개발자 문서**
 
