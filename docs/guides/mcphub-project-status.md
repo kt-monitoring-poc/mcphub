@@ -4,8 +4,8 @@
 
 MCPHub는 Model Context Protocol (MCP) 서버들을 중앙 집중식으로 관리하는 허브 플랫폼입니다. 사용자들이 다양한 MCP 서버에 접근할 수 있도록 하는 통합 게이트웨이 역할을 합니다.
 
-**문서 버전**: 3.1.1  
-**최종 업데이트**: 2025-01-20
+**문서 버전**: 3.1.2  
+**최종 업데이트**: 2025-01-20 (사업계획서 추가)
 
 ## 🎯 핵심 완성 기능
 
@@ -640,6 +640,9 @@ sequenceDiagram
 - `docs/database-migration-guide.md` - **NEW** 데이터베이스 마이그레이션 가이드 (Azure/AWS/GCP)
 - `docs/api-reference.md` - API 엔드포인트 문서
 - `docs/docker-setup.md` - Docker 컨테이너 설정
+
+### 사업 계획 문서
+- `docs/business-plan/mcphub-business-plan-2025.md` - **NEW** MCPHub 종합 사업계획서 (2025-01-20 작성)
 
 ### 시스템 가이드
 - `MCPHUB_MULTIUSER_SESSION_COMPLETE_GUIDE.md` - 다중 사용자 세션 시스템 완전 가이드

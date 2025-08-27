@@ -44,6 +44,11 @@
 - [컨트리뷰션](development/contributing.mdx) - 개발 참여 가이드
 - [디버그 로깅](development/debug-logging.md) - 완전한 로깅 시스템
 
+### 💼 사업 계획 (business-plan/)
+**비즈니스 전략과 사업 관련 문서들**
+- [MCPHub 사업계획서 2025](business-plan/mcphub-business-plan-2025.md) 🌟 **NEW** - 종합적인 사업계획서 (v3.1.1 기준)
+- [비즈니스 문서 목록](business-plan/README.md) - 사업 관련 문서 안내
+
 ### 📖 개발 히스토리 (development-history/)
 **개발 과정의 모든 변경사항과 문제 해결 과정**
 - [**개발 히스토리 관리 시스템**](development-history/README.md) ⭐ - 체계적인 개발 기록 시스템
