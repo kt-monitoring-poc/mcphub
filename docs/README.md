@@ -49,6 +49,10 @@
 - [MCPHub 사업계획서 2025](business-plan/mcphub-business-plan-2025.md) 🌟 **NEW** - 종합적인 사업계획서 (v3.1.1 기준)
 - [비즈니스 문서 목록](business-plan/README.md) - 사업 관련 문서 안내
 
+### 📈 로드맵 (roadmap/)
+**프로젝트 진행 계획과 배포 전략**
+- [MCPHub 로드맵 2025](roadmap/mcphub-roadmap-2025.md) 🚀 **NEW** - 2025년 로드맵 및 배포 계획 (Private 환경 배포 포함)
+
 ### 📖 개발 히스토리 (development-history/)
 **개발 과정의 모든 변경사항과 문제 해결 과정**
 - [**개발 히스토리 관리 시스템**](development-history/README.md) ⭐ - 체계적인 개발 기록 시스템

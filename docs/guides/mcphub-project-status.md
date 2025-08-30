@@ -644,6 +644,9 @@ sequenceDiagram
 ### 사업 계획 문서
 - `docs/business-plan/mcphub-business-plan-2025.md` - **NEW** MCPHub 종합 사업계획서 (2025-01-20 작성)
 
+### 로드맵 문서
+- `docs/roadmap/mcphub-roadmap-2025.md` - **NEW** 2025년 로드맵 및 Private 환경 배포 계획 (2025-08-13 작성)
+
 ### 시스템 가이드
 - `MCPHUB_MULTIUSER_SESSION_COMPLETE_GUIDE.md` - 다중 사용자 세션 시스템 완전 가이드
 - `CURSOR_IDE_SETUP_GUIDE.md` - Cursor IDE 연동 설정 가이드 (구)
